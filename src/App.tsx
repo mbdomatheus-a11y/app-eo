@@ -446,7 +446,7 @@ export default function App() {
             <CircleHelp size={19} />
             <span>Sobre esta prévia</span>
           </button>
-          <span className="sidebar-version">App EO · versão 0.1</span>
+          <span className="sidebar-version">Excelência Operacional (EO) · versão 0.1</span>
         </div>
       </aside>
 
@@ -1157,7 +1157,8 @@ export default function App() {
       {help && (
         <Modal title="Sobre esta prévia" close={() => setHelp(false)}>
           <p className="modal-description">
-            Este é o primeiro espaço navegável do App EO. Você pode trocar de
+            Este é o primeiro espaço navegável da plataforma
+            Excelência Operacional (EO). Você pode trocar de
             perfil, confirmar comunicados, marcar tarefas e, como administrador,
             experimentar o logo e o catálogo de módulos.
           </p>

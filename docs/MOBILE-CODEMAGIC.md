@@ -5,7 +5,7 @@
 - A aplicação atual continua sendo React/Vite e o portal web segue publicado na Vercel.
 - Android e iOS usam Capacitor para empacotar a interface existente. Os projetos nativos estão em `android/` e `ios/`.
 - No Mac, a experiência é o portal web da Vercel, acessível pelo navegador. A instalação PWA e um instalador `.dmg` ainda não estão configurados; não há app nativo de macOS nesta etapa.
-- Identificador mobile inicial: `com.appeo.mobile`. Nome e ícones finais podem ser ajustados antes da publicação nas lojas.
+- Nome da aplicação confirmado: `Excelência Operacional (EO)`. Identificador técnico atual: `com.appeo.mobile`, ainda aguardando confirmação para registro nas lojas. Ícones finais continuam pendentes.
 
 ## Desenvolvimento rápido
 
@@ -38,7 +38,7 @@ O workflow Play envia somente para a faixa `internal`. O workflow Apple envia o 
 - A lista de identificadores Apple contém `com.matheus.controlall` e `co.median.ios.nmlbjjq`; `com.appeo.mobile` ainda não está registrado.
 - Google Play Console está conectado à conta `ControlAll` e lista apenas o app `Control ALL`, com pacote `com.matheus.controlall`. Ainda não existe registro do App EO.
 - Codemagic não tem variáveis de ambiente cadastradas para o app. Em Code signing identities, a seção de certificados iOS informa que nenhum certificado foi compartilhado. Nenhum build de release foi iniciado.
-- Nome de loja `App EO` e identificador `com.appeo.mobile` continuam provisórios. Confirmar antes de criar registros e registrar o Bundle ID, pois os identificadores de loja precisam ser mantidos nas atualizações futuras.
+- Nome de loja confirmado por Matheus: `Excelência Operacional (EO)`. O identificador `com.appeo.mobile` permanece provisório; confirmar antes de criar registros e registrar o Bundle ID, pois os identificadores precisam ser mantidos nas atualizações futuras.
 - O pedido de hoje se destina a faixas internas de teste. Não usar produção, envio para revisão pública ou rollout.
 
 O Codemagic está conectado ao repositório GitHub e reconheceu os fluxos da branch `codemagic/mobile-foundation`. Nenhum build foi iniciado automaticamente. As máquinas de build e cotas disponíveis dependem do plano configurado na conta.
@@ -53,7 +53,7 @@ O Codemagic está conectado ao repositório GitHub e reconheceu os fluxos da bra
 ## Próximos passos
 
 1. Contrato Apple confirmado como aceito na conta de desenvolvedor; após atualizar o App Store Connect, o aviso não aparece mais.
-2. Confirmar o nome e os identificadores definitivos antes de criar os registros nas lojas.
+2. O nome `Excelência Operacional (EO)` está confirmado. Confirmar o identificador `com.appeo.mobile` antes de criar os registros nas lojas.
 3. Configurar as assinaturas Android/Apple e credenciais secretas no Codemagic, sem colocar segredos no Git.
 4. Criar os registros do App EO nas lojas, gerar os pacotes e enviá-los aos fluxos internos; concluir a distribuição aos testadores nas consoles.
 5. Decidir onde hospedar o servidor Codemagic Patch. Se não for desejável manter outro serviço, manter o portal/PWA e aceitar builds nativos para mudanças que precisem chegar às lojas.

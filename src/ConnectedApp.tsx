@@ -589,7 +589,7 @@ export default function ConnectedApp() {
             <LogOut size={19} />
             Sair da conta
           </button>
-          <span className="sidebar-version">App EO · MVP 0.2</span>
+          <span className="sidebar-version">Excelência Operacional (EO) · MVP 0.2</span>
         </div>
       </aside>
       <div className="main-shell">
