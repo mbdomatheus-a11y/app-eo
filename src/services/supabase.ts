@@ -26,6 +26,7 @@ export interface Workspace {
     id: string;
     name: string;
     role: "admin" | "diretor" | "gerente" | "colaborador";
+    master_admin: boolean;
   };
   stores: Store[];
   settings: { workspace_name: string; disabled_modules: string[] };
@@ -46,7 +47,10 @@ export interface LivePerson {
   id: string;
   display_name: string;
   role: string;
+  login_chapa: string | null;
+  contact_email: string | null;
   active: boolean;
+  must_change_password: boolean;
   stores: string[];
 }
 export interface AuditRow {

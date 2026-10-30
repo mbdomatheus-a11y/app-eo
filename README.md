@@ -2,15 +2,15 @@
 
 Portal operacional modular para times de lojas. Nome de trabalho, ainda sujeito à escolha do Matheus.
 
-## Estado atual: MVP 0.2
+## Estado atual: MVP 0.3 em preparação
 
 Supabase conectado ao projeto SUP_EO1 (mfsnzrrqlyixqwsrcqyo), com migração inicial aplicada e testes de banco executados. A entrada padrão exige login individual; perfil e lojas vêm do servidor. Repositório privado: https://github.com/mbdomatheus-a11y/app-eo .
 
-Há implementação real de autenticação, cadastro de lojas, atribuição de acesso a contas confirmadas, comunicados com destinatários definidos na publicação, ciência individual e auditoria no servidor. Os módulos de checklist, cartazeamento, escala, evidências e IA continuam em planejamento. O primeiro acesso administrativo precisa ser provisionado de forma controlada; SMTP e domínio de produção continuam pendentes.
+O núcleo 0.2 e a migração 0.3 já estão no Supabase. A atualização local 0.3 prepara login por chapa, convite de pessoas, perfil, lojas, edição/desativação e senha temporária do administrador master com troca obrigatória. A Edge Function `admin-identity` também está publicada; o frontend ainda precisa ser enviado ao GitHub e não tem publicação Vercel.
 
 Copie `.env.example` para `.env.local` e preencha SOMENTE a chave publicável do projeto. Nunca inclua service_role, sb_secret ou senha do banco em variáveis VITE_*. `.env.local` é ignorado pelo Git. A configuração do computador de desenvolvimento já foi feita.
 
-Vercel: configuração preparada em `vercel.json`, com publicação automática pelo Git explicitamente desligada. Matheus optou por não contratar Pro agora; não publicar uso corporativo no Hobby. Ver [preparação de publicação](docs/PUBLICACAO.md).
+Vercel: projeto e configuração prontos, sem publicação. O Hobby só permite uso pessoal não comercial. Para hospedar este app corporativo é necessário um plano compatível; não publicar o app no Hobby. Ver [preparação de publicação](docs/PUBLICACAO.md).
 
 A demonstração antiga continua acessível apenas durante desenvolvimento em `http://127.0.0.1:5173/?demo=1`. Os tópicos sobre a versão 0.1 abaixo são históricos e descrevem exclusivamente essa demonstração.
 

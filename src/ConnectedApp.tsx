@@ -85,6 +85,8 @@ export default function ConnectedApp() {
     );
   const [audit, setAudit] = useState<AuditRow[]>([]),
     [members, setMembers] = useState<LivePerson[]>([]);
+  const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [editingMember, setEditingMember] = useState<LivePerson | null>(null);
   const [tab, setTab] = useState<"stores" | "people" | "audit">("stores"),
     [future, setFuture] = useState("");
   const epoch = useRef(0),
@@ -97,6 +99,7 @@ export default function ConnectedApp() {
     setAudit([]);
     setOpened(null);
     setPage("home");
+    setTemporaryPassword("");
   }, []);
   useEffect(() => {
     if (!supabase) {
@@ -129,6 +132,13 @@ export default function ConnectedApp() {
     setLoading(true);
     setError("");
     try {
+      const status = await rpc<{ must_change_password: boolean }>(
+        "eo_password_status",
+      );
+      if (status.must_change_password) {
+        setPasswordMode(true);
+        return;
+      }
       const ctx = await rpc<Workspace>("eo_context");
       const feed = await rpc<LiveNotice[]>("eo_feed");
       if (current !== epoch.current) return;
@@ -165,8 +175,11 @@ export default function ConnectedApp() {
     const data = new FormData(e.currentTarget);
     await act(async () => {
       if (!supabase) return;
+      const chapa = String(data.get("chapa")).trim();
+      if (!/^\d{1,20}$/.test(chapa))
+        throw new Error("Informe sua chapa numérica.");
       const { error: e } = await supabase.auth.signInWithPassword({
-        email: String(data.get("email")).trim(),
+        email: `app-${chapa}@login.app-eo.invalid`,
         password: String(data.get("password")),
       });
       if (e)
@@ -193,16 +206,19 @@ export default function ConnectedApp() {
         throw new Error(
           "As senhas devem coincidir e ter pelo menos 12 caracteres.",
         );
-      const { error: e } = await supabase!.auth.updateUser({
-        password,
-        nonce: String(data.get("nonce") || "") || undefined,
+      const { error: e } = await supabase!.functions.invoke("admin-identity", {
+        body: { action: "change-temporary-password", password },
       });
       if (e)
         throw new Error(
-          "Não foi possível definir a senha. Confira a validade do acesso ou solicite reautenticação.",
+          "Não foi possível concluir a troca. Confira a validade do acesso ou peça um novo convite à administração.",
         );
       setPasswordMode(false);
-      setMessage("Senha definida.");
+      history.replaceState({}, "", location.pathname);
+      clear();
+      await supabase!.auth.signOut({ scope: "local" });
+      setSession(null);
+      setMessage("Senha atualizada. Entre novamente com sua chapa.");
     });
   }
   async function acknowledge(n: LiveNotice) {
@@ -272,21 +288,84 @@ export default function ConnectedApp() {
       setMessage("Loja cadastrada.");
     });
   }
-  async function addMember(e: FormEvent<HTMLFormElement>) {
+  async function inviteMember(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = e.currentTarget,
-      data = new FormData(form);
+    const form = e.currentTarget;
+    const data = new FormData(form);
     await act(async () => {
-      await rpc("eo_admin_member", {
-        p_user: String(data.get("id")).trim(),
-        p_name: String(data.get("name")).trim(),
-        p_role: data.get("role"),
-        p_stores: data.getAll("stores"),
-        p_active: true,
-      });
+      const { error: inviteError } = await supabase!.functions.invoke(
+        "admin-identity",
+        {
+          body: {
+            action: "invite-person",
+            email: String(data.get("email")).trim(),
+            chapa: String(data.get("chapa")).trim(),
+            name: String(data.get("name")).trim(),
+            role: String(data.get("role")),
+            stores: data.getAll("stores").map(String),
+          },
+        },
+      );
+      if (inviteError)
+        throw new Error(
+          "Convite não enviado. Confira o SMTP, a chapa e as lojas selecionadas.",
+        );
       form.reset();
       setMembers(await rpc<LivePerson[]>("eo_admin_people"));
-      setMessage("Acesso salvo.");
+      setMessage(
+        "Convite enviado. A pessoa criará sua senha no primeiro acesso.",
+      );
+    });
+  }
+  async function toggleMember(p: LivePerson) {
+    await act(async () => {
+      await rpc("eo_admin_update_person", {
+        p_user: p.id,
+        p_name: p.display_name,
+        p_role: p.role,
+        p_chapa: p.login_chapa,
+        p_stores: p.stores,
+        p_active: !p.active,
+      });
+      setMembers(await rpc<LivePerson[]>("eo_admin_people"));
+      setMessage(p.active ? "Acesso desativado." : "Acesso reativado.");
+    });
+  }
+  async function saveMember(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!editingMember) return;
+    const data = new FormData(e.currentTarget);
+    await act(async () => {
+      await rpc("eo_admin_update_person", {
+        p_user: editingMember.id,
+        p_name: String(data.get("name")).trim(),
+        p_role: String(data.get("role")),
+        p_chapa: String(data.get("chapa")).trim(),
+        p_stores: data.getAll("stores").map(String),
+        p_active: editingMember.active,
+      });
+      setMembers(await rpc<LivePerson[]>("eo_admin_people"));
+      setEditingMember(null);
+      setMessage("Perfil e abrangência atualizados.");
+    });
+  }
+  async function issueTemporaryPassword() {
+    await act(async () => {
+      const { data, error: issueError } = await supabase!.functions.invoke(
+        "admin-identity",
+        {
+          body: {
+            action: "issue-master-temporary-password",
+            user_id: workspace!.person.id,
+          },
+        },
+      );
+      if (issueError || typeof data?.password !== "string")
+        throw new Error("Não foi possível gerar uma senha temporária.");
+      setTemporaryPassword(data.password);
+      setMessage(
+        "Senha temporária criada. Copie e guarde em local seguro agora.",
+      );
     });
   }
 
@@ -334,16 +413,18 @@ export default function ConnectedApp() {
         <section className="auth-card">
           <span className="eyebrow">BEM-VINDO AO SEU ESPAÇO</span>
           <h2>Vamos fazer acontecer?</h2>
-          <p>Use o e-mail e a senha da sua conta.</p>
+          <p>Use sua chapa e a senha individual.</p>
           <form className="form" onSubmit={login}>
             <label>
-              E-mail
+              Chapa
               <input
-                name="email"
-                type="email"
+                name="chapa"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]{1,20}"
                 autoComplete="username"
                 required
-                placeholder="seu.email@empresa.com.br"
+                placeholder="Ex.: 123456"
               />
             </label>
             <label>
@@ -403,28 +484,6 @@ export default function ConnectedApp() {
                 required
               />
             </label>
-            <label>
-              Código de reautenticação, se solicitado
-              <input
-                name="nonce"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-              />
-            </label>
-            <button
-              type="button"
-              className="text-button"
-              disabled={busy}
-              onClick={() =>
-                void act(async () => {
-                  const { error: e } = await supabase!.auth.reauthenticate();
-                  if (e) throw e;
-                  setMessage("Código solicitado. Confira seu e-mail.");
-                })
-              }
-            >
-              Solicitar reautenticação
-            </button>
             <button disabled={busy} className="primary" type="submit">
               Salvar senha
             </button>
@@ -830,16 +889,30 @@ export default function ConnectedApp() {
               {tab === "people" && (
                 <>
                   <section className="panel">
-                    <h2>Vincular conta confirmada</h2>
+                    <h2>Convidar pessoa</h2>
                     <p>
-                      Use o identificador da conta já criada em Authentication.
-                      A criação e o convite de contas serão integrados em uma
-                      próxima etapa.
+                      A conta é individual e recebe o perfil e as lojas
+                      selecionadas. A pessoa define sua senha pelo convite.
                     </p>
-                    <form className="form" onSubmit={addMember}>
+                    <form className="form" onSubmit={inviteMember}>
                       <label>
-                        Identificador da conta (UUID)
-                        <input name="id" required pattern="[0-9a-fA-F-]{36}" />
+                        Chapa
+                        <input
+                          name="chapa"
+                          required
+                          inputMode="numeric"
+                          pattern="[0-9]{1,20}"
+                          maxLength={20}
+                        />
+                      </label>
+                      <label>
+                        E-mail corporativo
+                        <input
+                          name="email"
+                          type="email"
+                          required
+                          maxLength={254}
+                        />
                       </label>
                       <label>
                         Nome
@@ -855,8 +928,12 @@ export default function ConnectedApp() {
                         <select name="role">
                           <option value="colaborador">Colaborador</option>
                           <option value="gerente">Gerente</option>
-                          <option value="diretor">Diretor</option>
-                          <option value="admin">Administrador</option>
+                          {workspace.person.master_admin && (
+                            <option value="diretor">Diretor</option>
+                          )}
+                          {workspace.person.master_admin && (
+                            <option value="admin">Administrador</option>
+                          )}
                         </select>
                       </label>
                       <fieldset>
@@ -869,7 +946,7 @@ export default function ConnectedApp() {
                         ))}
                       </fieldset>
                       <button disabled={busy} className="primary">
-                        Salvar acesso
+                        Enviar convite
                       </button>
                     </form>
                   </section>
@@ -880,16 +957,55 @@ export default function ConnectedApp() {
                         <thead>
                           <tr>
                             <th>Nome</th>
+                            <th>Chapa</th>
+                            <th>E-mail</th>
                             <th>Perfil</th>
                             <th>Status</th>
+                            <th>Ação</th>
                           </tr>
                         </thead>
                         <tbody>
                           {members.map((p) => (
                             <tr key={p.id}>
                               <td>{p.display_name}</td>
+                              <td>{p.login_chapa || "Não informada"}</td>
+                              <td>{p.contact_email || "Não informado"}</td>
                               <td>{p.role}</td>
-                              <td>{p.active ? "Ativo" : "Inativo"}</td>
+                              <td>
+                                {!p.active
+                                  ? "Inativo"
+                                  : p.must_change_password
+                                    ? "Aguardando primeiro acesso"
+                                    : "Ativo"}
+                              </td>
+                              <td>
+                                {p.id !== workspace.person.id && (
+                                  <>
+                                    <button
+                                      className="text-button"
+                                      disabled={
+                                        busy ||
+                                        (!workspace.person.master_admin &&
+                                          ["admin", "diretor"].includes(p.role))
+                                      }
+                                      onClick={() => setEditingMember(p)}
+                                    >
+                                      Editar
+                                    </button>
+                                    <button
+                                      className="text-button"
+                                      disabled={
+                                        busy ||
+                                        (!workspace.person.master_admin &&
+                                          ["admin", "diretor"].includes(p.role))
+                                      }
+                                      onClick={() => void toggleMember(p)}
+                                    >
+                                      {p.active ? "Desativar" : "Reativar"}
+                                    </button>
+                                  </>
+                                )}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -897,6 +1013,49 @@ export default function ConnectedApp() {
                     </div>
                   </section>
                 </>
+              )}
+              {tab === "people" && workspace.person.master_admin && (
+                <section className="panel">
+                  <h2>Acesso do administrador master</h2>
+                  <p>
+                    Chapa 123456. Gere uma senha temporária para exigir a troca
+                    no próximo acesso.
+                  </p>
+                  {!temporaryPassword ? (
+                    <button
+                      className="primary"
+                      disabled={busy}
+                      onClick={() => void issueTemporaryPassword()}
+                    >
+                      Gerar senha temporária
+                    </button>
+                  ) : (
+                    <>
+                      <label>
+                        Senha temporária
+                        <input readOnly value={temporaryPassword} />
+                      </label>
+                      <button
+                        className="secondary"
+                        onClick={() =>
+                          void navigator.clipboard.writeText(temporaryPassword)
+                        }
+                      >
+                        Copiar senha
+                      </button>
+                      <button
+                        className="text-button"
+                        onClick={() => void signout()}
+                      >
+                        Guardei a senha, sair agora
+                      </button>
+                      <p role="status">
+                        Ela aparece apenas nesta tela. Depois de entrar com ela,
+                        o sistema exigirá uma nova senha.
+                      </p>
+                    </>
+                  )}
+                </section>
               )}
               {tab === "audit" && (
                 <section className="panel">
@@ -1008,6 +1167,67 @@ export default function ConnectedApp() {
             )}
             <button className="primary" disabled={busy}>
               Publicar para o time
+            </button>
+          </form>
+        </Dialog>
+      )}
+      {editingMember && (
+        <Dialog title="Editar acesso" close={() => setEditingMember(null)}>
+          <form className="form" onSubmit={saveMember}>
+            <label>
+              Nome
+              <input
+                name="name"
+                required
+                minLength={2}
+                maxLength={120}
+                defaultValue={editingMember.display_name}
+              />
+            </label>
+            <label>
+              Chapa
+              <input
+                name="chapa"
+                required
+                inputMode="numeric"
+                pattern="[0-9]{1,20}"
+                defaultValue={editingMember.login_chapa ?? ""}
+              />
+            </label>
+            <label>
+              Perfil
+              <select name="role" defaultValue={editingMember.role}>
+                <option value="colaborador">Colaborador</option>
+                <option value="gerente">Gerente</option>
+                {workspace.person.master_admin && (
+                  <option value="diretor">Diretor</option>
+                )}
+                {workspace.person.master_admin && (
+                  <option value="admin">Administrador</option>
+                )}
+              </select>
+            </label>
+            <fieldset>
+              <legend>Lojas autorizadas</legend>
+              {workspace.stores.map((s) => (
+                <label className="checkbox-label" key={s.id}>
+                  <input
+                    type="checkbox"
+                    name="stores"
+                    value={s.id}
+                    defaultChecked={editingMember.stores.includes(s.id)}
+                  />
+                  {s.code} · {s.name}
+                </label>
+              ))}
+            </fieldset>
+            {error && (
+              <p className="form-error" role="alert">
+                {error}
+              </p>
+            )}
+            <button className="primary" disabled={busy}>
+              Salvar alterações
             </button>
           </form>
         </Dialog>
