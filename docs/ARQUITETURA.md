@@ -1,5 +1,11 @@
 # Arquitetura inicial
 
+## Evolução para MVP 0.2 em 29/10/2026
+
+Supabase escolhido e núcleo instalado em projeto exclusivo. Acesso por RPCs com identidade de sessão, verificações por loja/cargo e perfil ativo; tabelas com RLS e sem privilégios diretos do cliente. Migrações SQL e testes de integração em supabase/. O histórico abaixo descreve o ponto de partida 0.1; a arquitetura implementada atual está detalhada em docs/PUBLICACAO.md.
+
+GitHub privado com CI de instalação/testes/build. Projeto Vercel vinculado com configuração preparada, chave publicável e URL cadastradas, mas sem implantação. Publicação automática desligada por decisão do Matheus de adiar a contratação Pro. Configurações locais e credenciais da CLI são ignoradas no Git.
+
 ## Decisões de 29/10/2026
 
 - Projeto independente na pasta App_EO existente. Nenhum código, banco, segredo ou configuração de publicação do Control ALL foi copiado.

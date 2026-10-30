@@ -1,10 +1,27 @@
-import {readFile} from 'node:fs/promises';
-import {createClient} from '@supabase/supabase-js';
-const env=Object.fromEntries((await readFile(new URL('../.env.local',import.meta.url),'utf8')).split(/\r?\n/).filter(l=>l&&!l.startsWith('#')).map(l=>{const i=l.indexOf('=');return [l.slice(0,i),l.slice(i+1)];}));
-const client=createClient(env.VITE_SUPABASE_URL,env.VITE_SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:false}});
-const context=await client.rpc('eo_context');
-if(!context.error)throw new Error('RPC de contexto acessível sem autenticação.');
-if(!['42501','PGRST301','PGRST302'].includes(context.error.code))throw new Error(`Falha inesperada no contexto: ${context.error.code}`);
-const profiles=await client.from('eo_profiles').select('id').limit(1);
-if(!profiles.error||profiles.error.code!=='42501')throw new Error(`Proteção da tabela não confirmada: ${profiles.error?.code}`);
-console.log('PASSOU: endpoint ativo; contexto e leitura direta de perfis bloqueados para visitante.');
+import { readFile } from "node:fs/promises";
+import { createClient } from "@supabase/supabase-js";
+const env = Object.fromEntries(
+  (await readFile(new URL("../.env.local", import.meta.url), "utf8"))
+    .split(/\r?\n/)
+    .filter((l) => l && !l.startsWith("#"))
+    .map((l) => {
+      const i = l.indexOf("=");
+      return [l.slice(0, i), l.slice(i + 1)];
+    }),
+);
+const client = createClient(
+  env.VITE_SUPABASE_URL,
+  env.VITE_SUPABASE_PUBLISHABLE_KEY,
+  { auth: { persistSession: false } },
+);
+const context = await client.rpc("eo_context");
+if (!context.error)
+  throw new Error("RPC de contexto acessível sem autenticação.");
+if (!["42501", "PGRST301", "PGRST302"].includes(context.error.code))
+  throw new Error(`Falha inesperada no contexto: ${context.error.code}`);
+const profiles = await client.from("eo_profiles").select("id").limit(1);
+if (!profiles.error || profiles.error.code !== "42501")
+  throw new Error(`Proteção da tabela não confirmada: ${profiles.error?.code}`);
+console.log(
+  "PASSOU: endpoint ativo; contexto e leitura direta de perfis bloqueados para visitante.",
+);
