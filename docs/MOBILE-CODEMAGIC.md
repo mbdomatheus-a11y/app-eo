@@ -32,6 +32,14 @@ Ainda não há assinatura nem publicação nas lojas configuradas. Um APK de dep
 
 O workflow Play envia somente para a faixa `internal`. O workflow Apple envia o IPA para App Store Connect e usa exportação exclusiva para teste interno. A distribuição a testadores é concluída nas respectivas consoles depois que a loja processar o pacote.
 
+### Situação verificada antes do primeiro envio (30/10/2026)
+
+- App Store Connect está conectado e lista `Control ALL` e `Control ALL Finanças`; o registro do App EO ainda não existe. A página avisa que o contrato do Apple Developer Program foi atualizado e precisa ser revisado pelo titular da conta. Essa aceitação precisa ser feita pelo próprio titular.
+- Google Play Console está conectado à conta `ControlAll` e lista apenas o app `Control ALL`, com pacote `com.matheus.controlall`. Ainda não existe registro do App EO.
+- Codemagic não tem variáveis de ambiente cadastradas para o app. Em Code signing identities, a seção de certificados iOS informa que nenhum certificado foi compartilhado. Nenhum build de release foi iniciado.
+- Nome de loja e identificador `com.appeo.mobile` continuam provisórios. Confirmar antes de criar registros, pois identificadores de loja não devem ser escolhidos para teste temporário.
+- O pedido de hoje se destina a faixas internas de teste. Não usar produção, envio para revisão pública ou rollout.
+
 O Codemagic está conectado ao repositório GitHub e reconheceu os fluxos da branch `codemagic/mobile-foundation`. Nenhum build foi iniciado automaticamente. As máquinas de build e cotas disponíveis dependem do plano configurado na conta.
 
 ## Atualizações sem recompilar
