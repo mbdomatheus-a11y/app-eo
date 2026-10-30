@@ -5,6 +5,7 @@ workflows:
     instance_type: mac_mini_m2
     environment:
       node: 22.12.0
+      java: 21
     scripts:
       - name: Install dependencies
         script: npm ci
@@ -45,6 +46,7 @@ workflows:
     instance_type: mac_mini_m2
     environment:
       node: 22.12.0
+      java: 21
       android_signing:
         - app_eo_android_upload
     scripts:
@@ -89,6 +91,7 @@ workflows:
     instance_type: mac_mini_m2
     environment:
       node: 22.12.0
+      java: 21
       android_signing:
         - app_eo_android_upload
       groups:
