@@ -19,6 +19,8 @@ O `codemagic.yaml` contém seis fluxos manuais: APK Android de depuração, app 
 
 Os workflows usam Node.js `22.12.0`, requisito mínimo do Vite 8 na linha 22.x. A primeira tentativa no Codemagic usou `22.11.0` e falhou antes do build, pois o binding nativo opcional do Rolldown para macOS não foi instalado. A versão foi corrigida em todos os workflows; `npm run build` foi confirmado localmente após a alteração.
 
+O arquivo estático do Capacitor é `capacitor.config.json`. O Codemagic encontrou incompatibilidade entre o carregador de `capacitor.config.ts` e TypeScript 7. A configuração não tem lógica dinâmica, então foi convertida para JSON, formato oficialmente suportado pelo Capacitor. `npx cap sync android` confirmou a leitura da nova configuração localmente.
+
 ### Configuração para gerar candidatos de release
 
 - Android: adicionar no Codemagic uma chave de upload em Code signing identities usando a referência `app_eo_android_upload`. A chave deve ser guardada também em backup próprio, fora do Git. O fluxo gera um `.aab` assinado.
@@ -54,14 +56,15 @@ O Codemagic está conectado ao repositório GitHub e reconheceu os fluxos da bra
 
 1. Contrato Apple confirmado como aceito na conta de desenvolvedor; após atualizar o App Store Connect, o aviso não aparece mais.
 2. Apple Developer App ID registrado: `com.appeo.mobile`. Registro iOS criado no App Store Connect com nome `Excelência Operacional (EO)`, idioma Português (Brasil), SKU `EO-IOS-001` e acesso total. O status observado é `iOS 1.0 Preparar para envio`, sem build ou upload.
-3. Google Play: pacote `com.appeo.mobile` verificado como disponível. O formulário de criação está preenchido com nome e pacote, categoria App, idioma pt-BR e gratuito. A criação aguarda confirmação do titular para as declarações de políticas e leis de exportação dos EUA; caixas permaneceram desmarcadas.
+3. Google Play: Matheus confirmou que criou o app. O painel abre em `app/4972840947538514394/app-dashboard`; o registro está disponível para iniciar o teste interno. Ainda não há AAB enviado.
 4. Configurar no Codemagic as assinaturas Android/Apple e credenciais secretas, sem colocar segredos no Git. Nenhuma chave ou certificado foi compartilhado ainda.
 5. Depois das declarações e credenciais, gerar os pacotes e enviar apenas às faixas internas Play e TestFlight. Nenhum release público, envio para revisão ou rollout foi iniciado.
 6. Decidir onde hospedar o servidor Codemagic Patch. Se não for desejável manter outro serviço, manter o portal/PWA e aceitar builds nativos para mudanças que precisem chegar às lojas.
 7. Caso seja necessário um instalador nativo `.dmg`, planejar alvo macOS próprio e respectiva assinatura; OTA de Capacitor não atualiza um app macOS independente.
 
-### Build Android de depuração no Codemagic (30/10/2026)
+### Builds Android de depuração no Codemagic (30/10/2026)
 
 - Build `6ae50f10efa74786046f45c5` foi iniciado no workflow `android-debug`, branch `codemagic/mobile-foundation`, mas falhou na etapa `Build web app` antes de sincronizar ou empacotar Android.
 - Diagnóstico: Codemagic usava Node `22.11.0`, abaixo do mínimo `22.12+` exigido pelo Vite 8. Isso impediu carregar o binding nativo do Rolldown para macOS.
-- Correção: todos os seis workflows agora usam Node `22.12.0`. Build local TypeScript/Vite passou depois da correção. O novo build Codemagic ainda precisa ser iniciado para obter o APK.
+- Commit `d71e129` atualizou todos os workflows para Node `22.12.0`. A segunda tentativa, build `6ae50fd2efa74786046f45fe`, passou pelo build web mas falhou em `npx cap sync android`: TypeScript 7 removeu o compilador JavaScript usado pelo carregador antigo do arquivo de configuração `.ts`.
+- Correção local: migração para `capacitor.config.json`, mantendo os mesmos valores `appId`, `appName` e `webDir`. `npm run build` e `npx cap sync android` passaram localmente. Falta enviar essa correção ao GitHub e repetir o workflow para obter o APK.
