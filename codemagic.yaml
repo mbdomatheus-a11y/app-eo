@@ -82,3 +82,62 @@ workflows:
         script: xcode-project build-ipa --project ios/App/App.xcodeproj --scheme App
     artifacts:
       - build/ios/ipa/*.ipa
+
+  android-play-internal:
+    name: App EO Android (teste interno Google Play)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      node: 22.11.0
+      android_signing:
+        - app_eo_android_upload
+      groups:
+        - app_eo_google_play
+    scripts:
+      - name: Install dependencies
+        script: npm ci
+      - name: Build web app
+        script: npm run build
+      - name: Sync Android project
+        script: npx cap sync android
+      - name: Build signed Android App Bundle
+        script: cd android && ./gradlew bundleRelease
+    artifacts:
+      - android/app/build/outputs/bundle/release/*.aab
+    publishing:
+      google_play:
+        credentials: $GOOGLE_PLAY_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+
+  ios-testflight-internal:
+    name: App EO iOS (TestFlight interno)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      node: 22.11.0
+      xcode: latest
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.appeo.mobile
+      groups:
+        - app_eo_app_store
+    scripts:
+      - name: Install dependencies
+        script: npm ci
+      - name: Build web app
+        script: npm run build
+      - name: Sync iOS project
+        script: npx cap sync ios
+      - name: Set unique iOS build number
+        script: perl -0pi -e 's/CURRENT_PROJECT_VERSION = \d+;/CURRENT_PROJECT_VERSION = $ENV{PROJECT_BUILD_NUMBER};/g' ios/App/App.xcodeproj/project.pbxproj
+      - name: Apply Apple signing profiles for internal testing
+        script: xcode-project use-profiles --custom-export-options='{"testFlightInternalTestingOnly":true}'
+      - name: Build signed IPA
+        script: xcode-project build-ipa --project ios/App/App.xcodeproj --scheme App
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
