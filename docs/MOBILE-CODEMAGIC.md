@@ -34,10 +34,11 @@ O workflow Play envia somente para a faixa `internal`. O workflow Apple envia o 
 
 ### Situação verificada antes do primeiro envio (30/10/2026)
 
-- App Store Connect está conectado e lista `Control ALL` e `Control ALL Finanças`; o registro do App EO ainda não existe. A página avisa que o contrato do Apple Developer Program foi atualizado e precisa ser revisado pelo titular da conta. Essa aceitação precisa ser feita pelo próprio titular.
+- App Store Connect está conectado e lista `Control ALL` e `Control ALL Finanças`; o registro do App EO ainda não existe. Matheus aceitou o contrato atualizado. A página de conta Apple Developer mostra o contrato aceito e, após atualizar o App Store Connect, o aviso deixou de aparecer.
+- A lista de identificadores Apple contém `com.matheus.controlall` e `co.median.ios.nmlbjjq`; `com.appeo.mobile` ainda não está registrado.
 - Google Play Console está conectado à conta `ControlAll` e lista apenas o app `Control ALL`, com pacote `com.matheus.controlall`. Ainda não existe registro do App EO.
 - Codemagic não tem variáveis de ambiente cadastradas para o app. Em Code signing identities, a seção de certificados iOS informa que nenhum certificado foi compartilhado. Nenhum build de release foi iniciado.
-- Nome de loja e identificador `com.appeo.mobile` continuam provisórios. Confirmar antes de criar registros, pois identificadores de loja não devem ser escolhidos para teste temporário.
+- Nome de loja `App EO` e identificador `com.appeo.mobile` continuam provisórios. Confirmar antes de criar registros e registrar o Bundle ID, pois os identificadores de loja precisam ser mantidos nas atualizações futuras.
 - O pedido de hoje se destina a faixas internas de teste. Não usar produção, envio para revisão pública ou rollout.
 
 O Codemagic está conectado ao repositório GitHub e reconheceu os fluxos da branch `codemagic/mobile-foundation`. Nenhum build foi iniciado automaticamente. As máquinas de build e cotas disponíveis dependem do plano configurado na conta.
@@ -51,9 +52,9 @@ O Codemagic está conectado ao repositório GitHub e reconheceu os fluxos da bra
 
 ## Próximos passos
 
-1. Aceitar/revisar contratos pendentes diretamente nas contas de loja, pelo titular da conta.
-2. Confirmar o nome e os identificadores dos apps antes de criar os registros nas lojas.
+1. Contrato Apple confirmado como aceito na conta de desenvolvedor; após atualizar o App Store Connect, o aviso não aparece mais.
+2. Confirmar o nome e os identificadores definitivos antes de criar os registros nas lojas.
 3. Configurar as assinaturas Android/Apple e credenciais secretas no Codemagic, sem colocar segredos no Git.
-4. Gerar os pacotes e enviar aos fluxos internos; concluir a distribuição aos testadores nas consoles.
+4. Criar os registros do App EO nas lojas, gerar os pacotes e enviá-los aos fluxos internos; concluir a distribuição aos testadores nas consoles.
 5. Decidir onde hospedar o servidor Codemagic Patch. Se não for desejável manter outro serviço, manter o portal/PWA e aceitar builds nativos para mudanças que precisem chegar às lojas.
 6. Caso seja necessário um instalador nativo `.dmg`, planejar alvo macOS próprio e respectiva assinatura; OTA de Capacitor não atualiza um app macOS independente.
