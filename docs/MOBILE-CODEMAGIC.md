@@ -58,7 +58,7 @@ O Codemagic está conectado ao repositório GitHub e reconheceu os fluxos da bra
 2. Apple Developer App ID registrado: `com.appeo.mobile`. Registro iOS criado no App Store Connect com nome `Excelência Operacional (EO)`, idioma Português (Brasil), SKU `EO-IOS-001` e acesso total. O status observado é `iOS 1.0 Preparar para envio`, sem build ou upload.
 3. Google Play: Matheus confirmou que criou o app. O painel abre em `app/4972840947538514394/app-dashboard`; o registro está disponível para iniciar o teste interno. Ainda não há AAB enviado.
 4. Configurar no Codemagic as assinaturas Android/Apple e credenciais secretas, sem colocar segredos no Git. Nenhuma chave ou certificado foi compartilhado ainda.
-5. Depois das declarações e credenciais, gerar os pacotes e enviar apenas às faixas internas Play e TestFlight. Nenhum release público, envio para revisão ou rollout foi iniciado.
+5. Depois de configurar assinaturas e credenciais, gerar os pacotes e enviar apenas às faixas internas Play e TestFlight. Nenhum release público, envio para revisão ou rollout foi iniciado.
 6. Decidir onde hospedar o servidor Codemagic Patch. Se não for desejável manter outro serviço, manter o portal/PWA e aceitar builds nativos para mudanças que precisem chegar às lojas.
 7. Caso seja necessário um instalador nativo `.dmg`, planejar alvo macOS próprio e respectiva assinatura; OTA de Capacitor não atualiza um app macOS independente.
 
@@ -68,4 +68,5 @@ O Codemagic está conectado ao repositório GitHub e reconheceu os fluxos da bra
 - Diagnóstico: Codemagic usava Node `22.11.0`, abaixo do mínimo `22.12+` exigido pelo Vite 8. Isso impediu carregar o binding nativo do Rolldown para macOS.
 - Commit `d71e129` atualizou todos os workflows para Node `22.12.0`. A segunda tentativa, build `6ae50fd2efa74786046f45fe`, passou pelo build web mas falhou em `npx cap sync android`: TypeScript 7 removeu o compilador JavaScript usado pelo carregador antigo do arquivo de configuração `.ts`.
 - Commit `b8b50aa` migrou para `capacitor.config.json`, mantendo os valores `appId`, `appName` e `webDir`. `npm run build` e `npx cap sync android` passaram localmente. A terceira tentativa, build `6ae51063efa74786046f462b`, passou pelo build web e sincronização Android, mas falhou porque `android/gradlew` estava registrado sem permissão de execução (`100644`).
-- Correção atual: marcar `android/gradlew` como executável no Git (`100755`). Essa alteração está preparada localmente; depois de enviá-la, repetir o workflow para obter o APK.
+- Commit `c4ca73c` marcou `android/gradlew` como executável (`100755`). A quarta tentativa, build `6ae510efefa74786046f465b`, passou pelo build web e sync, executou o Gradle, mas falhou em `android/app/build.gradle` linha 10 com `Value is null` ao definir `versionCode`.
+- Correção atual: ler `PROJECT_BUILD_NUMBER` com validação explícita e usar 1 como fallback; assim builds sem número também têm versão válida. Falta enviar essa correção ao GitHub e repetir o workflow para obter o APK.

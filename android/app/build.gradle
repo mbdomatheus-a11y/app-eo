@@ -1,5 +1,10 @@
 apply plugin: 'com.android.application'
 
+def codemagicBuildNumber = System.getenv('PROJECT_BUILD_NUMBER')
+def appVersionCode = codemagicBuildNumber != null && codemagicBuildNumber.isInteger()
+        ? codemagicBuildNumber.toInteger()
+        : 1
+
 android {
     namespace = "com.appeo.mobile"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,7 +12,7 @@ android {
         applicationId "com.appeo.mobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode (System.getenv()["PROJECT_BUILD_NUMBER"] ?: "1").toInteger()
+        versionCode appVersionCode
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
