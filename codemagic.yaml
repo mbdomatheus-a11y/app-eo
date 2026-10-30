@@ -1,0 +1,40 @@
+workflows:
+  android-debug:
+    name: App EO Android (debug)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      node: 22.11.0
+    scripts:
+      - name: Install dependencies
+        script: npm ci
+      - name: Build web app
+        script: npm run build
+      - name: Sync Android project
+        script: npx cap sync android
+      - name: Build Android debug APK
+        script: cd android && ./gradlew assembleDebug
+    artifacts:
+      - android/app/build/outputs/apk/debug/*.apk
+
+  ios-simulator:
+    name: App EO iOS (simulator)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      node: 22.11.0
+      xcode: latest
+    scripts:
+      - name: Install dependencies
+        script: npm ci
+      - name: Build web app
+        script: npm run build
+      - name: Sync iOS project
+        script: npx cap sync ios
+      - name: Build iOS simulator app
+        script: >-
+          xcodebuild -project ios/App/App.xcodeproj -scheme App
+          -configuration Debug -sdk iphonesimulator
+          -derivedDataPath build/ios CODE_SIGNING_ALLOWED=NO
+    artifacts:
+      - build/ios/Build/Products/Debug-iphonesimulator/App.app/**
