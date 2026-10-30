@@ -4,7 +4,7 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
-      node: 22.11.0
+      node: 22.12.0
     scripts:
       - name: Install dependencies
         script: npm ci
@@ -22,7 +22,7 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
-      node: 22.11.0
+      node: 22.12.0
       xcode: latest
     scripts:
       - name: Install dependencies
@@ -44,7 +44,7 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
-      node: 22.11.0
+      node: 22.12.0
       android_signing:
         - app_eo_android_upload
     scripts:
@@ -64,7 +64,7 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
-      node: 22.11.0
+      node: 22.12.0
       xcode: latest
       ios_signing:
         distribution_type: app_store
@@ -88,7 +88,7 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
-      node: 22.11.0
+      node: 22.12.0
       android_signing:
         - app_eo_android_upload
       groups:
@@ -114,7 +114,7 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
-      node: 22.11.0
+      node: 22.12.0
       xcode: latest
       ios_signing:
         distribution_type: app_store
