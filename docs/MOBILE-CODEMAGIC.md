@@ -15,9 +15,19 @@ Depois de alterar dependências nativas, permissões, ícones, esquema de URL ou
 
 ## Builds no Codemagic
 
-O `codemagic.yaml` contém dois fluxos manuais: APK Android de depuração e app iOS para simulador. Ainda não há assinatura nem publicação na Google Play ou App Store. Um APK de depuração não é um artefato de produção. Para distribuir no Android, será necessário configurar uma chave de assinatura. Para instalar em iPhone e enviar à App Store, será necessário configurar assinatura Apple, perfil e a conta correspondente.
+O `codemagic.yaml` contém quatro fluxos manuais: APK Android de depuração, app iOS para simulador e candidatos de release assinados para Android e iOS. Os fluxos de release só geram arquivos para baixar; não possuem etapa de envio à Google Play ou App Store.
 
-O Codemagic ainda precisa conectar ao repositório GitHub para ler esses fluxos. Nenhum build foi iniciado automaticamente. As máquinas de build e cotas disponíveis dependem do plano configurado na conta.
+### Configuração para gerar candidatos de release
+
+- Android: adicionar no Codemagic uma chave de upload em Code signing identities usando a referência `app_eo_android_upload`. A chave deve ser guardada também em backup próprio, fora do Git. O fluxo gera um `.aab` assinado.
+- iOS: adicionar um certificado de distribuição e perfil App Store compatíveis com `com.appeo.mobile` em Code signing identities. O fluxo gera um `.ipa` assinado.
+- O identificador `com.appeo.mobile` é o que o projeto usa hoje. Confirmar que está disponível e será o definitivo antes de criar os registros de loja, pois trocar o identificador depois exige novo cadastro de app.
+- Criar o registro do app no App Store Connect e confirmar a equipe Apple antes de distribuir. A conta Play selecionada precisa ter o app registrado com o mesmo identificador.
+- Nenhuma chave, certificado, senha ou credencial de loja deve ser adicionada ao repositório. As etapas de envio continuam manuais e exigem decisão explícita após revisar os artefatos.
+
+Ainda não há assinatura nem publicação nas lojas configuradas. Um APK de depuração não é um artefato de produção. Não iniciar os fluxos de release antes de configurar as assinaturas no Codemagic.
+
+O Codemagic está conectado ao repositório GitHub e reconheceu os fluxos da branch `codemagic/mobile-foundation`. Nenhum build foi iniciado automaticamente. As máquinas de build e cotas disponíveis dependem do plano configurado na conta.
 
 ## Atualizações sem recompilar
 
@@ -28,8 +38,8 @@ O Codemagic ainda precisa conectar ao repositório GitHub para ler esses fluxos.
 
 ## Próximos passos
 
-1. Conectar `mbdomatheus-a11y/app-eo` no Codemagic após enviar a estrutura nativa e o `codemagic.yaml` ao GitHub.
-2. Rodar os builds manuais de depuração e corrigir o que aparecer nos logs.
-3. Configurar assinatura de distribuição somente quando houver contas e credenciais próprias.
+1. Configurar as assinaturas Android e Apple no Codemagic sem colocar segredos no Git.
+2. Confirmar o identificador `com.appeo.mobile` antes de registrar os apps nas lojas.
+3. Gerar e revisar os candidatos de release manualmente; decidir depois se serão enviados à faixa de teste interno.
 4. Decidir onde hospedar o servidor Codemagic Patch. Se não for desejável manter outro serviço, manter o portal/PWA e aceitar builds nativos para mudanças que precisem chegar às lojas.
 5. Caso seja necessário um instalador nativo `.dmg`, planejar alvo macOS próprio e respectiva assinatura; OTA de Capacitor não atualiza um app macOS independente.
