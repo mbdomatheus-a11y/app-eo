@@ -1,5 +1,25 @@
 name: Verificar App EO
-on: [push, pull_request]
+on:
+  push:
+    paths:
+      - "src/**"
+      - "public/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.*"
+      - "tsconfig*.json"
+      - "capacitor.config.*"
+  pull_request:
+    paths:
+      - "src/**"
+      - "public/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.*"
+      - "tsconfig*.json"
+      - "capacitor.config.*"
 permissions:
   contents: read
 jobs:

@@ -1762,6 +1762,14 @@ dialog::backdrop {
   line-height: 1.8;
   margin-top: 23px;
 }
+.auth-privacy-link {
+  display: inline-block;
+  margin-top: 16px;
+  color: #4a4e58;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .auth-card .text-button {
   margin-top: 15px;
 }

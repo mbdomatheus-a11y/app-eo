@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { Capacitor } from "@capacitor/core";
 import {
   ArrowRight,
   Building2,
@@ -38,6 +39,7 @@ import {
   type AuditRow,
 } from "./services/supabase";
 import { roleLabels } from "./core/domain";
+import NativeExperience from "./mobile/NativeExperience";
 
 type Page = "home" | "notices" | "modules" | "admin";
 function Dialog({
@@ -68,6 +70,10 @@ function Dialog({
   );
 }
 export default function ConnectedApp() {
+  const isNative =
+    Capacitor.isNativePlatform() ||
+    (import.meta.env.DEV &&
+      new URLSearchParams(location.search).get("native-preview") === "1");
   const [session, setSession] = useState<Session | null>(null),
     [initializing, setInitializing] = useState(true);
   const [workspace, setWorkspace] = useState<Workspace | null>(null),
@@ -369,6 +375,49 @@ export default function ConnectedApp() {
     });
   }
 
+  if (isNative) {
+    return (
+      <NativeExperience
+        initializing={initializing}
+        backendConfigured={backendConfigured}
+        session={session}
+        workspace={workspace}
+        passwordMode={passwordMode}
+        notices={notices}
+        more={more}
+        busy={busy}
+        loading={loading}
+        error={error}
+        message={message}
+        setMessage={setMessage}
+        opened={opened}
+        setOpened={setOpened}
+        compose={compose}
+        setCompose={setCompose}
+        audit={audit}
+        members={members}
+        temporaryPassword={temporaryPassword}
+        editingMember={editingMember}
+        setEditingMember={setEditingMember}
+        tab={tab}
+        setTab={setTab}
+        login={login}
+        changePassword={changePassword}
+        refresh={refresh}
+        signout={signout}
+        acknowledge={acknowledge}
+        publish={publish}
+        loadMore={loadMore}
+        openAdmin={openAdmin}
+        addStore={addStore}
+        inviteMember={inviteMember}
+        toggleMember={toggleMember}
+        saveMember={saveMember}
+        issueTemporaryPassword={issueTemporaryPassword}
+      />
+    );
+  }
+
   if (initializing)
     return (
       <div className="auth-shell">
@@ -450,6 +499,9 @@ export default function ConnectedApp() {
             Precisa de acesso ou redefinir a senha? Procure a administração. A
             liberação é individual.
           </p>
+          <a className="auth-privacy-link" href="/privacidade.html">
+            Política de Privacidade
+          </a>
           {import.meta.env.DEV && (
             <a className="text-button" href="?demo=1">
               Abrir demonstração local
@@ -589,7 +641,7 @@ export default function ConnectedApp() {
             <LogOut size={19} />
             Sair da conta
           </button>
-          <span className="sidebar-version">App EO · MVP 0.2</span>
+          <span className="sidebar-version">Excelência Operacional (EO) · MVP 0.2</span>
         </div>
       </aside>
       <div className="main-shell">
