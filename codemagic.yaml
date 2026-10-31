@@ -6,6 +6,8 @@ workflows:
     environment:
       node: 22.12.0
       java: 21
+      groups:
+        - app_eo_runtime
     scripts:
       - name: Install dependencies
         script: npm ci
@@ -25,6 +27,8 @@ workflows:
     environment:
       node: 22.12.0
       xcode: latest
+      groups:
+        - app_eo_runtime
     scripts:
       - name: Install dependencies
         script: npm ci
@@ -47,6 +51,8 @@ workflows:
     environment:
       node: 22.12.0
       java: 21
+      groups:
+        - app_eo_runtime
       android_signing:
         - app_eo_android_upload
     scripts:
@@ -95,6 +101,7 @@ workflows:
       android_signing:
         - app_eo_android_upload
       groups:
+        - app_eo_runtime
         - app_eo_google_play
     scripts:
       - name: Install dependencies
@@ -119,10 +126,13 @@ workflows:
     environment:
       node: 22.12.0
       xcode: latest
+      groups:
+        - app_eo_runtime
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.appeo.mobile
       groups:
+        - app_eo_runtime
         - app_eo_app_store
     scripts:
       - name: Install dependencies
@@ -143,4 +153,3 @@ workflows:
       app_store_connect:
         api_key: $APP_STORE_CONNECT_PRIVATE_KEY
         key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
