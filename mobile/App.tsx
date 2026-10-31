@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Alert, BackHandler, KeyboardAvoidingView, Linking, Platform, Pressable, StatusBar, Text, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { EOProvider, useEO } from "./src/providers/eo-provider";
 import { ActionRow, Badge, Brand, Button, C, Card, Choice, Feedback, Field, Heading, Page, Section, s } from "./src/ui";
-import type { AdminTab, AuditRow, LiveNotice, LivePerson, Role, Workspace } from "./src/types";
+import type { AdminTab, AuditRow, LiveNotice, LivePerson, Role } from "./src/types";
 
 type Route = { name: string; id?: string };
 const titles: Record<string, string> = {
@@ -80,11 +80,11 @@ function Application() {
     }
   };
 
-  const hideHeader = ["login", "loading", "change", "privacy"].includes(current.name) && !app.session;
+  const hideHeader = ["login", "loading", "change"].includes(current.name) && !app.session;
   return <SafeAreaView style={s.screen} edges={["top", "left", "right"]}>
     <StatusBar barStyle="dark-content" backgroundColor={C.paper} />
     {!hideHeader && <View style={s.topbar}>
-      {stack.length > 1 || !isRoot ? <Pressable accessibilityRole="button" onPress={back} style={s.back}><Text style={s.backText}>‹  Voltar</Text></Pressable> : <Brand compact />}
+      {stack.length > 1 || !isRoot ? <Pressable accessibilityLabel="Voltar" accessibilityRole="button" onPress={back} style={s.back}><Text style={s.backText}>‹</Text></Pressable> : <Brand compact />}
       <View style={s.topText}><Text style={s.topEyebrow}>EXCELÊNCIA OPERACIONAL</Text><Text style={s.topTitle}>{title}</Text></View>
       {isRoot && <Pressable accessibilityLabel="Atualizar" accessibilityRole="button" onPress={() => void app.refresh()} style={s.refresh}><Text style={s.refreshText}>↻</Text></Pressable>}
     </View>}
@@ -101,23 +101,22 @@ function Application() {
 }
 
 function Tab({ active, glyph, label, count, onPress }: { name: string; active: boolean; glyph: string; label: string; count?: number; onPress: () => void }) {
-  return <Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={onPress} style={s.tab}><Text style={[s.tabGlyph, active && s.tabActive]}>{glyph}{count ? <Text style={s.tabCount}>{count > 9 ? "9+" : count}</Text> : null}</Text><Text style={[s.tabLabel, active && s.tabActive]}>{label}</Text></Pressable>;
+  return <Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={onPress} style={[s.tab, active && { backgroundColor: "#FFFBE0" }]}><View><Text style={[s.tabGlyph, active && s.tabActive]}>{glyph}</Text>{count ? <Text style={s.tabCount}>{count > 9 ? "9+" : count}</Text> : null}</View><Text style={[s.tabLabel, active && s.tabActive]}>{label}</Text></Pressable>;
 }
 
 function LoginScreen({ openPrivacy }: { openPrivacy: () => void }) {
   const app = useEO();
   const [chapa, setChapa] = useState(""); const [password, setPassword] = useState("");
-  return <Page contentStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, gap: 20 }}>
-    <Brand />
-    <View style={{ gap: 8, marginTop: 13 }}><Text style={s.eyebrow}>SEU ESPAÇO DE TRABALHO</Text><Text style={s.title}>A operação da loja,{"\n"}<Text style={{ color: C.yellowStrong }}>mais conectada.</Text></Text><Text style={s.detail}>Comunicados e recursos da equipe em um só lugar.</Text></View>
-    <Card style={{ padding: 20, gap: 15 }}><View><Text style={s.strong}>Entre na sua conta</Text><Text style={[s.small, { marginTop: 5 }]}>Use sua chapa e senha individual.</Text></View>
+  return <Page contentStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 23, paddingTop: 26, paddingBottom: 28, gap: 19 }}>
+    <View style={{ gap: 25 }}><Brand /><View style={{ gap: 9 }}><Badge warning>PLATAFORMA EO</Badge><Text style={s.title}>Sua loja,{"\n"}<Text style={{ color: C.dark }}>em sintonia.</Text></Text><Text style={s.detail}>Comunicados, rotinas e ferramentas da equipe em um único espaço.</Text></View></View>
+    <Card style={{ padding: 20, gap: 15, borderRadius: 22 }}><View><Text style={s.strong}>Acesse sua conta</Text><Text style={[s.small, { marginTop: 5 }]}>Entre com sua chapa e senha individual.</Text></View>
       <Field label="Chapa" value={chapa} onChangeText={setChapa} keyboardType="number-pad" maxLength={20} placeholder="Número da chapa" autoComplete="username" />
       <Field label="Senha" value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" placeholder="Sua senha" />
-      <Button title={app.busy ? "Entrando…" : "Entrar"} icon="→" disabled={app.busy} onPress={() => void app.login(chapa, password)} />
-      <Text style={s.small}>Precisa de acesso ou redefinir a senha? Procure a administração.</Text>
-      <Pressable onPress={openPrivacy}><Text style={{ color: C.dark, fontWeight: "700", fontSize: 12 }}>Política de Privacidade  ›</Text></Pressable>
+      <Button title={app.busy ? "Acessando…" : "Entrar no EO"} icon="→" disabled={app.busy} onPress={() => void app.login(chapa, password)} />
+      <Text style={[s.small, { textAlign: "center" }]}>Precisa de acesso ou redefinir a senha? Fale com a administração.</Text>
     </Card>
-    <Text style={[s.small, { textAlign: "center" }]}>◈  Acesso individual e protegido</Text>
+    <Pressable onPress={openPrivacy} style={{ alignSelf: "center", padding: 8 }}><Text style={{ color: C.dark, fontWeight: "800", fontSize: 12 }}>Privacidade e suporte  ›</Text></Pressable>
+    <Text style={[s.small, { textAlign: "center" }]}>Acesso individual protegido · Excelência Operacional</Text>
   </Page>;
 }
 
@@ -138,26 +137,35 @@ function HomeScreen({ openTab, openNotice, openCompose }: { openTab: (tab: strin
   const app = useEO(); const workspace = app.workspace!; const pending = app.notices.filter((item) => !item.acknowledged);
   const name = workspace.person.name.trim().split(/\s+/)[0]; const date = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
   const leader = ["admin", "diretor"].includes(workspace.person.role);
-  return <Page><Text style={s.small}>◷  {date}</Text>
-    <Card style={{ backgroundColor: "#FFFBE0", borderColor: "#E9E2BD", padding: 21, gap: 9 }}><Text style={s.eyebrow}>SEU ESPAÇO, SUA OPERAÇÃO</Text><Text style={s.title}>Bom dia, {name}.</Text><Text style={s.detail}>Veja o que precisa da sua atenção hoje.</Text><Text style={[s.small, { color: C.dark, fontWeight: "700", marginTop: 4 }]}>{workspace.stores.length} {workspace.stores.length === 1 ? "loja vinculada" : "lojas vinculadas"}  ·  {roleLabels[workspace.person.role]}</Text></Card>
-    <View style={{ flexDirection: "row", gap: 10 }}><Pressable onPress={() => openTab("notices")} style={{ flex: 1 }}><Card style={{ alignItems: "center", backgroundColor: C.yellow }}><Text style={s.small}>Para ler</Text><Text style={[s.title, { fontSize: 31 }]}>{pending.length}</Text><Text style={s.small}>comunicados</Text></Card></Pressable><Card style={{ flex: 1, alignItems: "center" }}><Text style={s.small}>Meu acesso</Text><Text style={[s.strong, { marginTop: 9 }]}>{roleLabels[workspace.person.role]}</Text><Text style={s.small}>perfil ativo</Text></Card></View>
+  const roleSummary: Record<Role, string> = {
+    colaborador: "Veja os comunicados e recursos disponíveis para você.",
+    gerente: "Acompanhe as orientações da sua equipe.",
+    diretor: "Consulte as informações das lojas autorizadas.",
+    admin: "Acesse os recursos e controles do EO.",
+  };
+  return <Page>
+    <View style={{ gap: 4 }}><Text style={s.eyebrow}>{date.toUpperCase()}</Text><Text style={[s.title, { fontSize: 22 }]}>Olá, {name}</Text></View>
+    <View style={s.homeHero}><View style={{ gap: 9 }}><Text style={s.homeHeroEyebrow}>EXCELÊNCIA OPERACIONAL</Text><Text style={s.homeHeroTitle}>Tudo em ordem,{"\n"}loja em movimento.</Text><Text style={s.homeHeroDetail}>{roleSummary[workspace.person.role]}</Text></View><Text style={s.homeHeroMeta}>{workspace.stores.length} {workspace.stores.length === 1 ? "LOJA" : "LOJAS"}  ·  {roleLabels[workspace.person.role].toUpperCase()}</Text></View>
+    <View style={{ flexDirection: "row", gap: 11 }}><Pressable accessibilityRole="button" accessibilityLabel={`${pending.length} comunicados para ler`} onPress={() => openTab("notices")} style={{ flex: 1 }}><Card style={[s.metricCard, { backgroundColor: C.yellow, borderColor: "#E9E2BD" }]}><Text style={s.small}>PENDÊNCIAS</Text><Text style={s.metricValue}>{pending.length.toString().padStart(2, "0")}</Text><Text style={[s.small, { color: C.dark, fontWeight: "800" }]}>Comunicados para ler  ›</Text></Card></Pressable><Card style={s.metricCard}><Text style={s.small}>SEU PERFIL</Text><Text style={[s.strong, { fontSize: 16 }]}>{roleLabels[workspace.person.role]}</Text><Text style={s.small}>{workspace.stores.length} {workspace.stores.length === 1 ? "unidade" : "unidades"} vinculadas</Text></Card></View>
     <Section title="Acesso rápido" action="Ver tudo" onAction={() => openTab("modules")} />
-    <ActionRow title="Comunicados" detail={`${pending.length} aguardando leitura`} icon="▤" onPress={() => openTab("notices")} />
-    <ActionRow title="Checklist" detail="Rotinas da equipe" icon="✓" onPress={() => openTab("modules")} />
-    {leader && <Button title="Novo comunicado" icon="＋" onPress={openCompose} />}
-    <Section title="Últimos comunicados" action="Ver todos" onAction={() => openTab("notices")} />
+    <ActionRow title="Comunicados" detail={pending.length ? `${pending.length} aguardando sua leitura` : "Você está em dia"} icon="▤" onPress={() => openTab("notices")} />
+    <ActionRow title="Aplicativos e rotinas" detail="Acesse as ferramentas da operação" icon="▦" onPress={() => openTab("modules")} />
+    {leader && <Button title="Criar comunicado" icon="＋" onPress={openCompose} />}
+    <Section title="Recentes" action="Ver todos" onAction={() => openTab("notices")} />
     {app.notices.slice(0, 3).map((notice) => <NoticeCard key={`${notice.notice_id}-${notice.version}`} notice={notice} onPress={() => openNotice(notice.notice_id)} leader={leader} />)}
-    {!app.notices.length && <Empty title="Tudo em dia" detail="Novos comunicados aparecerão aqui." />}
+    {!app.notices.length && <Empty title="Tudo em dia" detail="Quando houver um comunicado para você, ele aparecerá aqui." />}
   </Page>;
 }
 
 function NoticesScreen({ openNotice, openCompose }: { openNotice: (id: string) => void; openCompose: () => void }) {
-  const app = useEO(); const leader = ["admin", "diretor"].includes(app.workspace!.person.role); const pending = app.notices.filter((item) => !item.acknowledged).length;
+  const app = useEO(); const leader = ["admin", "diretor"].includes(app.workspace!.person.role); const pending = app.notices.filter((item) => !item.acknowledged).length; const [filter, setFilter] = useState<"all" | "pending" | "read">("all");
+  const visible = app.notices.filter((item) => filter === "all" || (filter === "pending" ? !item.acknowledged : item.acknowledged));
   return <Page><Heading eyebrow="INFORMAÇÃO PARA A EQUIPE" title="Comunicados" detail="Acompanhe as orientações e confirme sua ciência." />
-    <Card style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Text style={s.small}>{app.notices.length} no total</Text><Text style={s.strong}>{pending} pendente{pending === 1 ? "" : "s"}</Text></Card>
+    <View style={{ flexDirection: "row", gap: 7 }}>{([["all", "Todos"], ["pending", `Pendentes · ${pending}`], ["read", "Lidos"]] as const).map(([value, label]) => <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: filter === value }} onPress={() => setFilter(value)} style={{ flex: 1, alignItems: "center", paddingVertical: 11, paddingHorizontal: 4, borderRadius: 13, backgroundColor: filter === value ? C.dark : C.paper, borderWidth: 1, borderColor: filter === value ? C.dark : C.line }}><Text numberOfLines={1} style={{ color: filter === value ? C.paper : C.muted, fontSize: 10, fontWeight: "800" }}>{label}</Text></Pressable>)}</View>
+    <Text style={s.small}>{visible.length} {visible.length === 1 ? "comunicado" : "comunicados"} {filter === "pending" ? "aguardando ciência" : filter === "read" ? "com ciência confirmada" : "no seu espaço"}</Text>
     {leader && <Button title="Novo comunicado" icon="＋" onPress={openCompose} />}
-    {app.notices.map((notice) => <NoticeCard key={`${notice.notice_id}-${notice.version}`} notice={notice} onPress={() => openNotice(notice.notice_id)} leader={leader} />)}
-    {!app.notices.length && <Empty title="Nenhum comunicado" detail="As orientações destinadas a você aparecerão aqui." />}
+    {visible.map((notice) => <NoticeCard key={`${notice.notice_id}-${notice.version}`} notice={notice} onPress={() => openNotice(notice.notice_id)} leader={leader} />)}
+    {!visible.length && <Empty title={filter === "pending" ? "Tudo lido" : filter === "read" ? "Ainda sem leituras" : "Nenhum comunicado"} detail={filter === "pending" ? "Você não tem comunicados pendentes." : "As orientações destinadas a você aparecerão aqui."} />}
     {app.more && <Button title={app.busy ? "Carregando…" : "Carregar mais"} secondary disabled={app.busy} onPress={() => void app.loadMore()} />}
   </Page>;
 }
@@ -185,10 +193,13 @@ function ModulesScreen({ openTab }: { openTab: (tab: string) => void }) {
     ["Checklist", "Rotinas e padrões da loja", "✓"], ["Cartazeamento", "Materiais de campanha", "▧"],
     ["Escala da equipe", "Pessoas e horários", "◷"], ["Fotos e evidências", "Registros da operação", "▣"], ["Diário de vendas", "Relato de voz e resumo", "◖"],
   ];
-  return <Page><Heading eyebrow="FERRAMENTAS DA OPERAÇÃO" title="Aplicativos" detail="Recursos atuais e próximos módulos do EO." /><Section title="Disponível agora" />
-    <ActionRow title="Comunicados" detail="Orientações e confirmação de leitura" icon="▤" onPress={() => openTab("notices")} />
-    <Section title="Novos módulos" />
-    {modules.map(([title, detail, icon]) => <ActionRow key={title} title={title} detail={`${detail}  ·  Planejado`} icon={icon} onPress={() => Alert.alert(title, "Este módulo será conectado em uma próxima etapa.")} />)}
+  const rows = Array.from({ length: Math.ceil(modules.length / 2) }, (_, index) => modules.slice(index * 2, index * 2 + 2));
+  return <Page><Heading eyebrow="FERRAMENTAS DA OPERAÇÃO" title="Aplicativos" detail="Um espaço para acessar as rotinas da equipe." />
+    <Section title="Disponível agora" />
+    <Pressable accessibilityRole="button" onPress={() => openTab("notices")} style={({ pressed }) => [s.card, { flexDirection: "row", alignItems: "center" }, pressed && s.pressed]}><View style={s.actionIcon}><Text style={s.actionIconText}>▤</Text></View><View style={{ flex: 1, gap: 4 }}><Text style={s.strong}>Comunicados</Text><Text style={s.small}>Orientações e confirmação de leitura</Text></View><Text style={s.chevron}>›</Text></Pressable>
+    <Section title="Em desenvolvimento" />
+    <Text style={s.small}>Novos recursos aparecerão aqui quando estiverem prontos para uso.</Text>
+    {rows.map((row, index) => <View key={index} style={{ flexDirection: "row", gap: 10 }}>{row.map(([title, detail, icon]) => <View key={title} style={[s.moduleCard, { opacity: 0.82 }]}><View style={s.moduleIcon}><Text style={s.actionIconText}>{icon}</Text></View><View style={{ gap: 5 }}><Text style={s.moduleTitle}>{title}</Text><Text style={s.moduleDetail}>{detail}</Text></View><Text style={[s.eyebrow, { fontSize: 8 }]}>PLANEJADO</Text></View>)}{row.length === 1 && <View style={{ flex: 1 }} />}</View>)}
   </Page>;
 }
 

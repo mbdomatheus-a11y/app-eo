@@ -1,83 +1,106 @@
-name: EO | Build mobile manual
+name: EO | Compilar app no GitHub
 
 on:
   workflow_dispatch:
     inputs:
       platform:
-        description: Plataforma para compilar
+        description: Plataforma para gerar pre-visualizacao
         type: choice
         options:
-          - ios
           - android
-        required: true
-      profile:
-        description: Distribuição do pacote
-        type: choice
-        options:
-          - preview
-          - production
-        default: preview
+          - ios
         required: true
 
 permissions:
   contents: read
 
 concurrency:
-  group: eo-mobile-build-${{ inputs.platform }}-${{ inputs.profile }}
+  group: eo-native-preview-${{ inputs.platform }}
   cancel-in-progress: false
 
 jobs:
   build:
-    name: ${{ inputs.platform }} / ${{ inputs.profile }}
-    runs-on: ${{ inputs.platform == 'ios' && 'macos-15-intel' || 'ubuntu-24.04' }}
-    environment: eo-${{ inputs.profile }}
+    name: Preview ${{ inputs.platform }}
+    runs-on: ${{ inputs.platform == 'ios' && 'macos-15' || 'ubuntu-24.04' }}
     defaults:
       run:
         working-directory: mobile
     steps:
-      - name: Baixar o código
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configurar Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22.13.0
           cache: npm
           cache-dependency-path: mobile/package-lock.json
 
-      - name: Instalar dependências travadas
+      - name: Setup Java for Android
+        if: inputs.platform == 'android'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install locked dependencies
         run: npm ci
 
-      - name: Compilar no runner do GitHub
+      - name: Generate Expo native project
         env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-          PLATFORM: ${{ inputs.platform }}
-          PROFILE: ${{ inputs.profile }}
+          CI: '1'
+        run: npx expo prebuild --clean --platform ${{ inputs.platform }}
+
+      - name: Compile Android preview APK
+        if: inputs.platform == 'android'
         run: |
-          if [ -z "$EXPO_TOKEN" ]; then
-            echo "Configure EXPO_TOKEN no ambiente eo-${PROFILE}."
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+      - name: Compile iOS Simulator app
+        if: inputs.platform == 'ios'
+        run: |
+          workspace="$(find ios -maxdepth 2 -name '*.xcworkspace' -print -quit)"
+          if [ -z "$workspace" ]; then
+            echo "Expo did not generate the iOS workspace."
             exit 1
           fi
+          scheme="$(xcodebuild -list -json -workspace "$workspace" | jq -r '.workspace.schemes[0]')"
+          if [ -z "$scheme" ] || [ "$scheme" = "null" ]; then
+            echo "Could not identify the app scheme."
+            exit 1
+          fi
+          xcodebuild \
+            -workspace "$workspace" \
+            -scheme "$scheme" \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/eo-derived-data" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+          app_path="$(find "$RUNNER_TEMP/eo-derived-data/Build/Products/Release-iphonesimulator" -maxdepth 2 -name '*.app' -print -quit)"
+          if [ -z "$app_path" ]; then
+            echo "The iOS Simulator app was not found."
+            exit 1
+          fi
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" "$RUNNER_TEMP/eo-ios-simulator.zip"
 
-          case "${PLATFORM}:${PROFILE}" in
-            ios:*) extension="ipa" ;;
-            android:preview) extension="apk" ;;
-            android:production) extension="aab" ;;
-            *) echo "Combinação de plataforma/perfil inválida."; exit 1 ;;
-          esac
-
-          output="$RUNNER_TEMP/eo-${PLATFORM}-${PROFILE}.${extension}"
-          ./node_modules/.bin/eas build \
-            --local \
-            --non-interactive \
-            --platform "$PLATFORM" \
-            --profile "$PROFILE" \
-            --output "$output"
-
-      - name: Guardar pacote por 1 dia
+      - name: Upload Android preview APK
+        if: inputs.platform == 'android'
         uses: actions/upload-artifact@v4
         with:
-          name: eo-${{ inputs.platform }}-${{ inputs.profile }}
-          path: ${{ runner.temp }}/eo-${{ inputs.platform }}-${{ inputs.profile }}.*
+          name: eo-android-preview-apk
+          path: mobile/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload iOS Simulator app
+        if: inputs.platform == 'ios'
+        uses: actions/upload-artifact@v4
+        with:
+          name: eo-ios-simulator-preview
+          path: ${{ runner.temp }}/eo-ios-simulator.zip
           if-no-files-found: error
           retention-days: 1

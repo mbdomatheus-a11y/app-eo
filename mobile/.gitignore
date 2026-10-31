@@ -3,6 +3,12 @@ node_modules/
 dist/
 web-build/
 .env
+android/
+ios/
+*.keystore
+*.jks
+*.p12
+credentials.json
 .env.*
 !.env.example
 *.log

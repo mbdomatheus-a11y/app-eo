@@ -29,18 +29,15 @@ As permissões continuam verificadas pelo Supabase e suas funções/RPCs, não a
 4. Gerar um primeiro binário Expo para iOS e Android somente quando a migração e a configuração de assinatura estiverem prontas. O app Expo substitui o binário Capacitor e passa a incluir `expo-updates`.
 5. Depois, alterações somente de JavaScript, telas e assets compatíveis podem ser enviadas por EAS Update, sem novo build. Dependências nativas, permissões, plugins e configuração do sistema exigem novo binário e versão de runtime compatível.
 
-O identificador de runtime usa fingerprint. Os canais previstos são `preview` e `production`. As quotas EAS são da conta Expo e não reiniciam por criar um projeto separado.
+O identificador de runtime usa fingerprint. Os canais previstos são `preview` e `production`. A compilação do binário usa os runners do GitHub e não consome a quota de EAS Build. A publicação OTA continua usando EAS Update e precisa de uma conta/projeto Expo configurado.
 
-### Pipeline proposto no GitHub Actions
+### Compilação no GitHub Actions
 
-- `.github/workflows/eo-mobile-build.yml` cria manualmente um build local no runner GitHub, com macOS para iOS e Ubuntu para Android. O pacote fica como artefato por 1 dia; em repositório público, qualquer leitor do projeto pode baixá-lo.
-- `.github/workflows/eo-mobile-update.yml` publica manualmente uma OTA em `preview` ou `production` via EAS Update. A OTA continua sendo servida pela Expo; o GitHub executa o comando, não hospeda os pacotes de atualização.
-- Os dois workflows usam ambientes `eo-preview` e `eo-production`, segredo `EXPO_TOKEN`, permissões somente de leitura do repositório e não rodam em pull requests. Configurar aprovação manual no ambiente de produção antes de cadastrar os segredos.
-- Não usar no GitHub um token pessoal Expo compartilhado com o Control ALL. Tokens pessoais podem alcançar outros projetos/organizações da conta; preferir um usuário de automação com permissão limitada ao projeto EO ou uma conta Expo separada.
-- Definir as variáveis `EXPO_PUBLIC_SUPABASE_URL` e `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` nos ambientes Expo `preview` e `production`. São valores públicos do cliente e devem continuar sujeitos às políticas RLS do Supabase.
-- Os builds locais não consomem minutos de build do Codemagic nem build em nuvem do EAS; consomem minutos do runner GitHub. O workflow de atualização OTA usa runner Linux e continua sujeito às cotas de EAS Update.
-- O workflow de build ainda não envia para App Store Connect ou Google Play. Primeiro precisa confirmar assinatura iOS/Android; a publicação automática pode ser adicionada depois de validar credenciais e o primeiro pacote.
-
+- O workflow manual `.github/workflows/eo-mobile-build.yml` usa ferramentas nativas diretamente no runner padrão do GitHub. Android: Expo prebuild e Gradle geram um APK de prévia. iOS: Expo prebuild e Xcode geram um app para simulador, sem assinatura.
+- A compilação não usa EAS Build, Codemagic ou `EXPO_TOKEN`. Acesse GitHub > Actions > **EO | Compilar app no GitHub** > **Run workflow** e escolha Android ou iOS. O artefato fica disponível por um dia.
+- O APK não é um AAB assinado para Google Play. O app do simulador não instala em iPhone nem é um IPA. Para distribuir em aparelho físico, TestFlight ou Play, será necessário assinar com os certificados e perfis corretos, guardados como segredos no ambiente GitHub.
+- O workflow de OTA é separado e continua usando EAS Update e `EXPO_TOKEN`. Isso não participa da compilação, mas depende do projeto Expo e de um serviço de atualização. O projeto EO ainda não foi vinculado para OTA.
+- Os workflows são manuais. Builds e atualizações não disparam a cada push.
 ## Pendências antes do primeiro binário
 
 - O lockfile foi gerado e o `eas-cli` foi adicionado como dependência travada em `mobile/`; a instalação foi executada, sem build ou teste.
@@ -62,3 +59,18 @@ Estrutura Expo e telas React Native transferidas para `mobile/`. A Edge Function
 - O repositório segue privado enquanto a revisão de exposição está pendente. Nenhuma chave privada, token Supabase ou chave de serviço foi encontrada nos commits alcançáveis do histórico.
 - O histórico contém o e-mail de contato, a chapa master e UUID do perfil administrativo; estes dados serão públicos se o repositório existente se tornar público. O usuário foi informado. Avaliar limpar o histórico, criar uma cópia pública sem histórico sensível ou confirmar que aceita expor esses identificadores antes de alterar a visibilidade.
 - A conta GitHub do EO e o pipeline do Control ALL permanecem separados.
+
+
+## Atualizacao das telas e compilacao pelo GitHub (31/10/2026)
+
+Matheus confirmou que quer usar o GitHub Actions como ambiente de compilacao, sem usar os servidores de build da Expo ou do Codemagic.
+
+- Refeito o fluxo de compilacao manual em .github/workflows/eo-mobile-build.yml: o runner executa npm ci, expo prebuild e as ferramentas nativas Gradle/Xcode diretamente. A compilacao nao usa eas build nem EXPO_TOKEN.
+- Android gera um APK de pre-visualizacao. iOS gera um app para simulador, sem assinatura. O iOS Simulator nao instala no iPhone. Enviar para TestFlight ou Play requer binario de producao assinado, certificados/perfis Apple e chave de upload Android configurados com segredos do ambiente GitHub, sem inserir credenciais no codigo.
+- O workflow de atualizacao OTA continua separado e usa EAS Update/EXPO_TOKEN, pois isso distribui JavaScript sem reconstruir o binario. O projeto Expo do EO ainda precisa ser vinculado e configurado para OTA. Portanto, somente a compilacao fica no GitHub nesta etapa.
+- Para executar: GitHub > repositorio app-eo > Actions > EO | Compilar app no GitHub > Run workflow > escolher Android ou iOS. Baixar o artefato na execucao, que expira em 1 dia.
+- De acordo com a documentacao vigente consultada em 31/10/2026, runners hospedados padrao, incluindo macOS, sao gratuitos e ilimitados para repositorios publicos. O GitHub Free inclui 500 MB de armazenamento compartilhado por mes para artefatos e Packages. O artefato foi limitado a 1 dia; armazenamento acima da franquia pode gerar cobranca. Runners maiores nao sao gratuitos.
+- Essa gratuidade cobre a compilacao nos runners padrao, nao a assinatura/publicacao nas lojas, nem quotas de terceiros. O codigo-fonte do EO permanece publico.
+- Telas atualizadas em mobile/App.tsx e mobile/src/ui.tsx: navegação inferior com estado ativo e contador, botao de retorno visivel em Privacidade, home com resumo sem inventar indicadores, texto contextual por perfil, filtros Todos/Pendentes/Lidos e catalogo que diferencia recurso disponivel de modulo planejado sem abrir alertas.
+- Nenhum build foi iniciado nesta entrega. O APK de preview usa assinatura de depuracao e nao deve ser enviado ao Google Play. O app iOS para simulador tambem nao e um IPA de TestFlight.
+- Referencias oficiais: GitHub [runners padrao e precos](https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job), [faturamento e armazenamento](https://docs.github.com/en/billing/concepts/product-billing/github-actions); Expo [compilar projetos Expo com Gradle/Xcode](https://docs.expo.dev/guides/local-app-development/), [prebuild e release](https://docs.expo.dev/guides/local-app-production/).

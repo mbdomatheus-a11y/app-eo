@@ -1,4 +1,4 @@
-name: EO | Publicar atualização OTA
+name: EO | Atualização OTA (Expo)
 
 on:
   workflow_dispatch:
