@@ -58,17 +58,17 @@ jobs:
           CI: '1'
         run: npx expo prebuild --clean --platform android
 
-      - name: Compile Android installable test APK
+      - name: Compile Android installable release APK with embedded JavaScript
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
 
       - name: Upload Android preview APK
         uses: actions/upload-artifact@v4
         with:
           name: eo-android-test-apk
-          path: mobile/android/app/build/outputs/apk/debug/*.apk
+          path: mobile/android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 1
 
@@ -106,7 +106,7 @@ jobs:
 
       - name: Compile iOS Simulator app
         run: |
-          workspace="$(find ios -maxdepth 2 -name '*.xcworkspace' -print -quit)"
+          workspace="$(find ios -maxdepth 1 -type d -name '*.xcworkspace' -print -quit)"
           if [ -z "$workspace" ]; then
             echo "Expo did not generate the iOS workspace."
             exit 1
