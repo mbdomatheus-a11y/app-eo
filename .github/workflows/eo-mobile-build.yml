@@ -27,6 +27,9 @@ jobs:
       group: eo-native-preview-${{ github.ref }}-android
       cancel-in-progress: true
     runs-on: ubuntu-24.04
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
     defaults:
       run:
         working-directory: mobile
@@ -55,17 +58,17 @@ jobs:
           CI: '1'
         run: npx expo prebuild --clean --platform android
 
-      - name: Compile Android preview APK
+      - name: Compile Android installable test APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew assembleDebug
 
       - name: Upload Android preview APK
         uses: actions/upload-artifact@v4
         with:
-          name: eo-android-preview-apk
-          path: mobile/android/app/build/outputs/apk/release/*.apk
+          name: eo-android-test-apk
+          path: mobile/android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 1
 
@@ -76,6 +79,9 @@ jobs:
       group: eo-native-preview-${{ github.ref }}-ios
       cancel-in-progress: true
     runs-on: macos-15
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
     defaults:
       run:
         working-directory: mobile
