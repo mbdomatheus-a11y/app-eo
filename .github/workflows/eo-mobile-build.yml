@@ -78,7 +78,7 @@ jobs:
     concurrency:
       group: eo-native-preview-${{ github.ref }}-ios
       cancel-in-progress: true
-    runs-on: macos-15
+    runs-on: macos-26
     env:
       EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
       EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
