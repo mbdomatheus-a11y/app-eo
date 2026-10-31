@@ -228,7 +228,7 @@ jobs:
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store-connect</string>
-            <key>destination</key><string>export</string>
+            <key>destination</key><string>upload</string>
             <key>signingStyle</key><string>automatic</string>
             <key>teamID</key><string>${APPLE_TEAM_ID}</string>
             <key>uploadSymbols</key><true/>
@@ -258,13 +258,4 @@ jobs:
             -authenticationKeyPath "$ASC_API_KEY_PATH" \
             -authenticationKeyID "$ASC_API_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_API_ISSUER_ID"
-          ipa_path="$(find "$export_path" -maxdepth 1 -name '*.ipa' -print -quit)"
-          if [ -z "$ipa_path" ]; then
-            echo "Xcode did not export an iOS .ipa."
-            exit 1
-          fi
-          xcrun iTMSTransporter \
-            -m upload \
-            -assetFile "$ipa_path" \
-            -apiKey "$ASC_API_KEY_ID" \
-            -apiIssuer "$ASC_API_ISSUER_ID"
+          echo "Upload concluido pelo xcodebuild via App Store Connect."
