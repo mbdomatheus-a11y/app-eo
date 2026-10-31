@@ -1,0 +1,63 @@
+name: EO | Publicar atualização OTA
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Canal do aplicativo que receberá a atualização
+        type: choice
+        options:
+          - preview
+          - production
+        default: preview
+        required: true
+      message:
+        description: Resumo da atualização
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eo-mobile-update-${{ inputs.channel }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Publicar no canal ${{ inputs.channel }}
+    runs-on: ubuntu-24.04
+    environment: eo-${{ inputs.channel }}
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Instalar dependências travadas
+        run: npm ci
+
+      - name: Publicar atualização EAS Update
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          CHANNEL: ${{ inputs.channel }}
+          UPDATE_MESSAGE: ${{ inputs.message }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "Configure EXPO_TOKEN no ambiente eo-${CHANNEL}."
+            exit 1
+          fi
+
+          ./node_modules/.bin/eas update \
+            --channel "$CHANNEL" \
+            --message "$UPDATE_MESSAGE" \
+            --environment "$CHANNEL" \
+            --non-interactive

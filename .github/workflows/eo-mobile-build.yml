@@ -1,0 +1,83 @@
+name: EO | Build mobile manual
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Plataforma para compilar
+        type: choice
+        options:
+          - ios
+          - android
+        required: true
+      profile:
+        description: Distribuição do pacote
+        type: choice
+        options:
+          - preview
+          - production
+        default: preview
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eo-mobile-build-${{ inputs.platform }}-${{ inputs.profile }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: ${{ inputs.platform }} / ${{ inputs.profile }}
+    runs-on: ${{ inputs.platform == 'ios' && 'macos-15-intel' || 'ubuntu-24.04' }}
+    environment: eo-${{ inputs.profile }}
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Instalar dependências travadas
+        run: npm ci
+
+      - name: Compilar no runner do GitHub
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          PLATFORM: ${{ inputs.platform }}
+          PROFILE: ${{ inputs.profile }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "Configure EXPO_TOKEN no ambiente eo-${PROFILE}."
+            exit 1
+          fi
+
+          case "${PLATFORM}:${PROFILE}" in
+            ios:*) extension="ipa" ;;
+            android:preview) extension="apk" ;;
+            android:production) extension="aab" ;;
+            *) echo "Combinação de plataforma/perfil inválida."; exit 1 ;;
+          esac
+
+          output="$RUNNER_TEMP/eo-${PLATFORM}-${PROFILE}.${extension}"
+          ./node_modules/.bin/eas build \
+            --local \
+            --non-interactive \
+            --platform "$PLATFORM" \
+            --profile "$PROFILE" \
+            --output "$output"
+
+      - name: Guardar pacote por 1 dia
+        uses: actions/upload-artifact@v4
+        with:
+          name: eo-${{ inputs.platform }}-${{ inputs.profile }}
+          path: ${{ runner.temp }}/eo-${{ inputs.platform }}-${{ inputs.profile }}.*
+          if-no-files-found: error
+          retention-days: 1

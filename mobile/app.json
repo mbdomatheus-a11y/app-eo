@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Excelência Operacional (EO)",
+    "slug": "excelencia-operacional-eo",
+    "version": "1.0.0",
+    "scheme": "eo",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "bundleIdentifier": "com.appeo.mobile",
+      "buildNumber": "12",
+      "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.appeo.mobile",
+      "versionCode": 12,
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": true
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-updates"
+    ],
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
+    "extra": {
+      "product": "Excelência Operacional",
+      "updatesSetupPending": true
+    }
+  }
+}

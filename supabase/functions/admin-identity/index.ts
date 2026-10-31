@@ -34,7 +34,12 @@ Deno.serve(async (req) => {
 
   const origin = req.headers.get("origin");
   const appUrl = Deno.env.get("APP_URL");
-  if (!appUrl || origin !== appUrl)
+  if (!appUrl)
+    return json({ error: "Origem do aplicativo não configurada." }, 503);
+  // Web calls must come from the configured portal. Native clients may omit
+  // Origin; their access is still gated by the validated Supabase session and
+  // the active admin profile checks below.
+  if (origin && origin !== appUrl)
     return json({ error: "Origem não autorizada." }, 403);
 
   const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
