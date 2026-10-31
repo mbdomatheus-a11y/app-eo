@@ -14,6 +14,7 @@ on:
         options:
           - android
           - ios
+          - ios-testflight
         required: true
 
 permissions:
@@ -141,3 +142,124 @@ jobs:
           path: ${{ runner.temp }}/eo-ios-simulator.zip
           if-no-files-found: error
           retention-days: 1
+
+  ios_testflight:
+    if: github.event_name == 'workflow_dispatch' && inputs.platform == 'ios-testflight'
+    name: Build and upload iOS to TestFlight
+    concurrency:
+      group: eo-testflight-${{ github.ref }}
+      cancel-in-progress: false
+    runs-on: macos-26
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+      ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+      ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check Apple signing credentials
+        shell: bash
+        run: |
+          for name in APPLE_TEAM_ID ASC_API_KEY_ID ASC_API_ISSUER_ID ASC_API_KEY_P8; do
+            if [ -z "${!name}" ]; then
+              echo "Missing required GitHub Actions secret: $name"
+              exit 1
+            fi
+          done
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Generate Expo iOS project
+        env:
+          CI: '1'
+        run: npx expo prebuild --clean --platform ios
+
+      - name: Prepare App Store Connect API key
+        shell: bash
+        run: |
+          key_dir="$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$key_dir"
+          key_path="$key_dir/AuthKey_${ASC_API_KEY_ID}.p8"
+          printf '%s' "$ASC_API_KEY_P8" > "$key_path"
+          chmod 600 "$key_path"
+          echo "ASC_API_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+
+      - name: Archive, sign, export, and upload EO to TestFlight
+        shell: bash
+        run: |
+          workspace="$(find ios -maxdepth 1 -type d -name '*.xcworkspace' -print -quit)"
+          project="$(find ios -maxdepth 1 -type d -name '*.xcodeproj' -print -quit)"
+          if [ -z "$workspace" ] || [ -z "$project" ]; then
+            echo "Expo did not generate the iOS app workspace and project."
+            exit 1
+          fi
+          app_scheme="$(basename "$project" .xcodeproj)"
+          schemes="$(xcodebuild -list -json -workspace "$workspace" | jq -r '.workspace.schemes[]')"
+          if ! printf '%s\n' "$schemes" | grep -Fxq "$app_scheme"; then
+            echo "The EO app scheme was not found in the generated iOS workspace."
+            exit 1
+          fi
+          archive_path="$RUNNER_TEMP/EO.xcarchive"
+          export_path="$RUNNER_TEMP/EO-export"
+          export_options="$RUNNER_TEMP/ExportOptions.plist"
+          cat > "$export_options" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>export</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>uploadSymbols</key><true/>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild \
+            -workspace "$workspace" \
+            -scheme "$app_scheme" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$archive_path" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_API_KEY_PATH" \
+            -authenticationKeyID "$ASC_API_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_API_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            archive
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$archive_path" \
+            -exportPath "$export_path" \
+            -exportOptionsPlist "$export_options" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_API_KEY_PATH" \
+            -authenticationKeyID "$ASC_API_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_API_ISSUER_ID"
+          ipa_path="$(find "$export_path" -maxdepth 1 -name '*.ipa' -print -quit)"
+          if [ -z "$ipa_path" ]; then
+            echo "Xcode did not export an iOS .ipa."
+            exit 1
+          fi
+          xcrun iTMSTransporter \
+            -m upload \
+            -assetFile "$ipa_path" \
+            -apiKey "$ASC_API_KEY_ID" \
+            -apiIssuer "$ASC_API_ISSUER_ID"
