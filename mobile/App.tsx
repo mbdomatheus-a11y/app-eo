@@ -1,110 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
-import { Alert, BackHandler, KeyboardAvoidingView, Linking, Platform, Pressable, StatusBar, Text, View } from "react-native";
-import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { EOProvider, useEO } from "./src/providers/eo-provider";
-import { ActionRow, Badge, Brand, Button, C, Card, Choice, Feedback, Field, Heading, Page, Section, s } from "./src/ui";
+import { useState } from "react";
+import { Alert, Linking, Pressable, Text, View } from "react-native";
+import { useEO } from "./src/providers/eo-provider";
+import { ActionRow, AppIcon, Badge, Brand, Button, C, Card, Choice, Field, Heading, Page, Section, s } from "./src/ui";
 import type { AdminTab, AuditRow, LiveNotice, LivePerson, Role } from "./src/types";
-
-type Route = { name: string; id?: string };
-const titles: Record<string, string> = {
-  home: "Início", notices: "Comunicados", modules: "Aplicativos", management: "Gestão", profile: "Meu perfil",
-  privacy: "Privacidade", notice: "Comunicado", compose: "Novo comunicado", stores: "Lojas", people: "Pessoas e acessos",
-  audit: "Auditoria", edit: "Editar acesso", change: "Trocar senha",
-};
-const rootTabs = ["home", "notices", "modules", "management", "profile"];
-
-export default function App() {
-  return <SafeAreaProvider><EOProvider><Application /></EOProvider></SafeAreaProvider>;
-}
-
-function Application() {
-  const app = useEO();
-  const insets = useSafeAreaInsets();
-  const [stack, setStack] = useState<Route[]>([{ name: "login" }]);
-  const current = stack[stack.length - 1] ?? { name: "login" };
-  const isRoot = rootTabs.includes(current.name);
-  const isAdmin = app.workspace?.person.role === "admin";
-  const pending = app.notices.filter((item) => !item.acknowledged).length;
-  const push = useCallback((route: Route) => setStack((old) => [...old, route]), []);
-  const back = useCallback(() => setStack((old) => old.length > 1 ? old.slice(0, -1) : old), []);
-  const selectTab = useCallback((name: string) => setStack([{ name }]), []);
-
-  useEffect(() => {
-    if (app.initializing) return;
-    const top = stack[stack.length - 1]?.name;
-    if (!app.session) {
-      if (top !== "login" && top !== "privacy") setStack([{ name: "login" }]);
-      return;
-    }
-    if (app.passwordMode) {
-      if (top !== "change") setStack([{ name: "change" }]);
-      return;
-    }
-    if (app.workspace && ["login", "loading", "change"].includes(top ?? "")) setStack([{ name: "home" }]);
-    else if (app.loading && top === "login") setStack([{ name: "loading" }]);
-  }, [app.initializing, app.session?.user.id, app.passwordMode, app.workspace, app.loading]);
-
-  useEffect(() => {
-    if (Platform.OS !== "android") return;
-    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (stack.length > 1) { back(); return true; }
-      if (current.name !== "home" && rootTabs.includes(current.name)) { selectTab("home"); return true; }
-      return false;
-    });
-    return () => subscription.remove();
-  }, [back, current.name, rootTabs, selectTab, stack]);
-
-  const title = titles[current.name] ?? "Excelência Operacional";
-  const render = () => {
-    if (app.initializing || current.name === "loading") return <LoadingScreen configured={app.configured} error={app.error} />;
-    if (!app.session) {
-      if (current.name === "privacy") return <PrivacyScreen back={back} />;
-      return <LoginScreen openPrivacy={() => push({ name: "privacy" })} />;
-    }
-    if (app.passwordMode || current.name === "change") return <ChangePasswordScreen />;
-    if (!app.workspace) return <AccessScreen />;
-    switch (current.name) {
-      case "home": return <HomeScreen openTab={selectTab} openNotice={(id) => push({ name: "notice", id })} openCompose={() => push({ name: "compose" })} />;
-      case "notices": return <NoticesScreen openNotice={(id) => push({ name: "notice", id })} openCompose={() => push({ name: "compose" })} />;
-      case "notice": return <NoticeScreen id={current.id ?? ""} back={back} />;
-      case "compose": return <ComposeScreen />;
-      case "modules": return <ModulesScreen openTab={selectTab} />;
-      case "management": return <ManagementScreen open={(tab) => { void app.loadAdmin(tab); push({ name: tab === "stores" ? "stores" : tab }); }} />;
-      case "stores": return <StoresScreen />;
-      case "people": return <PeopleScreen edit={(id) => push({ name: "edit", id })} />;
-      case "edit": return <EditPersonScreen id={current.id ?? ""} back={back} />;
-      case "audit": return <AuditScreen />;
-      case "profile": return <ProfileScreen openPrivacy={() => push({ name: "privacy" })} />;
-      case "privacy": return <PrivacyScreen back={back} />;
-      default: return <HomeScreen openTab={selectTab} openNotice={(id) => push({ name: "notice", id })} openCompose={() => push({ name: "compose" })} />;
-    }
-  };
-
-  const hideHeader = ["login", "loading", "change"].includes(current.name) && !app.session;
-  return <SafeAreaView style={s.screen} edges={["top", "left", "right"]}>
-    <StatusBar barStyle="dark-content" backgroundColor={C.paper} />
-    {!hideHeader && <View style={s.topbar}>
-      {stack.length > 1 || !isRoot ? <Pressable accessibilityLabel="Voltar" accessibilityRole="button" onPress={back} style={s.back}><Text style={s.backText}>‹</Text></Pressable> : <Brand compact />}
-      <View style={s.topText}><Text style={s.topEyebrow}>EXCELÊNCIA OPERACIONAL</Text><Text style={s.topTitle}>{title}</Text></View>
-      {isRoot && <Pressable accessibilityLabel="Atualizar" accessibilityRole="button" onPress={() => void app.refresh()} style={s.refresh}><Text style={s.refreshText}>↻</Text></Pressable>}
-    </View>}
-    <Feedback error={app.error} message={app.message} onClose={app.clearFeedback} />
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={8}>{render()}</KeyboardAvoidingView>
-    {app.session && !app.passwordMode && isRoot && <View style={[s.tabbar, { paddingBottom: Math.max(insets.bottom, 5) }]}>
-      <Tab name="home" active={current.name === "home"} glyph="⌂" label="Início" onPress={() => selectTab("home")} />
-      <Tab name="notices" active={current.name === "notices"} glyph="▤" label="Avisos" count={pending} onPress={() => selectTab("notices")} />
-      <Tab name="modules" active={current.name === "modules"} glyph="▦" label="Apps" onPress={() => selectTab("modules")} />
-      {isAdmin && <Tab name="management" active={current.name === "management"} glyph="⚙" label="Gestão" onPress={() => { void app.loadAdmin("stores"); selectTab("management"); }} />}
-      <Tab name="profile" active={current.name === "profile"} glyph="◉" label="Perfil" onPress={() => selectTab("profile")} />
-    </View>}
-  </SafeAreaView>;
-}
-
-function Tab({ active, glyph, label, count, onPress }: { name: string; active: boolean; glyph: string; label: string; count?: number; onPress: () => void }) {
-  return <Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={onPress} style={[s.tab, active && { backgroundColor: "#FFFBE0" }]}><View><Text style={[s.tabGlyph, active && s.tabActive]}>{glyph}</Text>{count ? <Text style={s.tabCount}>{count > 9 ? "9+" : count}</Text> : null}</View><Text style={[s.tabLabel, active && s.tabActive]}>{label}</Text></Pressable>;
-}
-
-function LoginScreen({ openPrivacy }: { openPrivacy: () => void }) {
+export function LoginScreen({ openPrivacy }: { openPrivacy: () => void }) {
   const app = useEO();
   const [chapa, setChapa] = useState(""); const [password, setPassword] = useState("");
   return <Page contentStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 23, paddingTop: 26, paddingBottom: 28, gap: 19 }}>
@@ -120,20 +19,20 @@ function LoginScreen({ openPrivacy }: { openPrivacy: () => void }) {
   </Page>;
 }
 
-function LoadingScreen({ configured, error }: { configured: boolean; error: string }) {
+export function LoadingScreen({ configured, error }: { configured: boolean; error: string }) {
   return <View style={s.centered}><Brand compact /><Text style={s.strong}>{configured ? "Carregando seu espaço" : "Conexão em preparação"}</Text><Text style={[s.small, { textAlign: "center" }]}>{error || (configured ? "Conferindo sua sessão segura." : "A administração precisa configurar a conexão do app.")}</Text></View>;
 }
-function AccessScreen() {
+export function AccessScreen() {
   const app = useEO();
   return <View style={s.centered}><Brand compact /><Heading title="Acesso em preparação" detail={app.error || "Estamos conferindo suas permissões."} /><Button title="Tentar novamente" icon="↻" onPress={() => void app.refresh()} disabled={app.loading || app.busy} /><Button title="Sair desta conta" secondary onPress={() => void app.signout()} /></View>;
 }
 
-function ChangePasswordScreen() {
+export function ChangePasswordScreen() {
   const app = useEO(); const [password, setPassword] = useState(""); const [confirm, setConfirm] = useState("");
   return <Page contentStyle={{ flexGrow: 1, justifyContent: "center" }}><Brand /><Card><Badge warning>PRIMEIRO ACESSO</Badge><Heading title="Crie sua senha pessoal" detail="A senha temporária precisa ser trocada antes de continuar." /><Field label="Nova senha" value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" placeholder="Mínimo de 12 caracteres" /><Field label="Confirme a senha" value={confirm} onChangeText={setConfirm} secureTextEntry autoComplete="new-password" placeholder="Digite novamente" /><Button title={app.busy ? "Salvando…" : "Salvar nova senha"} disabled={app.busy} onPress={() => void app.changeTemporaryPassword(password, confirm)} /></Card></Page>;
 }
 
-function HomeScreen({ openTab, openNotice, openCompose }: { openTab: (tab: string) => void; openNotice: (id: string) => void; openCompose: () => void }) {
+export function HomeScreen({ openTab, openNotice, openCompose }: { openTab: (tab: string) => void; openNotice: (id: string) => void; openCompose: () => void }) {
   const app = useEO(); const workspace = app.workspace!; const pending = app.notices.filter((item) => !item.acknowledged);
   const name = workspace.person.name.trim().split(/\s+/)[0]; const date = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
   const leader = ["admin", "diretor"].includes(workspace.person.role);
@@ -143,24 +42,30 @@ function HomeScreen({ openTab, openNotice, openCompose }: { openTab: (tab: strin
     diretor: "Consulte as informações das lojas autorizadas.",
     admin: "Acesse os recursos e controles do EO.",
   };
+  const initials = workspace.person.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+  const storeContext = workspace.stores.length === 1 ? workspace.stores[0].name : `${workspace.stores.length} lojas vinculadas`;
+  const focusTitle = workspace.person.role === "colaborador" ? "Sua rotina, em um só lugar." : "Sua operação, em movimento.";
   return <Page>
-    <View style={{ gap: 4 }}><Text style={s.eyebrow}>{date.toUpperCase()}</Text><Text style={[s.title, { fontSize: 22 }]}>Olá, {name}</Text></View>
-    <View style={s.homeHero}><View style={{ gap: 9 }}><Text style={s.homeHeroEyebrow}>EXCELÊNCIA OPERACIONAL</Text><Text style={s.homeHeroTitle}>Tudo em ordem,{"\n"}loja em movimento.</Text><Text style={s.homeHeroDetail}>{roleSummary[workspace.person.role]}</Text></View><Text style={s.homeHeroMeta}>{workspace.stores.length} {workspace.stores.length === 1 ? "LOJA" : "LOJAS"}  ·  {roleLabels[workspace.person.role].toUpperCase()}</Text></View>
-    <View style={{ flexDirection: "row", gap: 11 }}><Pressable accessibilityRole="button" accessibilityLabel={`${pending.length} comunicados para ler`} onPress={() => openTab("notices")} style={{ flex: 1 }}><Card style={[s.metricCard, { backgroundColor: C.yellow, borderColor: "#E9E2BD" }]}><Text style={s.small}>PENDÊNCIAS</Text><Text style={s.metricValue}>{pending.length.toString().padStart(2, "0")}</Text><Text style={[s.small, { color: C.dark, fontWeight: "800" }]}>Comunicados para ler  ›</Text></Card></Pressable><Card style={s.metricCard}><Text style={s.small}>SEU PERFIL</Text><Text style={[s.strong, { fontSize: 16 }]}>{roleLabels[workspace.person.role]}</Text><Text style={s.small}>{workspace.stores.length} {workspace.stores.length === 1 ? "unidade" : "unidades"} vinculadas</Text></Card></View>
+    <View style={s.homeHeader}>
+      <View style={{ flex: 1, gap: 3 }}><Text style={s.eyebrow}>{date.toUpperCase()}</Text><Text style={s.homeGreeting}>Olá, {name}</Text><Text style={s.homeStore}>{storeContext}  ·  {roleLabels[workspace.person.role]}</Text></View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Abrir meu perfil" onPress={() => openTab("profile")} style={s.homeAvatar}><Text style={{ color: C.dark, fontSize: 15, fontWeight: "800" }}>{initials}</Text></Pressable>
+    </View>
+    <View style={s.homeHero}><View style={{ gap: 9 }}><Text style={s.homeHeroEyebrow}>EXCELÊNCIA OPERACIONAL  ·  EO</Text><Text style={s.homeHeroTitle}>{focusTitle}</Text><Text style={s.homeHeroDetail}>{roleSummary[workspace.person.role]}</Text></View><Text style={s.homeHeroMeta}>{workspace.stores.length} {workspace.stores.length === 1 ? "UNIDADE NO SEU ACESSO" : "UNIDADES NO SEU ACESSO"}</Text></View>
+    <View style={{ flexDirection: "row", gap: 11 }}><Pressable accessibilityRole="button" accessibilityLabel={`${pending.length} comunicados para ler`} onPress={() => openTab("notices")} style={{ flex: 1 }}><Card style={[s.metricCard, { backgroundColor: C.yellow, borderColor: "#E9E2BD" }]}><Text style={s.small}>PARA ACOMPANHAR</Text><Text style={s.metricValue}>{pending.length.toString().padStart(2, "0")}</Text><Text style={[s.small, { color: C.dark, fontWeight: "800" }]}>{pending.length === 1 ? "comunicado pendente  ›" : "comunicados pendentes  ›"}</Text></Card></Pressable><Card style={s.metricCard}><Text style={s.small}>SEU PERFIL</Text><Text style={[s.strong, { fontSize: 16 }]}>{roleLabels[workspace.person.role]}</Text><Text style={s.small}>{workspace.stores.length} {workspace.stores.length === 1 ? "unidade autorizada" : "unidades autorizadas"}</Text></Card></View>
     <Section title="Acesso rápido" action="Ver tudo" onAction={() => openTab("modules")} />
-    <ActionRow title="Comunicados" detail={pending.length ? `${pending.length} aguardando sua leitura` : "Você está em dia"} icon="▤" onPress={() => openTab("notices")} />
-    <ActionRow title="Aplicativos e rotinas" detail="Acesse as ferramentas da operação" icon="▦" onPress={() => openTab("modules")} />
-    {leader && <Button title="Criar comunicado" icon="＋" onPress={openCompose} />}
+    <ActionRow title="Comunicados" detail={pending.length ? `${pending.length} aguardando sua ciência` : "Você está em dia"} icon="bell.fill" onPress={() => openTab("notices")} />
+    <ActionRow title="Aplicativos e rotinas" detail="Acesse as ferramentas da operação" icon="square.grid.2x2.fill" onPress={() => openTab("modules")} />
+    {leader && <Button title="Criar comunicado" icon="plus" onPress={openCompose} />}
     <Section title="Recentes" action="Ver todos" onAction={() => openTab("notices")} />
     {app.notices.slice(0, 3).map((notice) => <NoticeCard key={`${notice.notice_id}-${notice.version}`} notice={notice} onPress={() => openNotice(notice.notice_id)} leader={leader} />)}
     {!app.notices.length && <Empty title="Tudo em dia" detail="Quando houver um comunicado para você, ele aparecerá aqui." />}
   </Page>;
 }
 
-function NoticesScreen({ openNotice, openCompose }: { openNotice: (id: string) => void; openCompose: () => void }) {
+export function NoticesScreen({ openNotice, openCompose }: { openNotice: (id: string) => void; openCompose: () => void }) {
   const app = useEO(); const leader = ["admin", "diretor"].includes(app.workspace!.person.role); const pending = app.notices.filter((item) => !item.acknowledged).length; const [filter, setFilter] = useState<"all" | "pending" | "read">("all");
   const visible = app.notices.filter((item) => filter === "all" || (filter === "pending" ? !item.acknowledged : item.acknowledged));
-  return <Page><Heading eyebrow="INFORMAÇÃO PARA A EQUIPE" title="Comunicados" detail="Acompanhe as orientações e confirme sua ciência." />
+  return <Page><Text style={s.detail}>Orientações da sua operação. Confirme a ciência em cada comunicado.</Text>
     <View style={{ flexDirection: "row", gap: 7 }}>{([["all", "Todos"], ["pending", `Pendentes · ${pending}`], ["read", "Lidos"]] as const).map(([value, label]) => <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: filter === value }} onPress={() => setFilter(value)} style={{ flex: 1, alignItems: "center", paddingVertical: 11, paddingHorizontal: 4, borderRadius: 13, backgroundColor: filter === value ? C.dark : C.paper, borderWidth: 1, borderColor: filter === value ? C.dark : C.line }}><Text numberOfLines={1} style={{ color: filter === value ? C.paper : C.muted, fontSize: 10, fontWeight: "800" }}>{label}</Text></Pressable>)}</View>
     <Text style={s.small}>{visible.length} {visible.length === 1 ? "comunicado" : "comunicados"} {filter === "pending" ? "aguardando ciência" : filter === "read" ? "com ciência confirmada" : "no seu espaço"}</Text>
     {leader && <Button title="Novo comunicado" icon="＋" onPress={openCompose} />}
@@ -178,7 +83,7 @@ function NoticeCard({ notice, onPress, leader }: { notice: LiveNotice; onPress: 
   </Pressable>;
 }
 
-function NoticeScreen({ id, back }: { id: string; back: () => void }) {
+export function NoticeScreen({ id, back }: { id: string; back: () => void }) {
   const app = useEO(); const notice = app.notices.find((item) => item.notice_id === id);
   if (!notice) return <Page><Empty title="Comunicado indisponível" detail="Atualize a lista e tente novamente." /><Button title="Voltar" secondary onPress={back} /></Page>;
   return <Page><Badge warning={notice.urgent}>{notice.urgent ? "Prioritário" : notice.category}  ·  Versão {notice.version}</Badge><Heading title={notice.title} detail={`Enviado em ${new Date(notice.published_at).toLocaleString("pt-BR", { dateStyle: "long", timeStyle: "short" })}`} />
@@ -188,39 +93,38 @@ function NoticeScreen({ id, back }: { id: string; back: () => void }) {
   </Page>;
 }
 
-function ModulesScreen({ openTab }: { openTab: (tab: string) => void }) {
+export function ModulesScreen({ openTab }: { openTab: (tab: string) => void }) {
   const modules = [
-    ["Checklist", "Rotinas e padrões da loja", "✓"], ["Cartazeamento", "Materiais de campanha", "▧"],
-    ["Escala da equipe", "Pessoas e horários", "◷"], ["Fotos e evidências", "Registros da operação", "▣"], ["Diário de vendas", "Relato de voz e resumo", "◖"],
+    ["Checklist", "Rotinas e padrões da loja", "checklist"], ["Cartazeamento", "Materiais de campanha", "paintbrush.fill"],
+    ["Escala da equipe", "Pessoas e horários", "person.3.fill"], ["Fotos e evidências", "Registros da operação", "camera.fill"], ["Diário de vendas", "Relato de voz e resumo", "waveform"],
   ];
-  const rows = Array.from({ length: Math.ceil(modules.length / 2) }, (_, index) => modules.slice(index * 2, index * 2 + 2));
-  return <Page><Heading eyebrow="FERRAMENTAS DA OPERAÇÃO" title="Aplicativos" detail="Um espaço para acessar as rotinas da equipe." />
+  return <Page><Text style={s.detail}>As ferramentas da operação ficam reunidas neste espaço.</Text>
     <Section title="Disponível agora" />
-    <Pressable accessibilityRole="button" onPress={() => openTab("notices")} style={({ pressed }) => [s.card, { flexDirection: "row", alignItems: "center" }, pressed && s.pressed]}><View style={s.actionIcon}><Text style={s.actionIconText}>▤</Text></View><View style={{ flex: 1, gap: 4 }}><Text style={s.strong}>Comunicados</Text><Text style={s.small}>Orientações e confirmação de leitura</Text></View><Text style={s.chevron}>›</Text></Pressable>
-    <Section title="Em desenvolvimento" />
-    <Text style={s.small}>Novos recursos aparecerão aqui quando estiverem prontos para uso.</Text>
-    {rows.map((row, index) => <View key={index} style={{ flexDirection: "row", gap: 10 }}>{row.map(([title, detail, icon]) => <View key={title} style={[s.moduleCard, { opacity: 0.82 }]}><View style={s.moduleIcon}><Text style={s.actionIconText}>{icon}</Text></View><View style={{ gap: 5 }}><Text style={s.moduleTitle}>{title}</Text><Text style={s.moduleDetail}>{detail}</Text></View><Text style={[s.eyebrow, { fontSize: 8 }]}>PLANEJADO</Text></View>)}{row.length === 1 && <View style={{ flex: 1 }} />}</View>)}
+    <Pressable accessibilityRole="button" onPress={() => openTab("notices")} style={({ pressed }) => [s.card, { flexDirection: "row", alignItems: "center" }, pressed && s.pressed]}><View style={s.actionIcon}><AppIcon name="bell.fill" size={20} color={C.dark} /></View><View style={{ flex: 1, gap: 4 }}><Text style={s.strong}>Comunicados</Text><Text style={s.small}>Orientações e confirmação de leitura</Text></View><Text style={s.chevron}>›</Text></Pressable>
+    <Section title="Próximas ferramentas" />
+    <Text style={s.small}>Novos recursos serão liberados aqui à medida que ficarem prontos.</Text>
+    {modules.map(([title, detail, icon]) => <View key={title} style={s.actionRow}><View style={[s.actionIcon, { backgroundColor: C.sand }]}><AppIcon name={icon} size={20} color={C.dark} /></View><View style={s.actionCopy}><Text style={s.actionTitle}>{title}</Text><Text style={s.actionDetail}>{detail}</Text></View><Badge>Em breve</Badge></View>)}
   </Page>;
 }
 
-function ManagementScreen({ open }: { open: (tab: AdminTab) => void }) {
-  return <Page><Heading eyebrow="ÁREA RESTRITA" title="Administração" detail="Gerencie os acessos e acompanhe o espaço." />
-    <ActionRow title="Lojas" detail="Unidades vinculadas ao espaço" icon="⌂" onPress={() => open("stores")} />
-    <ActionRow title="Pessoas e acessos" detail="Perfis, permissões e convites" icon="◉" onPress={() => open("people")} />
-    <ActionRow title="Auditoria" detail="Atividades recentes do sistema" icon="◈" onPress={() => open("audit")} />
+export function ManagementScreen({ open }: { open: (tab: AdminTab) => void }) {
+  return <Page><Text style={s.detail}>Administre o acesso e acompanhe as atividades da plataforma.</Text>
+    <ActionRow title="Lojas" detail="Unidades vinculadas ao espaço" icon="house.fill" onPress={() => open("stores")} />
+    <ActionRow title="Pessoas e acessos" detail="Perfis, permissões e convites" icon="person.2.fill" onPress={() => open("people")} />
+    <ActionRow title="Auditoria" detail="Atividades recentes do sistema" icon="checkmark.shield.fill" onPress={() => open("audit")} />
     <Card style={{ backgroundColor: C.soft }}><Text style={s.small}>◈  Alterações administrativas ficam registradas no histórico de auditoria.</Text></Card>
   </Page>;
 }
 
-function StoresScreen() {
+export function StoresScreen() {
   const app = useEO(); const [code, setCode] = useState(""); const [name, setName] = useState(""); const [region, setRegion] = useState("");
   return <Page><Card><Badge>NOVA UNIDADE</Badge><Field label="Código" value={code} onChangeText={setCode} placeholder="Ex.: 001" maxLength={20} /><Field label="Nome da loja" value={name} onChangeText={setName} placeholder="Nome da unidade" maxLength={120} /><Field label="Regional" value={region} onChangeText={setRegion} placeholder="Opcional" maxLength={120} /><Button title={app.busy ? "Salvando…" : "Cadastrar loja"} icon="＋" disabled={app.busy} onPress={async () => { const result = await app.addStore({ code, name, region }); if (result.ok) { setCode(""); setName(""); setRegion(""); } }} /></Card>
     <Section title={`Lojas cadastradas · ${app.workspace!.stores.length}`} />
-    {app.workspace!.stores.map((store) => <ActionRow key={store.id} title={store.name} detail={`${store.code}${store.region ? ` · ${store.region}` : ""}`} icon="⌂" onPress={() => undefined} />)}
+    {app.workspace!.stores.map((store) => <ActionRow key={store.id} title={store.name} detail={`${store.code}${store.region ? ` · ${store.region}` : ""}`} icon="house.fill" onPress={() => undefined} />)}
   </Page>;
 }
 
-function PeopleScreen({ edit }: { edit: (id: string) => void }) {
+export function PeopleScreen({ edit }: { edit: (id: string) => void }) {
   const app = useEO(); const workspace = app.workspace!;
   const [chapa, setChapa] = useState(""); const [email, setEmail] = useState(""); const [name, setName] = useState(""); const [role, setRole] = useState<Role>("colaborador"); const [stores, setStores] = useState<string[]>([]);
   const toggleStore = (id: string) => setStores((old) => old.includes(id) ? old.filter((value) => value !== id) : [...old, id]);
@@ -246,7 +150,7 @@ function PersonCard({ person, ownId, edit }: { person: LivePerson; ownId: string
   </Card>;
 }
 
-function EditPersonScreen({ id, back }: { id: string; back: () => void }) {
+export function EditPersonScreen({ id, back }: { id: string; back: () => void }) {
   const app = useEO(); const workspace = app.workspace!; const person = app.members.find((item) => item.id === id);
   const [name, setName] = useState(person?.display_name ?? ""); const [chapa, setChapa] = useState(person?.login_chapa ?? ""); const [role, setRole] = useState<Role>(person?.role ?? "colaborador"); const [stores, setStores] = useState<string[]>(person?.stores ?? []);
   if (!person) return <Page><Empty title="Pessoa não encontrada" detail="Atualize a lista de acessos." /><Button title="Voltar" secondary onPress={back} /></Page>;
@@ -257,7 +161,7 @@ function EditPersonScreen({ id, back }: { id: string; back: () => void }) {
   </Card></Page>;
 }
 
-function AuditScreen() {
+export function AuditScreen() {
   const app = useEO();
   return <Page><Card><Text style={s.strong}>◈  Atividade segura</Text><Text style={s.small}>{app.audit.length} eventos recentes registrados pelo servidor.</Text></Card>
     {app.audit.length ? app.audit.map((entry) => <AuditItem key={entry.id} entry={entry} />) : <Empty title="Sem eventos recentes" detail="As ações administrativas serão exibidas aqui." />}
@@ -267,7 +171,7 @@ function AuditItem({ entry }: { entry: AuditRow }) {
   return <Card style={{ gap: 5 }}><Text style={s.strong}>{entry.action}</Text><Text style={s.small}>{entry.actor_name}</Text><Text style={s.small}>{new Date(entry.created_at).toLocaleString("pt-BR")}</Text></Card>;
 }
 
-function ComposeScreen() {
+export function ComposeScreen() {
   const app = useEO(); const workspace = app.workspace!;
   const [title, setTitle] = useState(""); const [body, setBody] = useState(""); const [urgent, setUrgent] = useState(false); const [stores, setStores] = useState<string[]>([]);
   return <Page><Card><Text style={s.small}>A mensagem será enviada às equipes das lojas selecionadas.</Text><Field label="Título" value={title} onChangeText={setTitle} maxLength={120} placeholder="Resumo da orientação" /><Field label="Mensagem" value={body} onChangeText={setBody} multiline maxLength={5000} placeholder="Escreva a orientação para a equipe…" />
@@ -284,17 +188,17 @@ function MasterPassword() {
   </Card>;
 }
 
-function ProfileScreen({ openPrivacy }: { openPrivacy: () => void }) {
+export function ProfileScreen({ openPrivacy }: { openPrivacy: () => void }) {
   const app = useEO(); const workspace = app.workspace!; const initials = workspace.person.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
   return <Page><Card style={{ alignItems: "center", paddingVertical: 24 }}><View style={{ width: 68, height: 68, borderRadius: 34, backgroundColor: C.yellow, alignItems: "center", justifyContent: "center" }}><Text style={{ color: C.dark, fontSize: 24, fontWeight: "800" }}>{initials}</Text></View><Text style={[s.title, { fontSize: 20 }]}>{workspace.person.name}</Text><Badge>{roleLabels[workspace.person.role]}</Badge></Card>
     <Card><Text style={s.eyebrow}>SEU ACESSO</Text><Text style={s.body}>Perfil: {roleLabels[workspace.person.role]}</Text><Text style={s.body}>Lojas autorizadas: {workspace.stores.length}</Text>{workspace.stores.map((store) => <Badge key={store.id}>{store.code} · {store.name}</Badge>)}</Card>
-    <Card><Text style={s.eyebrow}>AJUDA E PRIVACIDADE</Text><ActionRow title="Política de Privacidade" detail="Como seus dados são tratados" icon="◈" onPress={openPrivacy} /><ActionRow title="Suporte" detail="Ajuda e contato" icon="?" onPress={() => void Linking.openURL("mailto:mbdo.matheus@gmail.com")} /></Card>
+    <Card><Text style={s.eyebrow}>AJUDA E PRIVACIDADE</Text><ActionRow title="Política de Privacidade" detail="Como seus dados são tratados" icon="lock.fill" onPress={openPrivacy} /><ActionRow title="Suporte" detail="Ajuda e contato" icon="questionmark.circle.fill" onPress={() => void Linking.openURL("mailto:mbdo.matheus@gmail.com")} /></Card>
     <Button title={app.busy ? "Saindo…" : "Sair da conta"} secondary icon="↪" disabled={app.busy} onPress={() => void app.signout()} />
     <Text style={[s.small, { textAlign: "center" }]}>Excelência Operacional · EO</Text>
   </Page>;
 }
 
-function PrivacyScreen({ back }: { back: () => void }) {
+export function PrivacyScreen({ back }: { back: () => void }) {
   return <Page><Brand compact /><Heading title="Política de Privacidade" detail="Última atualização: 30 de outubro de 2026" />
     <Text style={s.body}>Esta política explica como o aplicativo Excelência Operacional (EO), desenvolvido como projeto independente, trata dados pessoais. O app oferece comunicados e recursos de administração para equipes de loja. O acesso é liberado individualmente por um administrador.</Text>
     <Section title="Dados tratados" /><Text style={s.body}>Para autenticar e operar uma conta, o app trata chapa, nome e e-mail de contato, identificador da conta, perfil e lojas associadas. Também registra comunicados, confirmações de leitura e eventos de administração e segurança. A senha é gerenciada pelo Supabase e não é armazenada pelo app em texto aberto.</Text>

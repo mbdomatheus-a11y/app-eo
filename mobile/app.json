@@ -22,7 +22,8 @@
     },
     "plugins": [
       "expo-secure-store",
-      "expo-updates"
+      "expo-updates",
+      "expo-router"
     ],
     "runtimeVersion": {
       "policy": "fingerprint"

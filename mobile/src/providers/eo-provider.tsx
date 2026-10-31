@@ -52,21 +52,22 @@ export function EOProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let alive = true;
-    if (!supabase) { setInitializing(false); return; }
-    void supabase.auth.getSession().then(({ data, error: authError }) => {
+    const client = supabase;
+    if (!client) { setInitializing(false); return; }
+    void client.auth.getSession().then(({ data, error: authError }) => {
       if (!alive) return;
       if (authError) setError("Não foi possível recuperar sua sessão segura.");
       setSession(data.session); setInitializing(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, next) => {
+    const { data: { subscription } } = client.auth.onAuthStateChange((_, next) => {
       if (alive) setSession(next);
     });
     const appStateSubscription = AppState.addEventListener("change", (state) => {
-      if (state === "active") void supabase.auth.startAutoRefresh();
-      else void supabase.auth.stopAutoRefresh();
+      if (state === "active") void client.auth.startAutoRefresh();
+      else void client.auth.stopAutoRefresh();
     });
-    if (AppState.currentState === "active") void supabase.auth.startAutoRefresh();
-    return () => { alive = false; subscription.unsubscribe(); appStateSubscription.remove(); void supabase.auth.stopAutoRefresh(); };
+    if (AppState.currentState === "active") void client.auth.startAutoRefresh();
+    return () => { alive = false; subscription.unsubscribe(); appStateSubscription.remove(); void client.auth.stopAutoRefresh(); };
   }, []);
 
   const refresh = useCallback(async () => {
