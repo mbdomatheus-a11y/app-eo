@@ -111,7 +111,9 @@ jobs:
             echo "Expo did not generate the iOS workspace."
             exit 1
           fi
-          scheme="$(xcodebuild -list -json -workspace "$workspace" | jq -r '.workspace.schemes[0]')"
+          project="$(find ios -maxdepth 1 -type d -name '*.xcodeproj' -print -quit)"
+          app_scheme="$(basename "$project" .xcodeproj)"
+          scheme="$(xcodebuild -list -json -workspace "$workspace" | jq -r --arg app_scheme "$app_scheme" '.workspace.schemes[] | select(. == $app_scheme)' | head -n 1)"
           if [ -z "$scheme" ] || [ "$scheme" = "null" ]; then
             echo "Could not identify the app scheme."
             exit 1
