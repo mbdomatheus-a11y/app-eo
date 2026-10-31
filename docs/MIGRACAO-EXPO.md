@@ -54,11 +54,11 @@ O identificador de runtime usa fingerprint. Os canais previstos são `preview` e
 
 ## Estado nesta etapa
 
-Estrutura Expo e telas React Native transferidas para `mobile/`. A Edge Function `admin-identity` foi publicada no projeto Supabase `mfsnzrrqlyixqwsrcqyo` e confirmada como ativa, versão 3, com `verify_jwt=true`. O lockfile mobile foi gerado e o EAS CLI foi fixado como dependência. Nenhum build, teste ou update foi executado; o projeto EAS ainda não foi vinculado e as ações do GitHub ainda não foram publicadas. A pasta `android/` e `ios/` do Capacitor e os workflows Codemagic permanecem como referência até o primeiro ciclo GitHub/Expo ser validado.
+Estrutura Expo e telas React Native transferidas para `mobile/`. A Edge Function `admin-identity` foi publicada no projeto Supabase `mfsnzrrqlyixqwsrcqyo` e confirmada como ativa, versão 3, com `verify_jwt=true`. O lockfile mobile foi gerado e o EAS CLI foi fixado como dependência. Os workflows estão no branch `codemagic/mobile-foundation`, commit `8a669f4`, mas não foram executados. Nenhum build, teste ou update foi publicado; o projeto EAS ainda não foi vinculado. A pasta `android/` e `ios/` do Capacitor e os workflows Codemagic permanecem como referência até o primeiro ciclo GitHub/Expo ser validado.
 
 ## Preparação GitHub Actions e revisão para repositório público (31/10/2026)
 
-- Criados localmente os workflows manuais `.github/workflows/eo-mobile-build.yml` (build local por plataforma, artefato por 1 dia) e `.github/workflows/eo-mobile-update.yml` (OTA via EAS Update). Nenhum workflow foi executado.
+- Os workflows manuais `.github/workflows/eo-mobile-build.yml` (build local por plataforma, artefato por 1 dia) e `.github/workflows/eo-mobile-update.yml` (OTA via EAS Update) foram enviados ao branch `codemagic/mobile-foundation`, commit `8a669f4`. Nenhum workflow foi executado.
 - O repositório segue privado enquanto a revisão de exposição está pendente. Nenhuma chave privada, token Supabase ou chave de serviço foi encontrada nos commits alcançáveis do histórico.
 - O histórico contém o e-mail de contato, a chapa master e UUID do perfil administrativo; estes dados serão públicos se o repositório existente se tornar público. O usuário foi informado. Avaliar limpar o histórico, criar uma cópia pública sem histórico sensível ou confirmar que aceita expor esses identificadores antes de alterar a visibilidade.
 - A conta GitHub do EO e o pipeline do Control ALL permanecem separados.
