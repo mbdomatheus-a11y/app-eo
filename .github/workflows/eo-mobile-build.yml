@@ -1,6 +1,11 @@
 name: EO | Compilar app no GitHub
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'mobile/**'
   workflow_dispatch:
     inputs:
       platform:
@@ -14,14 +19,18 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: eo-native-preview-${{ inputs.platform }}
-  cancel-in-progress: false
-
 jobs:
   build:
-    name: Preview ${{ inputs.platform }}
-    runs-on: ${{ inputs.platform == 'ios' && 'macos-15' || 'ubuntu-24.04' }}
+    if: github.event_name == 'push' || inputs.platform == matrix.platform
+    name: Preview ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [android, ios]
+    concurrency:
+      group: eo-native-preview-${{ github.ref }}-${{ matrix.platform }}
+      cancel-in-progress: true
+    runs-on: ${{ matrix.platform == 'ios' && 'macos-15' || 'ubuntu-24.04' }}
     defaults:
       run:
         working-directory: mobile
@@ -37,7 +46,7 @@ jobs:
           cache-dependency-path: mobile/package-lock.json
 
       - name: Setup Java for Android
-        if: inputs.platform == 'android'
+        if: matrix.platform == 'android'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -49,17 +58,17 @@ jobs:
       - name: Generate Expo native project
         env:
           CI: '1'
-        run: npx expo prebuild --clean --platform ${{ inputs.platform }}
+        run: npx expo prebuild --clean --platform ${{ matrix.platform }}
 
       - name: Compile Android preview APK
-        if: inputs.platform == 'android'
+        if: matrix.platform == 'android'
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleRelease
 
       - name: Compile iOS Simulator app
-        if: inputs.platform == 'ios'
+        if: matrix.platform == 'ios'
         run: |
           workspace="$(find ios -maxdepth 2 -name '*.xcworkspace' -print -quit)"
           if [ -z "$workspace" ]; then
@@ -88,7 +97,7 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "$app_path" "$RUNNER_TEMP/eo-ios-simulator.zip"
 
       - name: Upload Android preview APK
-        if: inputs.platform == 'android'
+        if: matrix.platform == 'android'
         uses: actions/upload-artifact@v4
         with:
           name: eo-android-preview-apk
@@ -97,7 +106,7 @@ jobs:
           retention-days: 1
 
       - name: Upload iOS Simulator app
-        if: inputs.platform == 'ios'
+        if: matrix.platform == 'ios'
         uses: actions/upload-artifact@v4
         with:
           name: eo-ios-simulator-preview

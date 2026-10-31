@@ -33,11 +33,11 @@ O identificador de runtime usa fingerprint. Os canais previstos são `preview` e
 
 ### Compilação no GitHub Actions
 
-- O workflow manual `.github/workflows/eo-mobile-build.yml` usa ferramentas nativas diretamente no runner padrão do GitHub. Android: Expo prebuild e Gradle geram um APK de prévia. iOS: Expo prebuild e Xcode geram um app para simulador, sem assinatura.
+- O workflow `.github/workflows/eo-mobile-build.yml` usa ferramentas nativas diretamente no runner padrão do GitHub. Android: Expo prebuild e Gradle geram um APK de prévia. iOS: Expo prebuild e Xcode geram um app para simulador, sem assinatura.
 - A compilação não usa EAS Build, Codemagic ou `EXPO_TOKEN`. Acesse GitHub > Actions > **EO | Compilar app no GitHub** > **Run workflow** e escolha Android ou iOS. O artefato fica disponível por um dia.
 - O APK não é um AAB assinado para Google Play. O app do simulador não instala em iPhone nem é um IPA. Para distribuir em aparelho físico, TestFlight ou Play, será necessário assinar com os certificados e perfis corretos, guardados como segredos no ambiente GitHub.
 - O workflow de OTA é separado e continua usando EAS Update e `EXPO_TOKEN`. Isso não participa da compilação, mas depende do projeto Expo e de um serviço de atualização. O projeto EO ainda não foi vinculado para OTA.
-- Os workflows são manuais. Builds e atualizações não disparam a cada push.
+- O workflow de prévia compila Android e iOS Simulator automaticamente quando arquivos em `mobile/` mudam na `main`; também pode ser iniciado manualmente. A concorrência cancela uma prévia anterior da mesma plataforma para evitar trabalho duplicado. A OTA segue manual e depende do EAS Update.
 ## Pendências antes do primeiro binário
 
 - O lockfile foi gerado e o `eas-cli` foi adicionado como dependência travada em `mobile/`; a instalação foi executada, sem build ou teste.
