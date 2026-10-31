@@ -450,6 +450,9 @@ export default function ConnectedApp() {
             Precisa de acesso ou redefinir a senha? Procure a administração. A
             liberação é individual.
           </p>
+          <a className="auth-privacy-link" href="/privacidade.html">
+            Política de Privacidade
+          </a>
           {import.meta.env.DEV && (
             <a className="text-button" href="?demo=1">
               Abrir demonstração local
