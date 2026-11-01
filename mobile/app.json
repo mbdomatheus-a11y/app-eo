@@ -23,7 +23,23 @@
     "plugins": [
       "expo-secure-store",
       "expo-updates",
-      "expo-router"
+      "expo-router",
+      "expo-notifications",
+      [
+        "expo-calendar",
+        {
+          "writeOnlyAccess": true,
+          "calendarPermission": "Permita que o EO adicione eventos quando você pedir.",
+          "writeOnlyCalendarPermission": "Permita que o EO adicione eventos à agenda quando você pedir."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Permita que o EO fotografe evidências dos checklists.",
+          "photosPermission": "Permita que o EO escolha evidências para os checklists."
+        }
+      ]
     ],
     "runtimeVersion": {
       "policy": "fingerprint"
@@ -34,7 +50,12 @@
     },
     "extra": {
       "product": "Excelência Operacional",
-      "updatesSetupPending": true
-    }
+      "updatesSetupPending": true,
+      "router": {},
+      "eas": {
+        "projectId": "31e7b5e5-f006-4617-8774-8718d875a9ea"
+      }
+    },
+    "owner": "controlall"
   }
 }

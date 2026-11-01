@@ -25,7 +25,7 @@ As permissões continuam verificadas pelo Supabase e suas funções/RPCs, não a
 
 1. Na primeira configuração, instalar dependências dentro de `mobile/`, criar `mobile/.env` a partir de `.env.example` e informar somente a chave pública do Supabase.
 2. Usar Expo Go para desenvolver telas localmente, com recarga rápida, sem consumir build EAS. Recursos nativos precisam estar incluídos no Expo Go usado.
-3. Vincular `mobile/` a um projeto Expo próprio do EO, sem reutilizar o project ID do Control ALL. `eas update:configure` preencherá URL e project ID necessários para atualizações remotas.
+3. O projeto Expo próprio do EO foi vinculado à conta `controlall`, separado do Control ALL: `31e7b5e5-f006-4617-8774-8718d875a9ea`.
 4. Gerar um primeiro binário Expo para iOS e Android somente quando a migração e a configuração de assinatura estiverem prontas. O app Expo substitui o binário Capacitor e passa a incluir `expo-updates`.
 5. Depois, alterações somente de JavaScript, telas e assets compatíveis podem ser enviadas por EAS Update, sem novo build. Dependências nativas, permissões, plugins e configuração do sistema exigem novo binário e versão de runtime compatível.
 
@@ -36,12 +36,12 @@ O identificador de runtime usa fingerprint. Os canais previstos são `preview` e
 - O workflow `.github/workflows/eo-mobile-build.yml` usa ferramentas nativas diretamente no runner padrão do GitHub. Android: Expo prebuild e Gradle geram um APK de prévia. iOS: Expo prebuild e Xcode geram um app para simulador, sem assinatura.
 - A compilação não usa EAS Build, Codemagic ou `EXPO_TOKEN`. Acesse GitHub > Actions > **EO | Compilar app no GitHub** > **Run workflow** e escolha Android ou iOS. O artefato fica disponível por um dia.
 - O Android gera APK de depuração assinado com a chave debug, instalável diretamente para avaliação, mas não aceito na Play. O iOS gera um app de simulador, que não instala em iPhone nem é um IPA. Para TestFlight e faixa interna do Play, ainda faltam certificados/perfis e credenciais de distribuição guardados nos segredos do GitHub. O workflow injeta URL e chave publicável do Supabase por variáveis de repositório.
-- O workflow de OTA é separado e continua usando EAS Update e `EXPO_TOKEN`. Isso não participa da compilação, mas depende do projeto Expo e de um serviço de atualização. O projeto EO ainda não foi vinculado para OTA.
+- O workflow de OTA é separado e continua usando EAS Update e `EXPO_TOKEN`. Isso não participa da compilação, mas depende de configuração EAS Update e compatibilidade do runtime nativo instalado.
 - O workflow de prévia compila Android e iOS Simulator automaticamente quando arquivos em `mobile/` mudam na `main`; também pode ser iniciado manualmente. A concorrência cancela uma prévia anterior da mesma plataforma para evitar trabalho duplicado. A OTA segue manual e depende do EAS Update.
 ## Pendências antes do primeiro binário
 
 - O lockfile foi gerado e o `eas-cli` foi adicionado como dependência travada em `mobile/`; a instalação foi executada, sem build ou teste.
-- Associar o projeto Expo do EO à conta correta e configurar EAS Update. Ainda não há project ID, URL de update ou credenciais EAS nesse repositório.
+- Configurar EAS Update e `EXPO_TOKEN`; a vinculação do projeto Expo já existe, mas isso não autoriza enviar código nativo incompatível por OTA.
 - Configurar `EXPO_TOKEN` nos ambientes GitHub `eo-preview` e `eo-production`, configurar variáveis públicas `EXPO_PUBLIC_SUPABASE_URL` e `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` nos ambientes Expo EAS correspondentes e aprovar produção manualmente.
 - Confirmar a assinatura Android existente no Play Console. Não substituir chave de upload sem verificar o registro.
 - Confirmar certificado/perfil Apple do app EO e testar o upload no mesmo registro App Store Connect.
@@ -80,6 +80,15 @@ Matheus confirmou que quer usar o GitHub Actions como ambiente de compilacao, se
 - A tela de teste ainda parecia uma página web para Matheus, embora os componentes fossem React Native. A causa visual era a navegação própria do MVP, baseada numa pilha manual e em caracteres usados como ícones.
 - O app agora usa Expo Router, no mesmo padrão estrutural do app Expo do Control ALL: abas para Início, Avisos, Apps, Gestão e Perfil; pilha nativa para comunicados, administração e privacidade; retorno e transições do sistema.
 - A paleta continua exclusiva do EO: grafite `#4A4E58`, amarelo `#FBF2A3`, areia `#DDDAD5` e branco `#FEFEFE`. Ícones usam Expo Symbols com nomes nativos e equivalentes Android. Início e catálogo foram ajustados para hierarquia e toque em tela pequena.
+
+### Alertas e checklists, 01/11/2026
+
+- Projeto EAS do EO vinculado; a chave APNs foi atribuída ao identificador iOS do EO. FCM v1 de Android ainda precisa ser cadastrado para push no Android.
+- A migração `202610310001_alerts_checklists` já constava como aplicada no Supabase. Foram confirmados tabelas, funções, bucket privado, grants do `service_role` e as três tabelas Realtime.
+- `send-alert-push` e `send-test-push` foram publicadas no projeto Supabase EO com verificação JWT habilitada. A função de teste é limitada ao admin autenticado e seus aparelhos registrados.
+- A validação de respostas do checklist foi atualizada no banco para rejeitar respostas malformadas e impedir concluir item obrigatório vazio.
+- O workflow de build do GitHub foi alterado para execução manual apenas. Nenhuma build ou atualização OTA foi iniciada nesse envio.
+- Câmera, agenda e notificações usam módulos nativos adicionados nesta versão do código. O binário atualmente instalado precisa ser atualizado para testá-los; uma OTA isolada não instala módulos nativos.
 - Login, primeiro acesso, acesso não liberado, detalhes, comunicados, publicação, perfil e navegação administrativa foram conectados às rotas. A gestão continua visível somente para administrador; rotas administrativas também validam perfil no cliente, além das permissões já aplicadas no Supabase.
 - Verificações locais: `npx tsc --noEmit` e `npx expo config --type public` passaram. `npx expo export --platform android` no Windows falhou na criação de workers do Metro (`Data cannot be cloned, out of memory` / `ERR_WORKER_INIT_FAILED`), então a validação final de bundling deve ser a compilação no runner Ubuntu do GitHub.
 - O `main` do pacote aponta para `expo-router/entry`; plugin e dependências do SDK 57 foram adicionados. A assinatura e distribuição TestFlight não mudam: o GitHub ainda gera somente iOS Simulator até configurar certificado, perfil e credenciais Apple no workflow.

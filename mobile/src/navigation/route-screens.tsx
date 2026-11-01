@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { Redirect, router, useLocalSearchParams } from "expo-router";
-import { KeyboardAvoidingView, Platform, StatusBar } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, StatusBar, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEO } from "../providers/eo-provider";
 import { AccessScreen, AuditScreen, ChangePasswordScreen, ComposeScreen, EditPersonScreen, HomeScreen, LoginScreen, ManagementScreen, ModulesScreen, NoticeScreen, NoticesScreen, PeopleScreen, PrivacyScreen, ProfileScreen, StoresScreen } from "../../App";
@@ -11,10 +11,13 @@ type FrameProps = { children: ReactNode; home?: boolean; noHeader?: boolean; tab
 
 export function RouteFrame({ children, home = false, noHeader = false, tabs = false }: FrameProps) {
   const app = useEO();
+  const banner = app.alerts.find((item) => !item.seen_at && !item.dismissed_at);
   const edges = home ? ["top", "left", "right"] as const : tabs ? ["left", "right"] as const : noHeader ? ["top", "left", "right", "bottom"] as const : ["left", "right", "bottom"] as const;
   return <SafeAreaView style={s.screen} edges={edges}>
     <StatusBar barStyle="dark-content" backgroundColor={C.canvas} />
     <Feedback error={app.error} message={app.message} onClose={app.clearFeedback} />
+    {app.session && !app.pushGranted && <View style={{ marginHorizontal: 14, marginTop: 8, padding: 13, borderRadius: 16, backgroundColor: C.yellow, gap: 6 }}><Text style={{ color: C.dark, fontSize: 13, fontWeight: "800" }}>Receba alertas importantes no aparelho</Text><Text style={{ color: C.dark, fontSize: 11, lineHeight: 16 }}>O EO mantém o banner dentro do app. Ative notificações para receber avisos do sistema; se desativar, isso só poderá ser alterado nas configurações do aparelho.</Text><Pressable accessibilityRole="button" onPress={() => void app.enablePush()} style={{ alignSelf: "flex-start", paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: C.dark }}><Text style={{ color: C.paper, fontWeight: "800", fontSize: 12 }}>Ativar notificações</Text></Pressable></View>}
+    {banner && <View style={{ marginHorizontal: 14, marginTop: 8, padding: 13, borderRadius: 16, backgroundColor: banner.urgent ? "#FFF3D6" : C.paper, borderWidth: 1, borderColor: C.line, gap: 7 }}><Text style={{ color: C.dark, fontSize: 14, fontWeight: "800" }}>{banner.urgent ? "Alerta prioritário" : "Novo alerta"} · {banner.title}</Text><Text numberOfLines={2} style={{ color: C.muted, fontSize: 12 }}>{banner.body}</Text><View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 18 }}><Pressable accessibilityRole="button" onPress={() => void app.markAlert(banner, "dismiss")}><Text style={{ color: C.muted, fontWeight: "700", fontSize: 12 }}>Descartar</Text></Pressable><Pressable accessibilityRole="button" onPress={() => { void app.markAlert(banner, "view"); router.navigate("/modules" as never); }}><Text style={{ color: C.dark, fontWeight: "800", fontSize: 12 }}>Visualizar</Text></Pressable></View></View>}
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={8}>{children}</KeyboardAvoidingView>
   </SafeAreaView>;
 }

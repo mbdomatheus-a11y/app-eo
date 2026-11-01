@@ -1,11 +1,6 @@
 name: EO | Compilar app no GitHub
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'mobile/**'
   workflow_dispatch:
     inputs:
       platform:

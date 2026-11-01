@@ -36,6 +36,9 @@ export type AuditRow = {
   entity_id: string;
   created_at: string;
 };
+export type LiveAlert = { id: string; title: string; body: string; urgent: boolean; created_at: string; seen_at: string | null; dismissed_at: string | null };
+export type ChecklistRun = { run_id: string; status: "pending" | "in_progress" | "completed"; assigned_at: string; updated_at: string; store_id: string; store_name: string; template_id: string; title: string; description: string; item_count: number; answered_count: number };
+export type ChecklistDetail = { run: { id: string; status: string }; store_name: string; title: string; description: string; items: { id: string; position: number; prompt: string; type: "acceptance" | "photo" | "text" | "yes_no"; required: boolean; options: string[]; answer: Record<string, unknown> | null }[] };
 
 export const roleLabels: Record<Role, string> = {
   colaborador: "Colaborador",

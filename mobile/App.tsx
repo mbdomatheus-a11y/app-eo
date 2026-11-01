@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Linking, Pressable, Text, View } from "react-native";
+import * as Calendar from "expo-calendar";
 import { useEO } from "./src/providers/eo-provider";
 import { ActionRow, AppIcon, Badge, Brand, Button, C, Card, Choice, Field, Heading, Page, Section, s } from "./src/ui";
 import type { AdminTab, AuditRow, LiveNotice, LivePerson, Role } from "./src/types";
@@ -94,11 +95,66 @@ export function NoticeScreen({ id, back }: { id: string; back: () => void }) {
 }
 
 export function ModulesScreen({ openTab }: { openTab: (tab: string) => void }) {
+  const app = useEO();
+  const [checklistId, setChecklistId] = useState("");
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [alertTitle, setAlertTitle] = useState(""); const [alertBody, setAlertBody] = useState(""); const [alertStores, setAlertStores] = useState<string[]>([]);
+  const [templateTitle, setTemplateTitle] = useState(""); const [templateDescription, setTemplateDescription] = useState(""); const [question, setQuestion] = useState("");
+  const [questionType, setQuestionType] = useState<"acceptance" | "photo" | "text" | "yes_no">("acceptance");
+  const [questions, setQuestions] = useState<{ prompt: string; type: "acceptance" | "photo" | "text" | "yes_no"; required: boolean }[]>([]);
+  const [checklistStores, setChecklistStores] = useState<string[]>([]);
+  const [eventTitle, setEventTitle] = useState(""); const [eventNotes, setEventNotes] = useState("");
+  const [eventStart, setEventStart] = useState(() => { const date = new Date(Date.now() + 60 * 60 * 1000); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`; });
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const canPublish = ["admin", "diretor", "gerente"].includes(app.workspace!.person.role);
+  const activeRun = app.checklists.find((run) => run.run_id === checklistId);
+  const addToCalendar = async () => {
+    const match = eventStart.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/);
+    if (!eventTitle.trim() || !match) { Alert.alert("Confira a agenda", "Informe o título e a data no formato AAAA-MM-DD HH:MM."); return; }
+    const [, year, month, day, hour, minute] = match;
+    const startDate = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute));
+    if (Number.isNaN(startDate.getTime()) || startDate.getMonth() !== Number(month) - 1 || startDate.getDate() !== Number(day) || startDate.getHours() !== Number(hour) || startDate.getMinutes() !== Number(minute)) { Alert.alert("Data inválida", "Confira a data e o horário digitados."); return; }
+    try {
+      const permission = await Calendar.requestCalendarPermissions(true);
+      if (!permission.granted) { Alert.alert("Acesso à agenda", "Permita adicionar eventos à agenda nas configurações do aparelho."); return; }
+      const result = await Calendar.addEventWithForm({ title: eventTitle.trim(), notes: eventNotes.trim() || undefined, startDate, endDate: new Date(startDate.getTime() + 30 * 60 * 1000) });
+      if (result.action === "saved" || result.action === "done") { app.clearFeedback(); setEventTitle(""); setEventNotes(""); Alert.alert(result.action === "saved" ? "Evento salvo" : "Agenda aberta", result.action === "saved" ? "O evento foi adicionado ao calendário do aparelho." : "Confira os detalhes e conclua ou cancele no calendário do aparelho."); }
+    } catch { Alert.alert("Agenda indisponível", "Atualize o aplicativo para incluir a integração com o calendário do aparelho."); }
+  };
+  const openPhone = async () => {
+    const digits = phoneNumber.replace(/\D/g, "");
+    if (digits.length < 8 || !/^[+\d\s()-]+$/.test(phoneNumber)) { Alert.alert("Número inválido", "Digite um telefone válido com DDD."); return; }
+    try { await Linking.openURL(`tel:${phoneNumber.replace(/[^+\d]/g, "")}`); }
+    catch { Alert.alert("Telefone indisponível", "Não foi possível abrir o aplicativo de telefone neste aparelho."); }
+  };
+  useEffect(() => { if (checklistId && !activeRun) setChecklistId(""); }, [checklistId, activeRun]);
+  useEffect(() => { if (activeRun && app.checklistDetail?.run.id !== checklistId && !app.busy) void app.openChecklist(checklistId); }, [checklistId, activeRun, app.checklistDetail?.run.id, app.busy]);
+  if (activeRun && app.checklistDetail?.run.id === checklistId) {
+    const detail = app.checklistDetail;
+    return <Page><Button title="Voltar para rotinas" secondary onPress={() => { setChecklistId(""); }} /><Badge warning={detail.run.status !== "completed"}>{detail.run.status === "completed" ? "Concluído" : "Em andamento"}</Badge><Heading title={detail.title} detail={detail.store_name + (detail.description ? ` · ${detail.description}` : "")} />
+      {detail.items.map((item) => <Card key={item.id}><Badge>{item.required ? "Obrigatório" : "Opcional"} · {item.type === "acceptance" ? "Aceite" : item.type === "photo" ? "Foto" : item.type === "yes_no" ? "Sim ou não" : "Resposta"}</Badge><Text style={s.strong}>{item.position}. {item.prompt}</Text>
+        {item.type === "acceptance" ? <Button title="Aceitar e registrar" secondary onPress={() => void app.saveChecklistAnswer(checklistId, item.id, { accepted: true })} /> : item.type === "yes_no" ? <View style={{ flexDirection: "row", gap: 8 }}><View style={{ flex: 1 }}><Button title="Sim" secondary onPress={() => void app.saveChecklistAnswer(checklistId, item.id, { value: true })} /></View><View style={{ flex: 1 }}><Button title="Não" secondary onPress={() => void app.saveChecklistAnswer(checklistId, item.id, { value: false })} /></View></View> : item.type === "photo" ? <Button title="Tirar e salvar foto" secondary onPress={() => void app.captureChecklistPhoto(checklistId, item.id)} /> : <><Field label="Sua resposta" value={draft[item.id] ?? String(item.answer?.text ?? "")} onChangeText={(value) => setDraft((old) => ({ ...old, [item.id]: value }))} multiline placeholder="Digite sua resposta" /><Button title="Salvar resposta" secondary onPress={() => void app.saveChecklistAnswer(checklistId, item.id, { text: draft[item.id] ?? "" })} /></>}
+        {item.answer && <Text style={[s.small, { color: C.green }]}>✓  Resposta salva no Supabase</Text>}
+      </Card>)}
+    </Page>;
+  }
   const modules = [
     ["Checklist", "Rotinas e padrões da loja", "checklist"], ["Cartazeamento", "Materiais de campanha", "paintbrush.fill"],
     ["Escala da equipe", "Pessoas e horários", "person.3.fill"], ["Fotos e evidências", "Registros da operação", "camera.fill"], ["Diário de vendas", "Relato de voz e resumo", "waveform"],
   ];
-  return <Page><Text style={s.detail}>As ferramentas da operação ficam reunidas neste espaço.</Text>
+  return <Page><Text style={s.detail}>Alertas e rotinas da operação, com atualização em tempo real e histórico no Supabase.</Text>
+    <Section title="Alertas" />
+    {!app.alerts.filter((item) => !item.dismissed_at).length && <Text style={s.small}>Nenhum alerta ativo para você.</Text>}
+    {app.alerts.filter((item) => !item.dismissed_at).slice(0, 5).map((alert) => <Card key={alert.id}><View style={{ flexDirection: "row", justifyContent: "space-between" }}><Badge warning={alert.urgent}>{alert.urgent ? "Prioritário" : "Alerta"}</Badge><Text style={s.small}>{new Date(alert.created_at).toLocaleDateString("pt-BR")}</Text></View><Text style={s.strong}>{alert.title}</Text><Text style={s.body}>{alert.body}</Text><View style={{ flexDirection: "row", gap: 8 }}><View style={{ flex: 1 }}><Button title="Visualizar" secondary onPress={() => void app.markAlert(alert, "view")} /></View><View style={{ flex: 1 }}><Button title="Descartar" secondary onPress={() => void app.markAlert(alert, "dismiss")} /></View></View></Card>)}
+    {canPublish && <Card><Badge>ENVIAR A TODAS AS PESSOAS DAS LOJAS</Badge><Field label="Título do alerta" value={alertTitle} onChangeText={setAlertTitle} placeholder="Ex.: Atenção à abertura" maxLength={120} /><Field label="Mensagem" value={alertBody} onChangeText={setAlertBody} multiline placeholder="Escreva o que a equipe precisa saber" maxLength={3000} /><Text style={s.label}>Lojas destinatárias</Text>{app.workspace!.stores.map((store) => <Choice key={store.id} label={`${store.code} · ${store.name}`} selected={alertStores.includes(store.id)} onPress={() => setAlertStores((old) => old.includes(store.id) ? old.filter((id) => id !== store.id) : [...old, store.id])} />)}<Button title="Enviar alerta" disabled={app.busy || !alertStores.length} onPress={async () => { const result = await app.publishAlert({ title: alertTitle, body: alertBody, stores: alertStores, urgent: false }); if (result.ok) { setAlertTitle(""); setAlertBody(""); } }} /></Card>}
+    <Section title={`Checklists · ${app.checklists.filter((item) => item.status !== "completed").length} pendentes`} />
+    {canPublish && <Card><Badge>NOVO CHECKLIST</Badge><Text style={s.strong}>Monte uma rotina para sua equipe</Text><Field label="Nome da rotina" value={templateTitle} onChangeText={setTemplateTitle} placeholder="Ex.: Abertura da loja" maxLength={120} /><Field label="Orientação" value={templateDescription} onChangeText={setTemplateDescription} placeholder="Objetivo ou instruções" multiline maxLength={1000} /><Field label="Pergunta ou etapa" value={question} onChangeText={setQuestion} placeholder="Ex.: A área está organizada?" maxLength={500} /><Text style={s.label}>Formato</Text>{([ ["acceptance", "Aceite"], ["photo", "Foto"], ["text", "Resposta aberta"], ["yes_no", "Sim ou não"] ] as const).map(([type, label]) => <Choice key={type} label={label} selected={questionType === type} onPress={() => setQuestionType(type)} />)}<Button title="Adicionar pergunta" secondary disabled={!question.trim()} onPress={() => { setQuestions((old) => [...old, { prompt: question.trim(), type: questionType, required: true }]); setQuestion(""); }} />{questions.map((item, index) => <View key={`${item.prompt}-${index}`} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Text style={[s.small, { flex: 1 }]}>{index + 1}. {item.prompt}</Text><Pressable accessibilityRole="button" onPress={() => setQuestions((old) => old.filter((_, i) => i !== index))}><Text style={{ color: C.red, fontWeight: "800", padding: 8 }}>Remover</Text></Pressable></View>)}<Text style={s.label}>Lojas que receberão a rotina</Text>{app.workspace!.stores.map((store) => <Choice key={store.id} label={`${store.code} · ${store.name}`} selected={checklistStores.includes(store.id)} onPress={() => setChecklistStores((old) => old.includes(store.id) ? old.filter((id) => id !== store.id) : [...old, store.id])} />)}<Button title="Salvar e atribuir" disabled={app.busy || !questions.length || !checklistStores.length} onPress={async () => { const result = await app.publishChecklist({ title: templateTitle, description: templateDescription, items: questions, stores: checklistStores }); if (result.ok) { setTemplateTitle(""); setTemplateDescription(""); setQuestions([]); setChecklistStores([]); } }} /></Card>}
+    {app.checklists.map((run) => <Pressable key={run.run_id} accessibilityRole="button" onPress={() => setChecklistId(run.run_id)} style={({ pressed }) => [s.card, pressed && s.pressed]}><View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Badge warning={run.status !== "completed"}>{run.status === "completed" ? "Concluído" : run.status === "in_progress" ? "Em andamento" : "Pendente"}</Badge><Text style={s.small}>{run.answered_count}/{run.item_count}</Text></View><Text style={s.strong}>{run.title}</Text><Text style={s.small}>{run.store_name} · Atualizado {new Date(run.updated_at).toLocaleDateString("pt-BR")}</Text><Text style={{ color: C.dark, fontSize: 12, fontWeight: "800" }}>Abrir rotina  ›</Text></Pressable>)}
+    {!app.checklists.length && <Card><Text style={s.strong}>Sua lista de rotinas está vazia</Text><Text style={s.small}>Quando um checklist for atribuído à sua loja, ele aparecerá aqui com o estágio de andamento.</Text></Card>}
+    <Section title="Notificações" /><Card><Text style={s.strong}>Preferência de som</Text><Text style={s.small}>Esta preferência não desativa o banner nem o push. A entrega push ainda depende da configuração do projeto Expo; permissões do sistema são controladas nas configurações do aparelho.</Text><Button title={app.soundEnabled ? "Silenciar som" : "Ativar som"} secondary onPress={() => void app.setSoundEnabled(!app.soundEnabled)} />{app.workspace!.person.role === "admin" && <><Text style={s.small}>O teste vai somente para seus aparelhos registrados, sem notificar as lojas.</Text><Button title="Enviar teste para meus aparelhos" secondary disabled={app.busy} onPress={() => void app.sendTestPush()} /></>}</Card>
+    <Section title="Agenda do aparelho" /><Card><Text style={s.small}>Crie um lembrete no calendário do iPhone ou Android. O sistema mostra os detalhes antes de salvar.</Text><Field label="Título" value={eventTitle} onChangeText={setEventTitle} placeholder="Ex.: Reunião de abertura" maxLength={120} /><Field label="Data e hora local · AAAA-MM-DD HH:MM" value={eventStart} onChangeText={setEventStart} placeholder="2026-11-01 09:00" maxLength={16} /><Field label="Observações" value={eventNotes} onChangeText={setEventNotes} placeholder="Opcional" multiline maxLength={500} /><Button title="Adicionar à agenda" secondary onPress={() => void addToCalendar()} /></Card>
+    <Section title="Ligar pelo aparelho" /><Card><Text style={s.small}>O EO abre o aplicativo de telefone com o número preenchido. Você confirma a ligação no sistema.</Text><Field label="Telefone com DDD" value={phoneNumber} onChangeText={setPhoneNumber} keyboardType="phone-pad" placeholder="(11) 3333-4444" maxLength={20} /><Button title="Abrir aplicativo Telefone" secondary onPress={() => void openPhone()} /></Card>
+    <Section title="Aplicativos" />
     <Section title="Disponível agora" />
     <Pressable accessibilityRole="button" onPress={() => openTab("notices")} style={({ pressed }) => [s.card, { flexDirection: "row", alignItems: "center" }, pressed && s.pressed]}><View style={s.actionIcon}><AppIcon name="bell.fill" size={20} color={C.dark} /></View><View style={{ flex: 1, gap: 4 }}><Text style={s.strong}>Comunicados</Text><Text style={s.small}>Orientações e confirmação de leitura</Text></View><Text style={s.chevron}>›</Text></Pressable>
     <Section title="Próximas ferramentas" />
