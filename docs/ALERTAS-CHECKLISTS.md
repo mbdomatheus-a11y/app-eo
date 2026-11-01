@@ -10,9 +10,9 @@
 - Bucket privado `eo-checklist-photos`, limitado a imagens PNG/JPEG/WebP de até 10 MB. O app pede acesso à câmera ao tocar em “Tirar e salvar foto”, sobe o arquivo em caminho próprio e registra a resposta/auditoria.
 - `expo-notifications` pede a permissão do sistema após ação explícita da pessoa e registra/atualiza o token do aparelho no Supabase. A Edge Function `send-alert-push` encaminha alertas aos tokens registrados e respeita a preferência de som sem remover o push.
 
-## Instalação no Supabase
+## Estado de implantação no Supabase
 
-Aplicar `202610310001_alerts_checklists.sql` depois de `202610300001_service_role_identity_grants.sql`. Ela é aditiva, mantém os dados existentes e registra as tabelas novas no Realtime. Publicar `send-alert-push` e `send-test-push` com `verify_jwt=true`. Antes da implantação, conferir se o projeto correto está selecionado: `mfsnzrrqlyixqwsrcqyo` (SUP_EO1).
+No projeto `mfsnzrrqlyixqwsrcqyo` (SUP_EO1), a migration `202610310001_alerts_checklists` já constava como aplicada. Tabelas, RPCs, bucket privado, grants do servidor e publicação Realtime foram conferidos. `eo_checklist_save` recebeu uma atualização de validação via `CREATE OR REPLACE`. As Edge Functions `send-alert-push` e `send-test-push` foram publicadas com `verify_jwt=true`.
 
 ## Push do sistema
 

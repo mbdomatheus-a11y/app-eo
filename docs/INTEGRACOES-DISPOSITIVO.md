@@ -13,9 +13,9 @@ Os quatro recursos usam módulos nativos do Expo. O `package.json`, lockfile e `
 
 ## Para ativar push
 
-1. O projeto EAS do EO já está vinculado; APNs `RSGS8585QG` está atribuído ao identificador `com.appeo.mobile`.
+1. O projeto EAS do EO já está vinculado; a chave APNs está atribuída ao identificador `com.appeo.mobile`.
 2. Configurar credenciais FCM v1 para Android no projeto Expo, sem compartilhar a chave privada no Git ou no chat.
-3. Aplicar `supabase/migrations/202610310001_alerts_checklists.sql` e publicar `send-alert-push` e `send-test-push` no projeto Supabase `mfsnzrrqlyixqwsrcqyo`.
-4. Para receber push, câmera e agenda no aparelho, será necessário atualizar o binário instalado, pois foram adicionados módulos nativos. O envio ao GitHub não inicia build automaticamente.
+3. A migration e as Edge Functions já foram aplicadas/publicadas no projeto Supabase `mfsnzrrqlyixqwsrcqyo`.
+4. Para receber push, câmera e agenda no aparelho, será necessário atualizar o binário instalado, pois foram adicionados módulos nativos. O envio ao GitHub não inicia build automaticamente; o workflow está manual.
 
 O EAS fornece project ID e gestão de credenciais; o compilador permanece no GitHub. Referência: https://docs.expo.dev/push-notifications/push-notifications-setup/.
