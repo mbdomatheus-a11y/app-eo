@@ -40,7 +40,9 @@ async function unzipEntries(file: File): Promise<Map<string, string>> {
     const localOffset = view.getUint32(cursor + 42, true);
     const name = decoder.decode(bytes.slice(cursor + 46, cursor + 46 + nameLength));
     cursor += 46 + nameLength + extraLength + commentLength;
-    if (!name.endsWith(".xml") || name.startsWith("../") || name.startsWith("/")) continue;
+    // Os relacionamentos do pacote Open XML são arquivos .rels, não .xml.
+    // Sem eles não é possível ligar os nomes das abas aos seus XMLs.
+    if (!/\.(xml|rels)$/i.test(name) || name.startsWith("../") || name.startsWith("/")) continue;
     expanded += uncompressedSize;
     if (expanded > 50 * 1024 * 1024) throw new Error("A planilha descompactada excede o limite de 50 MB.");
     if (view.getUint32(localOffset, true) !== 0x04034b50) throw new Error("A estrutura interna da planilha está inválida.");
