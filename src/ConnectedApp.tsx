@@ -11,6 +11,7 @@ import type { Session } from "@supabase/supabase-js";
 import { Capacitor } from "@capacitor/core";
 import {
   ArrowRight,
+  Bell,
   Building2,
   CheckCheck,
   ChevronRight,
@@ -406,11 +407,23 @@ export default function ConnectedApp() {
       const data = await readOrgWorkbook(file);
       if (!data.Lojas.length) throw new Error("A aba Lojas não contém linhas para importar.");
       if (!data.Regionais.length) throw new Error("Preencha a aba Regionais antes de importar.");
-      setImportData(data);
+      const storeCodes = new Set(data.Lojas.map((row) => row.COD.trim()).filter(Boolean));
+      const managers = data.Gerentes.filter((row) => {
+        const chapa = (row.CHAPA ?? "").trim();
+        const storeCode = (row["COD LOJA"] ?? "").trim();
+        return /^\d+$/.test(chapa) && storeCodes.has(storeCode);
+      });
+      const skippedManagers = data.Gerentes.length - managers.length;
+      const importableData = { ...data, Gerentes: managers };
+      setImportData(importableData);
       setImportFileName(file.name);
-      setImportCounts(Object.fromEntries(Object.entries(data).map(([name, rows]) => [name, rows.length])));
+      setImportCounts(Object.fromEntries(Object.entries(importableData).map(([name, rows]) => [name, rows.length])));
       setError("");
-      setMessage("Planilha lida. Revise as quantidades antes de substituir a base ativa.");
+      setMessage(
+        skippedManagers
+          ? `Planilha lida. ${skippedManagers} gerente(s) sem CHAPA numérica ou COD LOJA correspondente serão deixados sem vínculo. Revise as quantidades antes de importar.`
+          : "Planilha lida. Revise as quantidades antes de substituir a base ativa.",
+      );
     } catch (e) {
       setError((e as Error).message || "Não foi possível ler a planilha.");
     } finally {
@@ -634,6 +647,7 @@ export default function ConnectedApp() {
     );
   const admin = workspace.person.role === "admin",
     leader = admin || workspace.person.role === "diretor";
+  const pendingNoticeCount = notices.filter((notice) => !notice.acknowledged).length;
   const navigation = [
     { id: "home" as const, label: "Visão geral", icon: Home },
     { id: "notices" as const, label: "Comunicados", icon: Megaphone },
@@ -703,7 +717,7 @@ export default function ConnectedApp() {
             <LogOut size={19} />
             Sair da conta
           </button>
-          <span className="sidebar-version">Excelência Operacional (EO) · MVP 0.2</span>
+          <span className="sidebar-version">Excelência Operacional (EO) · atualização {__APP_VERSION__}</span>
         </div>
       </aside>
       <div className="main-shell">
@@ -714,6 +728,16 @@ export default function ConnectedApp() {
             {navigation.find((n) => n.id === page)?.label}
           </div>
           <div className="top-actions">
+            <span className="badge" title="Identificador do commit publicado">Versão {__APP_VERSION__}</span>
+            <button
+              className="notification-button icon-button"
+              aria-label={`Abrir comunicados${pendingNoticeCount ? `, ${pendingNoticeCount} pendente(s)` : ""}`}
+              title="Comunicados"
+              onClick={() => setPage("notices")}
+            >
+              <Bell size={18} />
+              {pendingNoticeCount > 0 && <span />}
+            </button>
             <button
               className="icon-button"
               aria-label="Atualizar dados"

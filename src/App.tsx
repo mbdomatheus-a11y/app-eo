@@ -446,7 +446,7 @@ export default function App() {
             <CircleHelp size={19} />
             <span>Sobre esta prévia</span>
           </button>
-          <span className="sidebar-version">Excelência Operacional (EO) · versão 0.1</span>
+          <span className="sidebar-version">Excelência Operacional (EO) · atualização {__APP_VERSION__}</span>
         </div>
       </aside>
 
