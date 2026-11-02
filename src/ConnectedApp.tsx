@@ -944,8 +944,8 @@ export default function ConnectedApp() {
                 <section className="panel">
                   <h2>Modelo de importação administrativa</h2>
                   <p>
-                    Baixe a planilha padrão para organizar lojas, pessoas e
-                    vínculos antes de preparar os arquivos de cadastro.
+                    Baixe a planilha padrão para organizar lojas, gerentes,
+                    regionais, equipe e vínculos antes do cadastro.
                   </p>
                   <a
                     className="primary template-download"
@@ -957,9 +957,9 @@ export default function ConnectedApp() {
                   </a>
                   <div className="info-strip">
                     <ShieldCheck size={20} />
-                    A planilha serve para preparar os dados. A importação pelo
-                    sistema será disponibilizada após a definição dos cargos e
-                    dos vínculos de GGL e REGIONAL.
+                    A planilha prepara os dados. A importação autenticada pelo
+                    sistema será liberada após a validação do fluxo seguro e da
+                    trilha de auditoria.
                   </div>
                 </section>
               )}
