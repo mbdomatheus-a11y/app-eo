@@ -131,7 +131,7 @@ begin
   end loop;
   update public.eo_regional_groups set active=false,updated_at=now() where import_batch is distinct from v_batch;
 
-  update public.eo_stores set active=false;
+  update public.eo_stores set active=false where active=true;
   for v_row in select value from jsonb_array_elements(v_stores) loop
     insert into public.eo_stores(code,name,region,ggl,active)
     values(trim(v_row->>'COD'),left(trim(v_row->>'LOJA'),120),coalesce(v_row->>'REGIONAL',''),nullif(trim(v_row->>'GGL'),''),upper(coalesce(nullif(v_row->>'ATIVA',''),'SIM')) not in ('NÃO','NAO','FALSE','0'))
@@ -141,7 +141,7 @@ begin
     values(v_store_id,v_row,v_batch,now()) on conflict(store_id) do update set attributes=excluded.attributes,import_batch=v_batch,updated_at=now();
   end loop;
   delete from public.eo_store_managers;
-  update public.eo_directory_people set active=false,updated_at=now();
+  update public.eo_directory_people set active=false,updated_at=now() where active=true;
   for v_row in select value from jsonb_array_elements(v_managers) loop
     insert into public.eo_directory_people(chapa,display_name,operational_role,email,phone,active,import_batch,updated_at)
     values(trim(v_row->>'CHAPA'),left(coalesce(nullif(trim(v_row->>'NOME DO GERENTE'),''),'Gerente'),120),'Gerente',nullif(trim(v_row->>'E-MAIL REAL'),''),nullif(trim(v_row->>'TELEFONE'),''),true,v_batch,now())
