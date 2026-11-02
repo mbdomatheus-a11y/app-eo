@@ -28,6 +28,7 @@ import {
   CalendarDays,
   Mic,
   Upload,
+  Download,
 } from "lucide-react";
 import {
   backendConfigured,
@@ -93,7 +94,7 @@ export default function ConnectedApp() {
     [members, setMembers] = useState<LivePerson[]>([]);
   const [temporaryPassword, setTemporaryPassword] = useState("");
   const [editingMember, setEditingMember] = useState<LivePerson | null>(null);
-  const [tab, setTab] = useState<"stores" | "people" | "audit">("stores"),
+  const [tab, setTab] = useState<"stores" | "people" | "audit" | "import">("stores"),
     [future, setFuture] = useState("");
   const epoch = useRef(0),
     requestId = useRef(crypto.randomUUID());
@@ -399,8 +400,8 @@ export default function ConnectedApp() {
         temporaryPassword={temporaryPassword}
         editingMember={editingMember}
         setEditingMember={setEditingMember}
-        tab={tab}
-        setTab={setTab}
+        tab={tab === "import" ? "stores" : tab}
+        setTab={(nextTab) => setTab(nextTab)}
         login={login}
         changePassword={changePassword}
         refresh={refresh}
@@ -869,7 +870,7 @@ export default function ConnectedApp() {
           {page === "admin" && admin && (
             <>
               <div className="tabs admin-tabs">
-                {(["stores", "people", "audit"] as const).map((t) => (
+                {(["stores", "people", "import", "audit"] as const).map((t) => (
                   <button
                     key={t}
                     className={tab === t ? "selected" : ""}
@@ -880,6 +881,7 @@ export default function ConnectedApp() {
                       {
                         stores: "Lojas",
                         people: "Pessoas e acessos",
+                        import: "Importação de bases",
                         audit: "Auditoria",
                       }[t]
                     }
@@ -937,6 +939,29 @@ export default function ConnectedApp() {
                     </div>
                   </section>
                 </div>
+              )}
+              {tab === "import" && (
+                <section className="panel">
+                  <h2>Modelo de importação administrativa</h2>
+                  <p>
+                    Baixe a planilha padrão para organizar lojas, pessoas e
+                    vínculos antes de preparar os arquivos de cadastro.
+                  </p>
+                  <a
+                    className="primary template-download"
+                    href="/modelo-importacao-administrativa-eo.xlsx"
+                    download="Modelo-importacao-administrativa-EO.xlsx"
+                  >
+                    <Download size={18} />
+                    Baixar modelo Excel
+                  </a>
+                  <div className="info-strip">
+                    <ShieldCheck size={20} />
+                    A planilha serve para preparar os dados. A importação pelo
+                    sistema será disponibilizada após a definição dos cargos e
+                    dos vínculos de GGL e REGIONAL.
+                  </div>
+                </section>
               )}
               {tab === "people" && (
                 <>

@@ -967,6 +967,9 @@ main {
 .admin-tabs {
   margin-bottom: 24px;
 }
+.template-download {
+  text-decoration: none;
+}
 .admin-grid {
   display: grid;
   grid-template-columns: 1fr 1.2fr;

@@ -167,8 +167,9 @@ export function ManagementScreen({ open }: { open: (tab: AdminTab) => void }) {
   return <Page><Text style={s.detail}>Administre o acesso e acompanhe as atividades da plataforma.</Text>
     <ActionRow title="Lojas" detail="Unidades vinculadas ao espaço" icon="house.fill" onPress={() => open("stores")} />
     <ActionRow title="Pessoas e acessos" detail="Perfis, permissões e convites" icon="person.2.fill" onPress={() => open("people")} />
+    <ActionRow title="Modelo de importação" detail="Baixe a planilha padrão de lojas, pessoas e vínculos" icon="doc.text.fill" onPress={() => void Linking.openURL("https://app-eo.vercel.app/modelo-importacao-administrativa-eo.xlsx")} />
     <ActionRow title="Auditoria" detail="Atividades recentes do sistema" icon="checkmark.shield.fill" onPress={() => open("audit")} />
-    <Card style={{ backgroundColor: C.soft }}><Text style={s.small}>◈  Alterações administrativas ficam registradas no histórico de auditoria.</Text></Card>
+    <Card style={{ backgroundColor: C.soft }}><Text style={s.small}>◈  Alterações administrativas ficam registradas no histórico de auditoria.</Text><Text style={s.small}>A importação pelo sistema será liberada depois da definição dos cargos e vínculos de GGL e REGIONAL.</Text></Card>
   </Page>;
 }
 
