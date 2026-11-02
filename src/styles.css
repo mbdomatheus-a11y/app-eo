@@ -1814,6 +1814,20 @@ legend {
   font-size: 12px;
   padding: 6px 0;
 }
+.store-target-list {
+  max-height: 210px;
+  overflow: auto;
+  border: 1px solid #e3e3dc;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.field-hint {
+  display: block;
+  margin: 6px 0 0;
+  color: #6b6f73;
+  font-size: 12px;
+  line-height: 1.45;
+}
 .form-error p {
   color: inherit;
 }

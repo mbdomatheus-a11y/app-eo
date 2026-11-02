@@ -255,21 +255,62 @@ export default function ConnectedApp() {
     const form = e.currentTarget;
     const data = new FormData(form);
     await act(async () => {
-      const stores = data.getAll("stores").map(String);
+      const messageKind = String(data.get("message_kind")) === "alert" ? "alert" : "notice";
+      const targetMode = String(data.get("target_mode") || "all");
+      const targetRegion = String(data.get("target_region") || "");
+      const stores = targetMode === "all"
+        ? (workspace?.stores ?? []).map((store) => store.id)
+        : targetMode === "region"
+          ? (workspace?.stores ?? []).filter((store) => store.region === targetRegion).map((store) => store.id)
+          : data.getAll("stores").map(String);
       if (!stores.length) throw new Error("Selecione ao menos uma loja.");
-      await rpc("eo_publish_notice", {
-        p_title: String(data.get("title")).trim(),
-        p_body: String(data.get("body")).trim(),
-        p_stores: stores,
-        p_urgent: data.get("urgent") === "on",
-        p_request_id: requestId.current,
-      });
+      const title = String(data.get("title")).trim();
+      const body = String(data.get("body")).trim();
+      const urgent = data.get("urgent") === "on";
+      const scheduleAt = String(data.get("schedule_at") || "");
+      let pushFailed = false;
+      if (scheduleAt) {
+        const scheduledFor = new Date(scheduleAt);
+        if (Number.isNaN(scheduledFor.getTime()) || scheduledFor.getTime() < Date.now() + 120_000)
+          throw new Error("Escolha um horário pelo menos dois minutos à frente.");
+        await rpc<string>("eo_schedule_message", {
+          p_message_type: messageKind,
+          p_title: title,
+          p_body: body,
+          p_stores: stores,
+          p_urgent: urgent,
+          p_scheduled_for: scheduledFor.toISOString(),
+          p_request_id: requestId.current,
+        });
+      } else if (messageKind === "notice") {
+        await rpc("eo_publish_notice", {
+          p_title: title,
+          p_body: body,
+          p_stores: stores,
+          p_urgent: urgent,
+          p_request_id: requestId.current,
+        });
+      } else {
+        const alertId = await rpc<string>("eo_publish_alert", {
+          p_title: title,
+          p_body: body,
+          p_stores: stores,
+          p_urgent: urgent,
+        });
+        const { error: pushError } = await supabase!.functions.invoke("send-alert-push", { body: { alert_id: alertId } });
+        pushFailed = Boolean(pushError);
+      }
       requestId.current = crypto.randomUUID();
       setCompose(false);
       await refresh();
-      setMessage("Comunicado publicado.");
+      setMessage(scheduleAt
+        ? `${messageKind === "notice" ? "Comunicado" : "Alerta push"} programado para ${new Date(scheduleAt).toLocaleString("pt-BR")}.`
+        : messageKind === "notice" ? "Comunicado publicado." : pushFailed
+          ? "Alerta salvo, mas o envio push não foi confirmado. Confira a auditoria antes de reenviar."
+          : "Alerta enviado para as lojas selecionadas.");
     });
   }
+  const availableRegions = [...new Set((workspace?.stores ?? []).map((store) => store.region.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   async function loadMore() {
     await act(async () => {
       const tail = notices.at(-1);
@@ -1366,32 +1407,62 @@ export default function ConnectedApp() {
       )}
       {compose && (
         <Dialog
-          title="Novo comunicado"
+          title="Novo comunicado ou alerta"
           close={() => {
             if (!busy) setCompose(false);
           }}
         >
           <form className="form" onSubmit={publish}>
             <label>
+              Tipo de mensagem
+              <select name="message_kind" defaultValue={workspace.person.role === "gerente" ? "alert" : "notice"}>
+                {workspace.person.role !== "gerente" && <option value="notice">Comunicado com confirmação de ciência</option>}
+                <option value="alert">Alerta com notificação push</option>
+              </select>
+            </label>
+            <label>
               Título
               <input name="title" required minLength={3} maxLength={120} />
             </label>
             <label>
               Mensagem
-              <textarea name="body" rows={6} required maxLength={5000} />
+              <textarea name="body" rows={6} required maxLength={3000} />
             </label>
             <fieldset>
-              <legend>Lojas destinatárias</legend>
-              {workspace.stores.map((s) => (
-                <label className="checkbox-label" key={s.id}>
-                  <input type="checkbox" name="stores" value={s.id} />
-                  {s.code} · {s.name}
-                </label>
-              ))}
+              <legend>Quem receberá</legend>
+              <label>
+                Segmentação
+                <select name="target_mode" defaultValue="all">
+                  <option value="all">Todas as lojas da minha abrangência</option>
+                  <option value="region">Uma regional</option>
+                  <option value="stores">Selecionar lojas</option>
+                </select>
+              </label>
+              <label>
+                Regional (usada quando a segmentação for por regional)
+                <select name="target_region" defaultValue="">
+                  <option value="">Selecione uma regional</option>
+                  {availableRegions.map((region) => <option key={region} value={region}>{region}</option>)}
+                </select>
+              </label>
+              <div className="store-target-list">
+                {workspace.stores.map((store) => (
+                  <label className="checkbox-label" key={store.id}>
+                    <input type="checkbox" name="stores" value={store.id} />
+                    {store.code} · {store.name}{store.region ? ` · ${store.region}` : ""}
+                  </label>
+                ))}
+              </div>
+              <p className="field-hint">A seleção respeita sua abrangência de acesso. Marque lojas apenas ao escolher “Selecionar lojas”.</p>
             </fieldset>
             <label className="checkbox-label">
               <input name="urgent" type="checkbox" />
-              Destacar comunicado
+              Destacar como importante
+            </label>
+            <label>
+              Programar envio (opcional)
+              <input name="schedule_at" type="datetime-local" />
+              <span className="field-hint">Deixe em branco para enviar agora. O horário segue o fuso deste dispositivo.</span>
             </label>
             {error && (
               <p role="alert" className="form-error">
@@ -1399,7 +1470,7 @@ export default function ConnectedApp() {
               </p>
             )}
             <button className="primary" disabled={busy}>
-              Publicar para o time
+              Publicar ou programar
             </button>
           </form>
         </Dialog>
