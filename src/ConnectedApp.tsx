@@ -413,15 +413,25 @@ export default function ConnectedApp() {
         const storeCode = (row["COD LOJA"] ?? "").trim();
         return /^\d+$/.test(chapa) && storeCodes.has(storeCode);
       });
+      const people = data.Pessoas.filter((row) =>
+        /^[0-9]{1,20}$/.test((row.CHAPA ?? "").trim()) &&
+        !!(row.NOME ?? "").trim() &&
+        !!(row["CARGO OPERACIONAL"] ?? "").trim(),
+      );
       const skippedManagers = data.Gerentes.length - managers.length;
-      const importableData = { ...data, Gerentes: managers };
+      const skippedPeople = data.Pessoas.length - people.length;
+      const importableData = { ...data, Gerentes: managers, Pessoas: people };
       setImportData(importableData);
       setImportFileName(file.name);
       setImportCounts(Object.fromEntries(Object.entries(importableData).map(([name, rows]) => [name, rows.length])));
       setError("");
+      const skipped = [
+        skippedManagers ? `${skippedManagers} gerente(s) sem CHAPA numérica ou COD LOJA correspondente` : "",
+        skippedPeople ? `${skippedPeople} pessoa(s) sem CHAPA numérica, nome e cargo` : "",
+      ].filter(Boolean);
       setMessage(
-        skippedManagers
-          ? `Planilha lida. ${skippedManagers} gerente(s) sem CHAPA numérica ou COD LOJA correspondente serão deixados sem vínculo. Revise as quantidades antes de importar.`
+        skipped.length
+          ? `Planilha lida. ${skipped.join("; ")} serão ignorados, sem bloquear as lojas e demais registros válidos. Revise as quantidades antes de importar.`
           : "Planilha lida. Revise as quantidades antes de substituir a base ativa.",
       );
     } catch (e) {

@@ -109,6 +109,12 @@ begin
     or jsonb_typeof(v_people)<>'array' or jsonb_typeof(v_links)<>'array' then raise exception 'Abas obrigatórias ausentes ou vazias'; end if;
   if jsonb_array_length(v_managers)>5000 or jsonb_array_length(v_regionals)>500
     or jsonb_array_length(v_people)>10000 or jsonb_array_length(v_links)>20000 then raise exception 'Arquivo excede o limite de linhas'; end if;
+  -- Linhas vazias ou incompletas de Pessoas não invalidam a carga das lojas.
+  select coalesce(jsonb_agg(p.value),'[]'::jsonb) into v_people
+  from jsonb_array_elements(v_people) as p(value)
+  where coalesce(trim(p.value->>'CHAPA'),'') ~ '^[0-9]{1,20}$'
+    and coalesce(trim(p.value->>'NOME'),'')<>''
+    and coalesce(trim(p.value->>'CARGO OPERACIONAL'),'')<>'';
   if exists(select 1 from jsonb_array_elements(v_stores) x where coalesce(trim(x->>'COD'),'')='' or coalesce(trim(x->>'LOJA'),'')='') then raise exception 'Cada loja precisa de COD e LOJA'; end if;
   if (select count(*) from jsonb_array_elements(v_stores))<>(select count(distinct trim(x->>'COD')) from jsonb_array_elements(v_stores) x) then raise exception 'COD duplicado na aba Lojas'; end if;
   if exists(select 1 from jsonb_array_elements(v_stores) x where length(trim(x->>'COD'))>20 or length(trim(x->>'LOJA'))>120) then raise exception 'COD ou nome da loja excede o limite'; end if;
