@@ -51,7 +51,7 @@ begin
     insert into public.eo_store_details(store_id,attributes,import_batch,updated_at)
     values(v_store_id,v_row,v_batch,now()) on conflict(store_id) do update set attributes=excluded.attributes,import_batch=v_batch,updated_at=now();
   end loop;
-  delete from public.eo_store_managers;
+  delete from public.eo_store_managers where store_id is not null;
   update public.eo_directory_people set active=false,updated_at=now() where active=true;
   for v_row in select value from jsonb_array_elements(v_managers) loop
     insert into public.eo_directory_people(chapa,display_name,operational_role,email,phone,active,import_batch,updated_at)
@@ -75,7 +75,7 @@ begin
       on conflict(chapa) do update set display_name=excluded.display_name,operational_role=excluded.operational_role,email=excluded.email,phone=excluded.phone,active=excluded.active,import_batch=v_batch,updated_at=now();
     end if;
   end loop;
-  delete from public.eo_org_assignments;
+  delete from public.eo_org_assignments where chapa is not null;
   insert into public.eo_org_assignments(chapa,scope_type,scope_code,active,import_batch)
   select trim(m->>'CHAPA'),'LOJA',trim(m->>'COD LOJA'),true,v_batch from jsonb_array_elements(v_managers) m
   on conflict(chapa,scope_type,scope_code) do update set active=true,import_batch=v_batch;
