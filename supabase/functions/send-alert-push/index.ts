@@ -84,5 +84,11 @@ Deno.serve(async (req) => {
       accepted += (result.data ?? []).filter((ticket: { status?: string }) => ticket.status === "ok").length;
     }
   }
-  return json({ accepted, devices: devices.length, note: "Aceitação pelo Expo não garante entrega ao aparelho." });
+  const { error: auditError } = await admin.from("eo_audit_events").insert({
+    actor: userData.user.id,
+    action: "alert.push.submitted",
+    entity_id: alertId,
+    detail: { devices: devices.length, accepted },
+  });
+  return json({ accepted, devices: devices.length, audit_recorded: !auditError, note: "Aceitação pelo Expo não garante entrega ao aparelho." });
 });

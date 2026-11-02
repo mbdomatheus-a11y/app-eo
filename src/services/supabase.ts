@@ -59,6 +59,7 @@ export interface AuditRow {
   action: string;
   entity_id: string;
   created_at: string;
+  detail?: Record<string, unknown>;
 }
 export async function rpc<T>(
   name: string,

@@ -30,6 +30,7 @@ type ContextValue = {
   publish: (data: { title: string; body: string; stores: string[]; urgent: boolean }) => Promise<Result>;
   issueTemporaryPassword: () => Promise<Result>; copyPassword: () => void;
   refreshOperational: () => Promise<void>; markAlert: (alert: LiveAlert, action: "view" | "dismiss") => Promise<Result>;
+  moderateAlert: (alert: LiveAlert) => Promise<Result>;
   setSoundEnabled: (enabled: boolean) => Promise<Result>; openChecklist: (id: string) => Promise<Result>;
   saveChecklistAnswer: (run: string, item: string, answer: Record<string, unknown>) => Promise<Result>;
   publishAlert: (data: { title: string; body: string; stores: string[]; urgent: boolean }) => Promise<Result>;
@@ -143,6 +144,10 @@ export function EOProvider({ children }: { children: ReactNode }) {
 
   const markAlert = useCallback((alert: LiveAlert, action: "view" | "dismiss") => act(async () => {
     await rpc("eo_alert_mark", { p_alert: alert.id, p_action: action }); await refreshOperational();
+  }), [act, refreshOperational]);
+  const moderateAlert = useCallback((alert: LiveAlert) => act(async () => {
+    await rpc("eo_admin_hide_alert", { p_alert: alert.id, p_hidden: !alert.hidden_from_users });
+    await refreshOperational();
   }), [act, refreshOperational]);
   const setSoundEnabled = useCallback((enabled: boolean) => act(async () => {
     await rpc("eo_notification_preferences", { p_sound_enabled: enabled }); setSoundEnabledState(enabled);
@@ -291,8 +296,8 @@ export function EOProvider({ children }: { children: ReactNode }) {
   const value = useMemo<ContextValue>(() => ({
     configured: backendConfigured, session, initializing, loading, busy, passwordMode, workspace, notices, more, alerts, checklists, checklistDetail, soundEnabled, pushGranted, audit, members, temporaryPassword, error, message,
     clearFeedback, login, changeTemporaryPassword, signout, refresh, acknowledge, loadMore, loadAdmin, addStore, inviteMember, toggleMember, saveMember, publish, issueTemporaryPassword,
-    copyPassword, refreshOperational, markAlert, setSoundEnabled, openChecklist, saveChecklistAnswer, publishAlert, publishChecklist, enablePush, captureChecklistPhoto, sendTestPush,
-  }), [session, initializing, loading, busy, passwordMode, workspace, notices, more, alerts, checklists, checklistDetail, soundEnabled, pushGranted, audit, members, temporaryPassword, error, message, clearFeedback, login, changeTemporaryPassword, signout, refresh, acknowledge, loadMore, loadAdmin, addStore, inviteMember, toggleMember, saveMember, publish, issueTemporaryPassword, copyPassword, refreshOperational, markAlert, setSoundEnabled, openChecklist, saveChecklistAnswer, publishAlert, publishChecklist, enablePush, captureChecklistPhoto, sendTestPush]);
+    copyPassword, refreshOperational, markAlert, moderateAlert, setSoundEnabled, openChecklist, saveChecklistAnswer, publishAlert, publishChecklist, enablePush, captureChecklistPhoto, sendTestPush,
+  }), [session, initializing, loading, busy, passwordMode, workspace, notices, more, alerts, checklists, checklistDetail, soundEnabled, pushGranted, audit, members, temporaryPassword, error, message, clearFeedback, login, changeTemporaryPassword, signout, refresh, acknowledge, loadMore, loadAdmin, addStore, inviteMember, toggleMember, saveMember, publish, issueTemporaryPassword, copyPassword, refreshOperational, markAlert, moderateAlert, setSoundEnabled, openChecklist, saveChecklistAnswer, publishAlert, publishChecklist, enablePush, captureChecklistPhoto, sendTestPush]);
 
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

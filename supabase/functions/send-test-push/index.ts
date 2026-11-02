@@ -52,6 +52,6 @@ Deno.serve(async (req) => {
     const result = await response.json();
     accepted += (result.data ?? []).filter((ticket: { status?: string }) => ticket.status === "ok").length;
   }
-  await admin.from("eo_audit_events").insert({ actor: authData.user.id, action: "notification.test.sent", entity_id: authData.user.id, detail: { devices: devices.length, accepted } });
+  await admin.from("eo_audit_events").insert({ actor: authData.user.id, action: "notification.test.sent", entity_id: authData.user.id, detail: { title: "Teste de notificações do EO", body: "Seu aparelho está conectado para receber alertas operacionais.", devices: devices.length, accepted } });
   return json({ devices: devices.length, accepted, note: "Aceitação pelo Expo não garante entrega ao aparelho." });
 });

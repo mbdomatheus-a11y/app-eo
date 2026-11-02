@@ -3,6 +3,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type ChangeEvent,
   type FormEvent,
   type ReactNode,
 } from "react";
@@ -40,6 +41,7 @@ import {
   type AuditRow,
 } from "./services/supabase";
 import { roleLabels } from "./core/domain";
+import { readOrgWorkbook } from "./core/xlsx-reader";
 import NativeExperience from "./mobile/NativeExperience";
 
 type Page = "home" | "notices" | "modules" | "admin";
@@ -93,6 +95,11 @@ export default function ConnectedApp() {
   const [audit, setAudit] = useState<AuditRow[]>([]),
     [members, setMembers] = useState<LivePerson[]>([]);
   const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [importData, setImportData] = useState<Record<string, Record<string, string>[]> | null>(null);
+  const [importFileName, setImportFileName] = useState("");
+  const [importCounts, setImportCounts] = useState<Record<string, number> | null>(null);
+  const [importReady, setImportReady] = useState<boolean | null>(null);
+  const [activeImport, setActiveImport] = useState<{ id: string; created_at: string; source_name: string; store_count: number; manager_count: number; regional_count: number; people_count: number; assignment_count: number } | null>(null);
   const [editingMember, setEditingMember] = useState<LivePerson | null>(null);
   const [tab, setTab] = useState<"stores" | "people" | "audit" | "import">("stores"),
     [future, setFuture] = useState("");
@@ -105,6 +112,9 @@ export default function ConnectedApp() {
     setMembers([]);
     setAudit([]);
     setOpened(null);
+    setImportData(null);
+    setImportCounts(null);
+    setImportFileName("");
     setPage("home");
     setTemporaryPassword("");
   }, []);
@@ -278,6 +288,16 @@ export default function ConnectedApp() {
       if (which === "audit") setAudit(await rpc<AuditRow[]>("eo_admin_audit"));
       if (which === "people")
         setMembers(await rpc<LivePerson[]>("eo_admin_people"));
+      if (which === "import") {
+        try {
+          const latest = await rpc<{ id?: string; created_at?: string; source_name?: string; store_count?: number; manager_count?: number; regional_count?: number; people_count?: number; assignment_count?: number }>("eo_admin_import_status");
+          setActiveImport(latest.id ? latest as NonNullable<typeof activeImport> : null);
+          setImportReady(true);
+        } catch (e) {
+          setImportReady(false);
+          throw e;
+        }
+      }
     });
   }
   async function addStore(e: FormEvent<HTMLFormElement>) {
@@ -373,6 +393,47 @@ export default function ConnectedApp() {
       setMessage(
         "Senha temporária criada. Copie e guarde em local seguro agora.",
       );
+    });
+  }
+
+  async function selectImportFile(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    setImportData(null);
+    setImportCounts(null);
+    if (!file) return;
+    try {
+      const data = await readOrgWorkbook(file);
+      if (!data.Lojas.length) throw new Error("A aba Lojas não contém linhas para importar.");
+      if (!data.Regionais.length) throw new Error("Preencha a aba Regionais antes de importar.");
+      setImportData(data);
+      setImportFileName(file.name);
+      setImportCounts(Object.fromEntries(Object.entries(data).map(([name, rows]) => [name, rows.length])));
+      setError("");
+      setMessage("Planilha lida. Revise as quantidades antes de substituir a base ativa.");
+    } catch (e) {
+      setError((e as Error).message || "Não foi possível ler a planilha.");
+    } finally {
+      input.value = "";
+    }
+  }
+
+  async function importOrgBase() {
+    if (!importData) return;
+    await act(async () => {
+      const result = await rpc<{ stores: number; managers: number; regionals: number; people: number; assignments: number }>("eo_admin_import_org", {
+        p_source_name: importFileName,
+        p_payload: importData,
+      });
+      setMessage(`Base atualizada: ${result.stores} lojas, ${result.managers} gerentes, ${result.regionals} regionais, ${result.people} pessoas e ${result.assignments} vínculos. A operação anterior permanece substituída somente após validação integral.`);
+      setImportData(null);
+      setImportCounts(null);
+      setImportFileName("");
+      const latest = await rpc<{ id?: string; created_at?: string; source_name?: string; store_count?: number; manager_count?: number; regional_count?: number; people_count?: number; assignment_count?: number }>("eo_admin_import_status");
+      setActiveImport(latest.id ? latest as NonNullable<typeof activeImport> : null);
+      setImportReady(true);
+      await refresh();
+      setAudit(await rpc<AuditRow[]>("eo_admin_audit"));
     });
   }
 
@@ -945,7 +1006,8 @@ export default function ConnectedApp() {
                   <h2>Modelo de importação administrativa</h2>
                   <p>
                     Baixe a planilha padrão para organizar lojas, gerentes,
-                    regionais, equipe e vínculos antes do cadastro.
+                    regionais, equipe e vínculos. O COD identifica a loja e o
+                    GGL conecta cada loja ao regional responsável.
                   </p>
                   <a
                     className="primary template-download"
@@ -955,11 +1017,57 @@ export default function ConnectedApp() {
                     <Download size={18} />
                     Baixar modelo Excel
                   </a>
+                  {activeImport ? (
+                    <div className="info-strip" style={{ marginTop: 18 }}>
+                      <ShieldCheck size={20} />
+                      Última base válida: {new Date(activeImport.created_at).toLocaleString("pt-BR")} · {activeImport.store_count} lojas · arquivo {activeImport.source_name}.
+                    </div>
+                  ) : (
+                    <div className="info-strip" style={{ marginTop: 18 }}>
+                      <ShieldCheck size={20} />
+                      Ainda não há uma base importada. A primeira carga válida ativará a estrutura organizacional.
+                    </div>
+                  )}
+                  {importReady === false && (
+                    <div className="info-strip" style={{ marginTop: 12 }}>
+                      <ShieldCheck size={20} />
+                      A importação ainda não está ativa no banco. Aplique a migration `supabase/migrations/202611020001_org_import.sql` no SQL Editor do Supabase para habilitar o envio.
+                    </div>
+                  )}
+                  <label className="form" style={{ marginTop: 22 }}>
+                    Importar uma nova base (.xlsx)
+                    <input
+                      type="file"
+                      accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                      onChange={(event) => void selectImportFile(event)}
+                      disabled={busy || !importReady}
+                    />
+                  </label>
+                  {importCounts && (
+                    <div className="panel" aria-live="polite">
+                      <h3>Revisar antes de importar</h3>
+                      <p><strong>{importFileName}</strong></p>
+                      <div className="table-wrap">
+                        <table>
+                          <thead><tr><th>Aba</th><th>Linhas</th></tr></thead>
+                          <tbody>
+                            {Object.entries(importCounts).map(([name, count]) => (
+                              <tr key={name}><td>{name}</td><td>{count.toLocaleString("pt-BR")}</td></tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="muted">A importação substitui a base organizacional ativa em uma transação. Se a validação falhar, a última base válida continua ativa. Contas, senhas e acessos individuais não são criados por esta planilha.</p>
+                      <button className="primary" type="button" onClick={() => void importOrgBase()} disabled={busy || !importReady}>
+                        <Upload size={18} />
+                        {busy ? "Importando…" : "Validar e importar base"}
+                      </button>
+                    </div>
+                  )}
                   <div className="info-strip">
                     <ShieldCheck size={20} />
-                    A planilha prepara os dados. A importação autenticada pelo
-                    sistema será liberada após a validação do fluxo seguro e da
-                    trilha de auditoria.
+                    Somente admins autenticados podem importar. Cada carga
+                    registra autor, horário, origem e totais na auditoria.
                   </div>
                 </section>
               )}
@@ -1145,6 +1253,7 @@ export default function ConnectedApp() {
                           <th>Data</th>
                           <th>Pessoa</th>
                           <th>Ação</th>
+                          <th>Detalhes</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1155,6 +1264,19 @@ export default function ConnectedApp() {
                             </td>
                             <td>{a.actor_name}</td>
                             <td>{a.action}</td>
+                            <td>
+                              {a.action === "alert.published" && a.detail ? (
+                                <span>
+                                  <strong>{String(a.detail.title ?? "Alerta")}</strong>
+                                  {" · "}{String(a.detail.body ?? "")}
+                                  {Array.isArray(a.detail.store_codes) && ` · Lojas: ${(a.detail.store_codes as string[]).join(", ")}`}
+                                </span>
+                              ) : a.action === "organization.imported" && a.detail ? (
+                                <span>
+                                  {String(a.detail.stores ?? 0)} lojas, {String(a.detail.managers ?? 0)} gerentes, {String(a.detail.regionals ?? 0)} regionais
+                                </span>
+                              ) : ""}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
