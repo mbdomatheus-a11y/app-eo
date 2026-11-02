@@ -42,6 +42,14 @@ export interface LiveNotice {
   acknowledged: boolean;
   eligible_count: number;
   receipt_count: number;
+  attachments?: MessageAttachment[];
+}
+export interface MessageAttachment {
+  id: string;
+  file_name: string;
+  mime_type: string;
+  byte_size: number;
+  object_path: string;
 }
 export interface LivePerson {
   id: string;

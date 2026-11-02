@@ -3,7 +3,7 @@ import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { KeyboardAvoidingView, Platform, Pressable, StatusBar, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEO } from "../providers/eo-provider";
-import { AccessScreen, AuditScreen, ChangePasswordScreen, ComposeScreen, EditPersonScreen, HomeScreen, LoginScreen, ManagementScreen, ModulesScreen, NoticeScreen, NoticesScreen, PeopleScreen, PrivacyScreen, ProfileScreen, StoresScreen } from "../../App";
+import { AccessScreen, ArchiveScreen, AuditScreen, ChangePasswordScreen, ComposeScreen, EditPersonScreen, HomeScreen, LoginScreen, ManagementScreen, ModulesScreen, NoticeScreen, NoticesScreen, PeopleScreen, PrivacyScreen, ProfileScreen, ReportsScreen, StoresScreen } from "../../App";
 import type { AdminTab } from "../types";
 import { C, Feedback, s } from "../ui";
 
@@ -40,7 +40,7 @@ export function ManagementRoute() {
   const app = useEO();
   useEffect(() => { if (app.workspace?.person.role === "admin") void app.loadAdmin("stores"); }, [app.workspace?.person.id]);
   if (app.workspace?.person.role !== "admin") return <Redirect href="/" />;
-  return <RouteFrame tabs><ManagementScreen open={(tab: AdminTab) => { void app.loadAdmin(tab); router.push((tab === "stores" ? "/stores" : tab === "people" ? "/people" : "/audit") as never); }} /></RouteFrame>;
+  return <RouteFrame tabs><ManagementScreen open={(tab: AdminTab) => { void app.loadAdmin(tab); router.push((tab === "stores" ? "/stores" : tab === "people" ? "/people" : tab === "audit" ? "/audit" : tab === "reports" ? "/reports" : "/archive") as never); }} /></RouteFrame>;
 }
 export function ProfileRoute() {
   return <RouteFrame tabs><ProfileScreen openPrivacy={() => router.push("/privacy" as never)} /></RouteFrame>;
@@ -90,4 +90,16 @@ export function AuditRoute() {
   useEffect(() => { if (app.workspace?.person.role === "admin") void app.loadAdmin("audit"); }, [app.workspace?.person.id]);
   if (app.workspace?.person.role !== "admin") return <Redirect href="/" />;
   return <RouteFrame><AuditScreen /></RouteFrame>;
+}
+export function ReportsRoute() {
+  const app = useEO();
+  useEffect(() => { if (app.workspace?.person.role === "admin") void app.loadAdmin("reports"); }, [app.workspace?.person.id]);
+  if (app.workspace?.person.role !== "admin") return <Redirect href="/" />;
+  return <RouteFrame tabs><ReportsScreen /></RouteFrame>;
+}
+export function ArchiveRoute() {
+  const app = useEO();
+  useEffect(() => { if (app.workspace?.person.role === "admin") void app.loadAdmin("archive"); }, [app.workspace?.person.id]);
+  if (app.workspace?.person.role !== "admin") return <Redirect href="/" />;
+  return <RouteFrame tabs><ArchiveScreen /></RouteFrame>;
 }

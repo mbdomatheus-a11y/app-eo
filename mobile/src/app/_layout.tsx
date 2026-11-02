@@ -39,6 +39,8 @@ function RootNavigation() {
     <Stack.Screen name="people/index" options={{ title: "Pessoas e acessos" }} />
     <Stack.Screen name="people/[id]" options={{ title: "Editar acesso" }} />
     <Stack.Screen name="audit" options={{ title: "Auditoria" }} />
+    <Stack.Screen name="reports" options={{ title: "Relatórios" }} />
+    <Stack.Screen name="archive" options={{ title: "Comunicados arquivados" }} />
   </Stack>;
 }
 

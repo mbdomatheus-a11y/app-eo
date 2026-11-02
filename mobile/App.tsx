@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Alert, Linking, Pressable, Text, View } from "react-native";
 import * as Calendar from "expo-calendar";
+import { createEventInCalendarAsync } from "expo-calendar/legacy";
+import * as DocumentPicker from "expo-document-picker";
 import { useEO } from "./src/providers/eo-provider";
 import { ActionRow, AppIcon, Badge, Brand, Button, C, Card, Choice, Field, Heading, Page, Section, s } from "./src/ui";
 import type { AdminTab, AuditRow, LiveNotice, LivePerson, Role } from "./src/types";
@@ -89,6 +91,7 @@ export function NoticeScreen({ id, back }: { id: string; back: () => void }) {
   if (!notice) return <Page><Empty title="Comunicado indisponível" detail="Atualize a lista e tente novamente." /><Button title="Voltar" secondary onPress={back} /></Page>;
   return <Page><Badge warning={notice.urgent}>{notice.urgent ? "Prioritário" : notice.category}  ·  Versão {notice.version}</Badge><Heading title={notice.title} detail={`Enviado em ${new Date(notice.published_at).toLocaleString("pt-BR", { dateStyle: "long", timeStyle: "short" })}`} />
     <Card>{notice.body.split("\n").map((line, index) => <Text key={index} style={s.body}>{line || " "}</Text>)}</Card>
+    {!!notice.attachments?.length && <Card><Text style={s.strong}>Arquivos anexados</Text>{notice.attachments.map((file) => <Button key={file.id} title={file.file_name} secondary onPress={() => void app.openMessageAttachment(file).catch((error) => Alert.alert("Anexo indisponível", error.message))} />)}</Card>}
     <Card style={{ backgroundColor: C.soft }}><Text style={s.small}>◈  Sua confirmação fica registrada para este comunicado.</Text></Card>
     <Button title={notice.acknowledged ? "Ciência confirmada" : "Li e estou ciente"} icon="✓" disabled={app.busy || notice.acknowledged} onPress={() => void app.acknowledge(notice)} />
   </Page>;
@@ -120,7 +123,7 @@ export function ModulesScreen({ openTab }: { openTab: (tab: string) => void }) {
     try {
       const permission = await Calendar.requestCalendarPermissions(true);
       if (!permission.granted) { Alert.alert("Acesso à agenda", "Permita adicionar eventos à agenda nas configurações do aparelho."); return; }
-      const result = await Calendar.addEventWithForm({ title: eventTitle.trim(), notes: eventNotes.trim() || undefined, startDate, endDate: new Date(startDate.getTime() + 30 * 60 * 1000) });
+      const result = await createEventInCalendarAsync({ title: eventTitle.trim(), notes: eventNotes.trim() || undefined, startDate, endDate: new Date(startDate.getTime() + 30 * 60 * 1000) });
       if (result.action === "saved" || result.action === "done") { app.clearFeedback(); setEventTitle(""); setEventNotes(""); Alert.alert(result.action === "saved" ? "Evento salvo" : "Agenda aberta", result.action === "saved" ? "O evento foi adicionado ao calendário do aparelho." : "Confira os detalhes e conclua ou cancele no calendário do aparelho."); }
     } catch { Alert.alert("Agenda indisponível", "Atualize o aplicativo para incluir a integração com o calendário do aparelho."); }
   };
@@ -170,6 +173,8 @@ export function ManagementScreen({ open }: { open: (tab: AdminTab) => void }) {
   return <Page><Text style={s.detail}>Administre o acesso e acompanhe as atividades da plataforma.</Text>
     <ActionRow title="Lojas" detail="Unidades vinculadas ao espaço" icon="house.fill" onPress={() => open("stores")} />
     <ActionRow title="Pessoas e acessos" detail="Perfis, permissões e convites" icon="person.2.fill" onPress={() => open("people")} />
+    <ActionRow title="Relatórios" detail="Leitura dos comunicados por regional e loja" icon="chart.bar.fill" onPress={() => open("reports")} />
+    <ActionRow title="Comunicados arquivados" detail="Histórico preservado e restauração" icon="archivebox.fill" onPress={() => open("archive")} />
     <ActionRow title="Modelo de importação" detail="Baixe a planilha padrão de lojas, gerentes, regionais e equipe" icon="doc.text.fill" onPress={() => void Linking.openURL("https://app-eo.vercel.app/modelo-importacao-administrativa-eo.xlsx")} />
     <ActionRow title="Auditoria" detail="Atividades recentes do sistema" icon="checkmark.shield.fill" onPress={() => open("audit")} />
     <Card style={{ backgroundColor: C.soft }}><Text style={s.small}>◈  Alterações administrativas ficam registradas no histórico de auditoria.</Text><Text style={s.small}>A importação e a manutenção completa da base estão disponíveis na administração web.</Text></Card>
@@ -227,6 +232,24 @@ export function AuditScreen() {
     {app.audit.length ? app.audit.map((entry) => <AuditItem key={entry.id} entry={entry} />) : <Empty title="Sem eventos recentes" detail="As ações administrativas serão exibidas aqui." />}
   </Page>;
 }
+
+export function ReportsScreen() {
+  const app = useEO();
+  const [selectedId, setSelectedId] = useState(""); const [group, setGroup] = useState("regional");
+  useEffect(() => { const first = app.reportMessages[0]; if (first && !selectedId) { setSelectedId(first.notice_id); void app.loadNoticeReport(first.notice_id, first.version, group); } }, [app.reportMessages, selectedId, group]);
+  const selected = app.reportMessages.find((item) => item.notice_id === selectedId);
+  return <Page><Card><Text style={s.strong}>Leitura dos comunicados</Text><Text style={s.small}>Lojas com ciência contam quando ao menos uma pessoa destinatária confirmou.</Text>
+    <Text style={s.label}>Comunicado</Text><View style={{ gap: 7 }}>{app.reportMessages.map((item) => <Choice key={item.notice_id} label={`${item.title} · ${new Date(item.published_at).toLocaleDateString("pt-BR")}${item.archived_at ? " · arquivado" : ""}`} selected={selectedId === item.notice_id} onPress={() => { setSelectedId(item.notice_id); void app.loadNoticeReport(item.notice_id, item.version, group); }} />)}</View>
+    <Text style={s.label}>Agrupar por</Text><View style={{ gap: 7 }}>{[["regional", "Regional"], ["loja", "Loja"], ["ggl", "GGL"], ["uf", "UF"], ["cidade", "Cidade"], ["tipo", "Tipo de loja"], ["clima", "Clima"], ["perfil_preco", "Perfil de preço"], ["grupo_loja", "Grupo de loja"], ["safra", "Safra"]].map(([value, label]) => <Choice key={value} label={label} selected={group === value} onPress={() => { setGroup(value); if (selected) void app.loadNoticeReport(selected.notice_id, selected.version, value); }} />)}</View>
+  </Card>
+  {app.reportData ? <><Card><Text style={s.title}>{app.reportData.stores_with_read} de {app.reportData.total_stores} lojas com ciência</Text><Text style={s.small}>{app.reportData.stores_pending} pendentes · {app.reportData.stores_fully_read} com leitura completa</Text></Card>{app.reportData.groups.map((item) => <ActionRow key={item.group} title={item.group} detail={`${item.stores_with_read}/${item.total_stores} lojas com ciência · ${item.stores_pending} pendentes`} icon="building.2.fill" onPress={() => undefined} />)}</> : <Empty title={app.reportMessages.length ? "Carregando relatório" : "Nenhum comunicado"} detail={app.reportMessages.length ? "Aguarde os dados de leitura." : "Os comunicados publicados aparecerão aqui."} />}
+  </Page>;
+}
+
+export function ArchiveScreen() {
+  const app = useEO();
+  return <Page>{app.archivedMessages.length ? app.archivedMessages.map((item) => <Card key={`${item.kind}-${item.id}`}><Badge>{item.kind === "notice" ? "COMUNICADO" : "ALERTA"}</Badge><Text style={s.strong}>{item.title}</Text><Text style={s.body}>{item.body}</Text><Text style={s.small}>Arquivado em {new Date(item.archived_at).toLocaleString("pt-BR")} · {item.archived_by_name || "Administrador"}</Text>{item.attachments.map((file) => <Button key={file.id} title={file.file_name} secondary onPress={() => void app.openMessageAttachment(file).catch((error) => Alert.alert("Anexo indisponível", error.message))} />)}<Button title="Restaurar para a equipe" secondary disabled={app.busy} onPress={() => Alert.alert("Restaurar comunicado?", "A mensagem voltará a aparecer para seus destinatários.", [{ text: "Cancelar", style: "cancel" }, { text: "Restaurar", onPress: () => void app.archiveMessage(item.kind, item.id, false) }])} /></Card>) : <Empty title="Arquivo vazio" detail="Mensagens arquivadas ficarão guardadas aqui." />}</Page>;
+}
 function AuditItem({ entry }: { entry: AuditRow }) {
   return <Card style={{ gap: 5 }}><Text style={s.strong}>{entry.action}</Text><Text style={s.small}>{entry.actor_name}</Text>{entry.action === "alert.published" && entry.detail && <Text style={s.small}>{String(entry.detail.title ?? "Alerta")}: {String(entry.detail.body ?? "")} · Lojas: {Array.isArray(entry.detail.store_codes) ? (entry.detail.store_codes as string[]).join(", ") : ""}</Text>}{entry.action === "organization.imported" && entry.detail && <Text style={s.small}>{String(entry.detail.stores ?? 0)} lojas · {String(entry.detail.managers ?? 0)} gerentes · {String(entry.detail.regionals ?? 0)} regionais</Text>}<Text style={s.small}>{new Date(entry.created_at).toLocaleString("pt-BR")}</Text></Card>;
 }
@@ -237,6 +260,7 @@ export function ComposeScreen() {
   const [kind, setKind] = useState<"notice" | "alert">(workspace.person.role === "gerente" ? "alert" : "notice");
   const [target, setTarget] = useState<"all" | "region" | "stores">("all"); const [region, setRegion] = useState("");
   const [selectedStores, setSelectedStores] = useState<string[]>([]); const [scheduleAt, setScheduleAt] = useState("");
+  const [sendPush, setSendPush] = useState(false); const [attachments, setAttachments] = useState<import("./src/types").MessageFile[]>([]);
   const regions = [...new Set(workspace.stores.map((store) => store.region.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   const stores = target === "all" ? workspace.stores.map((store) => store.id) : target === "region" ? workspace.stores.filter((store) => store.region === region).map((store) => store.id) : selectedStores;
   async function submit() {
@@ -249,13 +273,23 @@ export function ComposeScreen() {
       if (localDate.getFullYear() !== Number(year) || localDate.getMonth() !== Number(month) - 1 || localDate.getDate() !== Number(day) || localDate.getHours() !== Number(hour) || localDate.getMinutes() !== Number(minute) || localDate.getTime() < Date.now() + 120_000) { Alert.alert("Horário inválido", "Confira a data e escolha um horário pelo menos dois minutos à frente."); return; }
       scheduledFor = localDate.toISOString();
     }
-    const payload = { title, body, stores, urgent, scheduledFor };
+    const payload = { title, body, stores, urgent, scheduledFor, sendPush, attachments };
     const result = kind === "alert" ? await app.publishAlert(payload) : await app.publish(payload);
-    if (result.ok) { setTitle(""); setBody(""); setSelectedStores([]); setUrgent(false); setScheduleAt(""); setRegion(""); setTarget("all"); }
+    if (result.ok) { setTitle(""); setBody(""); setSelectedStores([]); setUrgent(false); setScheduleAt(""); setRegion(""); setTarget("all"); setSendPush(false); setAttachments([]); }
   }
   return <Page><Card><Badge warning>{kind === "alert" ? "ALERTA PUSH" : "COMUNICADO COM CIÊNCIA"}</Badge><Text style={s.small}>Envie agora ou programe para as lojas da sua abrangência.</Text>
     {workspace.person.role !== "gerente" && <><Text style={s.label}>Tipo de mensagem</Text><Choice label="Comunicado com confirmação de ciência" selected={kind === "notice"} onPress={() => setKind("notice")} /><Choice label="Alerta com notificação push" selected={kind === "alert"} onPress={() => setKind("alert")} /></>}
     <Field label="Título" value={title} onChangeText={setTitle} maxLength={120} placeholder="Resumo da orientação" /><Field label="Mensagem" value={body} onChangeText={setBody} multiline maxLength={kind === "alert" ? 3000 : 5000} placeholder="Escreva a orientação para a equipe…" />
+    {kind === "notice" && <Choice label="Enviar também como notificação push" selected={sendPush} onPress={() => setSendPush((value) => !value)} />}
+    <Button title={attachments.length ? `Adicionar arquivos · ${attachments.length}/10` : "Anexar PDF ou imagem"} secondary onPress={async () => {
+      const result = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "image/jpeg", "image/png", "image/webp"], multiple: true, copyToCacheDirectory: true });
+      if (!result.canceled) {
+        const next = result.assets.map((asset) => ({ uri: asset.uri, name: asset.name, mimeType: asset.mimeType ?? null, size: asset.size ?? null }));
+        if (attachments.length + next.length > 10) Alert.alert("Limite de anexos", "Você pode enviar até 10 arquivos por mensagem.");
+        else setAttachments((current) => [...current, ...next]);
+      }
+    }} />
+    {attachments.map((file, index) => <ActionRow key={`${file.name}-${index}`} title={file.name} detail={file.size ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : "Tamanho será validado ao enviar"} icon="doc.fill" onPress={() => setAttachments((current) => current.filter((_, itemIndex) => itemIndex !== index))} />)}
     <Text style={s.label}>Destinatários</Text><Choice label={`Todas as lojas da minha abrangência · ${workspace.stores.length}`} selected={target === "all"} onPress={() => setTarget("all")} /><Choice label="Uma regional" selected={target === "region"} onPress={() => setTarget("region")} /><Choice label="Selecionar lojas" selected={target === "stores"} onPress={() => setTarget("stores")} />
     {target === "region" && <>{regions.map((item) => <Choice key={item} label={item} selected={region === item} onPress={() => setRegion(item)} />)}</>}
     {target === "stores" && workspace.stores.map((store) => <Choice key={store.id} label={`${store.code} · ${store.name}${store.region ? ` · ${store.region}` : ""}`} selected={selectedStores.includes(store.id)} onPress={() => setSelectedStores((old) => old.includes(store.id) ? old.filter((value) => value !== store.id) : [...old, store.id])} />)}

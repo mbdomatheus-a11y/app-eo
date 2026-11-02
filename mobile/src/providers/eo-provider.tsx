@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { AppState, Platform } from "react-native";
+import { AppState, Linking, Platform } from "react-native";
 import * as Crypto from "expo-crypto";
 import * as Clipboard from "expo-clipboard";
 import * as Notifications from "expo-notifications";
@@ -8,22 +8,25 @@ import * as Device from "expo-device";
 import Constants from "expo-constants";
 import * as ImagePicker from "expo-image-picker";
 import { backendConfigured, rpc, supabase } from "../services/supabase";
-import type { AdminTab, AuditRow, ChecklistDetail, ChecklistRun, LiveAlert, LiveNotice, LivePerson, Store, Workspace } from "../types";
+import type { AdminTab, ArchivedMessage, AuditRow, ChecklistDetail, ChecklistRun, LiveAlert, LiveNotice, LivePerson, MessageFile, MessageAttachment, NoticeReport, ReportMessage, Store, Workspace } from "../types";
 
 Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true }) });
 
 type Result = { ok: boolean };
-type MessagePayload = { title: string; body: string; stores: string[]; urgent: boolean; scheduledFor?: string };
+type MessagePayload = { title: string; body: string; stores: string[]; urgent: boolean; scheduledFor?: string; sendPush?: boolean; attachments?: MessageFile[] };
 type ContextValue = {
   configured: boolean; session: Session | null; initializing: boolean; loading: boolean; busy: boolean;
   passwordMode: boolean; workspace: Workspace | null; notices: LiveNotice[]; more: boolean;
   alerts: LiveAlert[]; checklists: ChecklistRun[]; checklistDetail: ChecklistDetail | null; soundEnabled: boolean;
   pushGranted: boolean;
   audit: AuditRow[]; members: LivePerson[]; temporaryPassword: string; error: string; message: string;
+  archivedMessages: ArchivedMessage[]; reportMessages: ReportMessage[]; reportData: NoticeReport | null;
   clearFeedback: () => void; login: (chapa: string, password: string) => Promise<Result>;
   changeTemporaryPassword: (password: string, confirmation: string) => Promise<Result>;
   signout: () => Promise<void>; refresh: () => Promise<void>; acknowledge: (notice: LiveNotice) => Promise<Result>;
   loadMore: () => Promise<Result>; loadAdmin: (tab: AdminTab) => Promise<Result>;
+  loadNoticeReport: (notice: string, version: number, groupBy: string) => Promise<Result>;
+  archiveMessage: (kind: "notice" | "alert", id: string, archived: boolean) => Promise<Result>;
   addStore: (data: { code: string; name: string; region: string }) => Promise<Result>;
   inviteMember: (data: { chapa: string; email: string; name: string; role: string; stores: string[] }) => Promise<Result>;
   toggleMember: (member: LivePerson) => Promise<Result>;
@@ -35,6 +38,7 @@ type ContextValue = {
   setSoundEnabled: (enabled: boolean) => Promise<Result>; openChecklist: (id: string) => Promise<Result>;
   saveChecklistAnswer: (run: string, item: string, answer: Record<string, unknown>) => Promise<Result>;
   publishAlert: (data: MessagePayload) => Promise<Result>;
+  openMessageAttachment: (file: MessageAttachment) => Promise<void>;
   publishChecklist: (data: { title: string; description: string; items: { prompt: string; type: "acceptance" | "photo" | "text" | "yes_no"; required: boolean }[]; stores: string[] }) => Promise<Result>;
   enablePush: () => Promise<Result>; captureChecklistPhoto: (run: string, item: string) => Promise<Result>;
   sendTestPush: () => Promise<Result>;
@@ -58,6 +62,9 @@ export function EOProvider({ children }: { children: ReactNode }) {
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [members, setMembers] = useState<LivePerson[]>([]);
   const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [archivedMessages, setArchivedMessages] = useState<ArchivedMessage[]>([]);
+  const [reportMessages, setReportMessages] = useState<ReportMessage[]>([]);
+  const [reportData, setReportData] = useState<NoticeReport | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const epoch = useRef(0);
@@ -160,23 +167,52 @@ export function EOProvider({ children }: { children: ReactNode }) {
     await rpc("eo_checklist_save", { p_run: run, p_item: item, p_answer: answer });
     await refreshOperational(); setChecklistDetail(await rpc<ChecklistDetail>("eo_checklist_detail", { p_run: run }));
   }, "Resposta salva e registrada."), [act, refreshOperational]);
+  const uploadMessageFiles = useCallback(async (files: MessageFile[] = []) => {
+    if (!files.length) return [] as { object_path: string; file_name: string; mime_type: string; byte_size: number }[];
+    if (!workspace?.person.id || !supabase) throw new Error("Perfil ainda não carregado.");
+    if (files.length > 10) throw new Error("Anexe no máximo 10 arquivos.");
+    const accepted = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
+    const uploaded: { object_path: string; file_name: string; mime_type: string; byte_size: number }[] = [];
+    for (const file of files) {
+      const ext = file.name.toLowerCase().split(".").pop() ?? "";
+      const mime = file.mimeType || ({ pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" } as Record<string, string>)[ext] || "";
+      if (!accepted.has(mime)) throw new Error("Use PDF, JPG, PNG ou WebP.");
+      if (file.size && file.size > 10 * 1024 * 1024) throw new Error("Cada arquivo deve ter até 10 MB.");
+      const response = await fetch(file.uri);
+      if (!response.ok) throw new Error(`Não foi possível ler ${file.name}.`);
+      const bytes = await response.arrayBuffer();
+      if (!bytes.byteLength || bytes.byteLength > 10 * 1024 * 1024) throw new Error("Cada arquivo deve ter até 10 MB.");
+      const path = `${workspace.person.id}/${Crypto.randomUUID()}-${file.name.replace(/[^\p{L}\p{N}._-]/gu, "_").slice(-180)}`;
+      const { error: uploadError } = await supabase.storage.from("eo-message-attachments").upload(path, bytes, { contentType: mime, upsert: false });
+      if (uploadError) throw uploadError;
+      uploaded.push({ object_path: path, file_name: file.name.slice(0, 255), mime_type: mime, byte_size: bytes.byteLength });
+    }
+    return uploaded;
+  }, [workspace?.person.id]);
+  const openMessageAttachment = useCallback(async (file: MessageAttachment) => {
+    if (!supabase) throw new Error("Conexão indisponível.");
+    const { data, error: signedError } = await supabase.storage.from("eo-message-attachments").createSignedUrl(file.object_path, 60);
+    if (signedError || !data?.signedUrl) throw new Error("Você não tem acesso a este anexo ou o link expirou.");
+    await Linking.openURL(data.signedUrl);
+  }, []);
   const publishAlert = useCallback((data: MessagePayload) => {
     let pushDevices = 0;
     const scheduled = Boolean(data.scheduledFor);
     return act(async () => {
     if (!data.stores.length) throw new Error("Selecione pelo menos uma loja.");
+    const attachments = await uploadMessageFiles(data.attachments);
     if (data.scheduledFor) {
-      await rpc("eo_schedule_message", { p_message_type: "alert", p_title: data.title.trim(), p_body: data.body.trim(), p_stores: data.stores, p_urgent: data.urgent, p_scheduled_for: data.scheduledFor, p_request_id: Crypto.randomUUID() });
+      await rpc("eo_schedule_message_with_options", { p_message_type: "alert", p_title: data.title.trim(), p_body: data.body.trim(), p_stores: data.stores, p_urgent: data.urgent, p_scheduled_for: data.scheduledFor, p_request_id: Crypto.randomUUID(), p_send_push: true, p_attachments: attachments });
       await refreshOperational();
       return;
     }
-    const alertId = await rpc<string>("eo_publish_alert", { p_title: data.title.trim(), p_body: data.body.trim(), p_stores: data.stores, p_urgent: data.urgent });
+    const alertId = await rpc<string>("eo_publish_alert", { p_title: data.title.trim(), p_body: data.body.trim(), p_stores: data.stores, p_urgent: data.urgent, p_attachments: attachments });
     const { data: pushResult, error: pushError } = await supabase!.functions.invoke("send-alert-push", { body: { alert_id: alertId } });
     if (pushError) throw new Error("Alerta publicado no app, mas o envio push falhou. Confira a configuração do Supabase Functions e os tokens dos aparelhos.");
     pushDevices = Number(pushResult?.devices ?? 0);
     await refreshOperational();
   }, () => scheduled ? `Alerta programado para ${new Date(data.scheduledFor!).toLocaleString("pt-BR")}.` : pushDevices ? `Alerta publicado e encaminhado a ${pushDevices} aparelhos registrados. A entrega é confirmada pelo serviço, não pelo aparelho.` : "Alerta publicado no app. Nenhum aparelho registrou permissão push ainda.");
-  }, [act, refreshOperational]);
+  }, [act, refreshOperational, uploadMessageFiles]);
   const publishChecklist = useCallback((data: { title: string; description: string; items: { prompt: string; type: "acceptance" | "photo" | "text" | "yes_no"; required: boolean }[]; stores: string[] }) => act(async () => {
     if (!data.stores.length || !data.items.length) throw new Error("Selecione lojas e inclua ao menos uma pergunta.");
     await rpc("eo_checklist_create", { p_title: data.title.trim(), p_description: data.description.trim(), p_items: data.items, p_stores: data.stores });
@@ -258,7 +294,23 @@ export function EOProvider({ children }: { children: ReactNode }) {
   const loadAdmin = useCallback((tab: AdminTab) => act(async () => {
     if (tab === "audit") setAudit(await rpc<AuditRow[]>("eo_admin_audit"));
     if (tab === "people") setMembers(await rpc<LivePerson[]>("eo_admin_people"));
+    if (tab === "archive") setArchivedMessages(await rpc<ArchivedMessage[]>("eo_admin_archived_messages"));
+    if (tab === "reports") {
+      const messages = await rpc<ReportMessage[]>("eo_admin_report_messages"); setReportMessages(messages);
+      if (messages[0]) setReportData(await rpc<NoticeReport>("eo_admin_notice_report", { p_notice: messages[0].notice_id, p_version: messages[0].version, p_group_by: "regional" }));
+      else setReportData(null);
+    }
   }), [act]);
+
+  const loadNoticeReport = useCallback((notice: string, version: number, groupBy: string) => act(async () => {
+    if (!notice) throw new Error("Selecione um comunicado.");
+    setReportData(await rpc<NoticeReport>("eo_admin_notice_report", { p_notice: notice, p_version: version, p_group_by: groupBy }));
+  }), [act]);
+  const archiveMessage = useCallback((kind: "notice" | "alert", id: string, archived: boolean) => act(async () => {
+    await rpc("eo_admin_archive_message", { p_kind: kind, p_id: id, p_archived: archived });
+    setArchivedMessages(await rpc<ArchivedMessage[]>("eo_admin_archived_messages"));
+    await refresh();
+  }, archived ? "Mensagem arquivada com histórico preservado." : "Mensagem restaurada para a equipe."), [act, refresh]);
 
   const addStore = useCallback((data: { code: string; name: string; region: string }) => act(async () => {
     await rpc("eo_admin_store", { p_code: data.code, p_name: data.name, p_region: data.region });
@@ -283,14 +335,19 @@ export function EOProvider({ children }: { children: ReactNode }) {
 
   const publish = useCallback((data: MessagePayload) => act(async () => {
     if (!data.stores.length) throw new Error("Selecione pelo menos uma loja.");
+    const attachments = await uploadMessageFiles(data.attachments);
     if (data.scheduledFor) {
-      await rpc("eo_schedule_message", { p_message_type: "notice", p_title: data.title.trim(), p_body: data.body.trim(), p_stores: data.stores, p_urgent: data.urgent, p_scheduled_for: data.scheduledFor, p_request_id: Crypto.randomUUID() });
+      await rpc("eo_schedule_message_with_options", { p_message_type: "notice", p_title: data.title.trim(), p_body: data.body.trim(), p_stores: data.stores, p_urgent: data.urgent, p_scheduled_for: data.scheduledFor, p_request_id: Crypto.randomUUID(), p_send_push: Boolean(data.sendPush), p_attachments: attachments });
       await refresh();
       return;
     }
-    await rpc("eo_publish_notice", { p_title: data.title.trim(), p_body: data.body.trim(), p_stores: data.stores, p_urgent: data.urgent, p_request_id: Crypto.randomUUID() });
+    const noticeId = await rpc<string>("eo_publish_notice", { p_title: data.title.trim(), p_body: data.body.trim(), p_stores: data.stores, p_urgent: data.urgent, p_request_id: Crypto.randomUUID(), p_attachments: attachments, p_send_push: Boolean(data.sendPush) });
+    if (data.sendPush) {
+      const { error: pushError } = await supabase!.functions.invoke("send-alert-push", { body: { alert_id: noticeId } });
+      if (pushError) throw new Error("Comunicado publicado, mas o push não foi confirmado. Confira a auditoria antes de reenviar.");
+    }
     await refresh();
-  }, () => data.scheduledFor ? `Comunicado programado para ${new Date(data.scheduledFor).toLocaleString("pt-BR")}.` : "Comunicado publicado."), [act, refresh]);
+  }, () => data.scheduledFor ? `Comunicado programado para ${new Date(data.scheduledFor).toLocaleString("pt-BR")}.` : data.sendPush ? "Comunicado publicado e encaminhado também por push." : "Comunicado publicado."), [act, refresh, uploadMessageFiles]);
 
   const issueTemporaryPassword = useCallback(() => act(async () => {
     if (!workspace) throw new Error("Perfil não carregado.");
@@ -306,10 +363,10 @@ export function EOProvider({ children }: { children: ReactNode }) {
   }, [temporaryPassword]);
 
   const value = useMemo<ContextValue>(() => ({
-    configured: backendConfigured, session, initializing, loading, busy, passwordMode, workspace, notices, more, alerts, checklists, checklistDetail, soundEnabled, pushGranted, audit, members, temporaryPassword, error, message,
-    clearFeedback, login, changeTemporaryPassword, signout, refresh, acknowledge, loadMore, loadAdmin, addStore, inviteMember, toggleMember, saveMember, publish, issueTemporaryPassword,
-    copyPassword, refreshOperational, markAlert, moderateAlert, setSoundEnabled, openChecklist, saveChecklistAnswer, publishAlert, publishChecklist, enablePush, captureChecklistPhoto, sendTestPush,
-  }), [session, initializing, loading, busy, passwordMode, workspace, notices, more, alerts, checklists, checklistDetail, soundEnabled, pushGranted, audit, members, temporaryPassword, error, message, clearFeedback, login, changeTemporaryPassword, signout, refresh, acknowledge, loadMore, loadAdmin, addStore, inviteMember, toggleMember, saveMember, publish, issueTemporaryPassword, copyPassword, refreshOperational, markAlert, moderateAlert, setSoundEnabled, openChecklist, saveChecklistAnswer, publishAlert, publishChecklist, enablePush, captureChecklistPhoto, sendTestPush]);
+    configured: backendConfigured, session, initializing, loading, busy, passwordMode, workspace, notices, more, alerts, checklists, checklistDetail, soundEnabled, pushGranted, audit, members, temporaryPassword, error, message, archivedMessages, reportMessages, reportData,
+    clearFeedback, login, changeTemporaryPassword, signout, refresh, acknowledge, loadMore, loadAdmin, loadNoticeReport, archiveMessage, addStore, inviteMember, toggleMember, saveMember, publish, issueTemporaryPassword,
+    copyPassword, refreshOperational, markAlert, moderateAlert, setSoundEnabled, openChecklist, saveChecklistAnswer, publishAlert, openMessageAttachment, publishChecklist, enablePush, captureChecklistPhoto, sendTestPush,
+  }), [session, initializing, loading, busy, passwordMode, workspace, notices, more, alerts, checklists, checklistDetail, soundEnabled, pushGranted, audit, members, temporaryPassword, error, message, archivedMessages, reportMessages, reportData, clearFeedback, login, changeTemporaryPassword, signout, refresh, acknowledge, loadMore, loadAdmin, loadNoticeReport, archiveMessage, addStore, inviteMember, toggleMember, saveMember, publish, issueTemporaryPassword, copyPassword, refreshOperational, markAlert, moderateAlert, setSoundEnabled, openChecklist, saveChecklistAnswer, publishAlert, openMessageAttachment, publishChecklist, enablePush, captureChecklistPhoto, sendTestPush]);
 
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

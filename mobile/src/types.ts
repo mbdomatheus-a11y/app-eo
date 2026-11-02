@@ -1,5 +1,5 @@
 export type Role = "colaborador" | "gerente" | "diretor" | "admin";
-export type AdminTab = "stores" | "people" | "audit";
+export type AdminTab = "stores" | "people" | "audit" | "reports" | "archive";
 
 export type Store = { id: string; code: string; name: string; region: string };
 export type Workspace = {
@@ -18,7 +18,13 @@ export type LiveNotice = {
   acknowledged: boolean;
   eligible_count: number;
   receipt_count: number;
+  attachments?: MessageAttachment[];
 };
+export type MessageAttachment = { id: string; file_name: string; mime_type: string; byte_size: number; object_path: string };
+export type MessageFile = { uri: string; name: string; mimeType: string | null; size: number | null };
+export type ReportMessage = { notice_id: string; version: number; title: string; published_at: string; archived_at: string | null; total_stores: number; eligible_people: number; confirmed_people: number };
+export type NoticeReport = { total_stores: number; stores_with_read: number; stores_fully_read: number; stores_pending: number; read_rule: string; groups: { group: string; total_stores: number; stores_with_read: number; stores_fully_read: number; stores_pending: number }[] };
+export type ArchivedMessage = { kind: "notice" | "alert"; id: string; title: string; body: string; archived_at: string; archived_by_name: string | null; attachments: MessageAttachment[] };
 export type LivePerson = {
   id: string;
   display_name: string;

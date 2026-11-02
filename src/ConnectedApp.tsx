@@ -40,6 +40,7 @@ import {
   type LiveNotice,
   type LivePerson,
   type AuditRow,
+  type MessageAttachment,
 } from "./services/supabase";
 import { roleLabels } from "./core/domain";
 import { readOrgWorkbook } from "./core/xlsx-reader";
@@ -102,8 +103,15 @@ export default function ConnectedApp() {
   const [importReady, setImportReady] = useState<boolean | null>(null);
   const [activeImport, setActiveImport] = useState<{ id: string; created_at: string; source_name: string; store_count: number; manager_count: number; regional_count: number; people_count: number; assignment_count: number } | null>(null);
   const [editingMember, setEditingMember] = useState<LivePerson | null>(null);
-  const [tab, setTab] = useState<"stores" | "people" | "audit" | "import">("stores"),
+  const [tab, setTab] = useState<"stores" | "people" | "audit" | "import" | "archive" | "reports">("stores"),
     [future, setFuture] = useState("");
+  const [archivedMessages, setArchivedMessages] = useState<{ kind: "notice" | "alert"; id: string; title: string; body: string; archived_at: string; archived_by_name: string | null; attachments: MessageAttachment[] }[]>([]);
+  const [messageFiles, setMessageFiles] = useState<File[]>([]);
+  const [reportMessages, setReportMessages] = useState<{ notice_id: string; version: number; title: string; published_at: string; archived_at: string | null; total_stores: number; eligible_people: number; confirmed_people: number }[]>([]);
+  const [reportData, setReportData] = useState<{ total_stores: number; stores_with_read: number; stores_fully_read: number; stores_pending: number; read_rule: string; groups: { group: string; total_stores: number; stores_with_read: number; stores_fully_read: number; stores_pending: number }[] } | null>(null);
+  const [reportNotice, setReportNotice] = useState("");
+  const [reportVersion, setReportVersion] = useState(1);
+  const [reportGroup, setReportGroup] = useState("regional");
   const epoch = useRef(0),
     requestId = useRef(crypto.randomUUID());
   const clear = useCallback(() => {
@@ -250,6 +258,42 @@ export default function ConnectedApp() {
       setMessage("Sua ciência foi registrada.");
     });
   }
+  async function uploadMessageFiles(files: File[]) {
+    if (!files.length) return [] as Omit<MessageAttachment, "id">[];
+    if (files.length > 10) throw new Error("Anexe no máximo 10 arquivos.");
+    const allowed = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
+    const uploaded: Omit<MessageAttachment, "id">[] = [];
+    for (const file of files) {
+      const ext = file.name.toLowerCase().split(".").pop() ?? "";
+      const mimeType = file.type || ({ pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" } as Record<string, string>)[ext] || "";
+      if (!allowed.has(mimeType)) throw new Error("Use PDF, JPG, PNG ou WebP.");
+      if (!file.size || file.size > 10 * 1024 * 1024) throw new Error("Cada arquivo deve ter até 10 MB.");
+      const path = `${workspace!.person.id}/${crypto.randomUUID()}-${file.name.replace(/[^\p{L}\p{N}._-]/gu, "_").slice(-180)}`;
+      const { error: uploadError } = await supabase!.storage.from("eo-message-attachments").upload(path, file, { contentType: mimeType, upsert: false });
+      if (uploadError) throw uploadError;
+      uploaded.push({ object_path: path, file_name: file.name.slice(0, 255), mime_type: mimeType, byte_size: file.size });
+    }
+    return uploaded;
+  }
+  async function openMessageAttachment(file: MessageAttachment) {
+    if (!supabase) return;
+    const { data, error: signedError } = await supabase.storage.from("eo-message-attachments").createSignedUrl(file.object_path, 60);
+    if (signedError) { setError("Você não tem acesso a este anexo ou o link expirou."); return; }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  }
+  async function archiveMessage(kind: "notice" | "alert", id: string, archived: boolean) {
+    await act(async () => {
+      await rpc("eo_admin_archive_message", { p_kind: kind, p_id: id, p_archived: archived });
+      if (kind === "notice" && opened?.notice_id === id) setOpened(null);
+      await refresh();
+      if (tab === "archive") setArchivedMessages(await rpc<typeof archivedMessages>("eo_admin_archived_messages"));
+      setMessage(archived ? "Comunicado arquivado; o histórico e a auditoria foram preservados." : "Mensagem restaurada para a equipe.");
+    });
+  }
+  async function loadNoticeReport(noticeId: string, version: number, groupBy: string) {
+    if (!noticeId) { setReportData(null); return; }
+    await act(async () => setReportData(await rpc("eo_admin_notice_report", { p_notice: noticeId, p_version: version, p_group_by: groupBy })));
+  }
   async function publish(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
@@ -267,13 +311,15 @@ export default function ConnectedApp() {
       const title = String(data.get("title")).trim();
       const body = String(data.get("body")).trim();
       const urgent = data.get("urgent") === "on";
+      const sendPush = data.get("send_push") === "on";
       const scheduleAt = String(data.get("schedule_at") || "");
+      const attachments = await uploadMessageFiles(messageFiles);
       let pushFailed = false;
       if (scheduleAt) {
         const scheduledFor = new Date(scheduleAt);
         if (Number.isNaN(scheduledFor.getTime()) || scheduledFor.getTime() < Date.now() + 120_000)
           throw new Error("Escolha um horário pelo menos dois minutos à frente.");
-        await rpc<string>("eo_schedule_message", {
+        await rpc<string>("eo_schedule_message_with_options", {
           p_message_type: messageKind,
           p_title: title,
           p_body: body,
@@ -281,6 +327,8 @@ export default function ConnectedApp() {
           p_urgent: urgent,
           p_scheduled_for: scheduledFor.toISOString(),
           p_request_id: requestId.current,
+          p_send_push: sendPush,
+          p_attachments: attachments,
         });
       } else if (messageKind === "notice") {
         await rpc("eo_publish_notice", {
@@ -289,23 +337,31 @@ export default function ConnectedApp() {
           p_stores: stores,
           p_urgent: urgent,
           p_request_id: requestId.current,
+          p_attachments: attachments,
+          p_send_push: sendPush,
         });
+        if (sendPush) {
+          const { error: pushError } = await supabase!.functions.invoke("send-alert-push", { body: { alert_id: requestId.current } });
+          pushFailed = Boolean(pushError);
+        }
       } else {
         const alertId = await rpc<string>("eo_publish_alert", {
           p_title: title,
           p_body: body,
           p_stores: stores,
           p_urgent: urgent,
+          p_attachments: attachments,
         });
         const { error: pushError } = await supabase!.functions.invoke("send-alert-push", { body: { alert_id: alertId } });
         pushFailed = Boolean(pushError);
       }
       requestId.current = crypto.randomUUID();
+      setMessageFiles([]);
       setCompose(false);
       await refresh();
       setMessage(scheduleAt
         ? `${messageKind === "notice" ? "Comunicado" : "Alerta push"} programado para ${new Date(scheduleAt).toLocaleString("pt-BR")}.`
-        : messageKind === "notice" ? "Comunicado publicado." : pushFailed
+        : messageKind === "notice" ? pushFailed ? "Comunicado publicado, mas o push não foi confirmado. Confira a auditoria." : sendPush ? "Comunicado publicado e enviado também por push." : "Comunicado publicado." : pushFailed
           ? "Alerta salvo, mas o envio push não foi confirmado. Confira a auditoria antes de reenviar."
           : "Alerta enviado para as lojas selecionadas.");
     });
@@ -328,6 +384,16 @@ export default function ConnectedApp() {
     setPage("admin");
     await act(async () => {
       if (which === "audit") setAudit(await rpc<AuditRow[]>("eo_admin_audit"));
+      if (which === "archive") setArchivedMessages(await rpc<typeof archivedMessages>("eo_admin_archived_messages"));
+      if (which === "reports") {
+        const messages = await rpc<typeof reportMessages>("eo_admin_report_messages");
+        setReportMessages(messages);
+        if (messages.length) {
+          setReportNotice(messages[0].notice_id);
+          setReportVersion(messages[0].version);
+          setReportData(await rpc("eo_admin_notice_report", { p_notice: messages[0].notice_id, p_version: messages[0].version, p_group_by: reportGroup }));
+        } else setReportData(null);
+      }
       if (which === "people")
         setMembers(await rpc<LivePerson[]>("eo_admin_people"));
       if (which === "import") {
@@ -540,6 +606,19 @@ export default function ConnectedApp() {
         toggleMember={toggleMember}
         saveMember={saveMember}
         issueTemporaryPassword={issueTemporaryPassword}
+        archivedMessages={archivedMessages}
+        archiveMessage={archiveMessage}
+        reportMessages={reportMessages}
+        reportData={reportData}
+        reportNotice={reportNotice}
+        reportVersion={reportVersion}
+        reportGroup={reportGroup}
+        setReportNotice={setReportNotice}
+        setReportGroup={setReportGroup}
+        loadNoticeReport={loadNoticeReport}
+        openMessageAttachment={openMessageAttachment}
+        messageFiles={messageFiles}
+        setMessageFiles={setMessageFiles}
       />
     );
   }
@@ -1006,7 +1085,7 @@ export default function ConnectedApp() {
           {page === "admin" && admin && (
             <>
               <div className="tabs admin-tabs">
-                {(["stores", "people", "import", "audit"] as const).map((t) => (
+                {(["stores", "people", "import", "audit", ...(workspace.person.role === "admin" ? ["reports" as const, "archive" as const] : [])] as const).map((t) => (
                   <button
                     key={t}
                     className={tab === t ? "selected" : ""}
@@ -1019,6 +1098,8 @@ export default function ConnectedApp() {
                         people: "Pessoas e acessos",
                         import: "Importação de bases",
                         audit: "Auditoria",
+                        reports: "Relatórios",
+                        archive: "Comunicados arquivados",
                       }[t]
                     }
                   </button>
@@ -1359,6 +1440,54 @@ export default function ConnectedApp() {
                   </div>
                 </section>
               )}
+              {tab === "archive" && workspace.person.role === "admin" && (
+                <section className="panel">
+                  <h2>Histórico de comunicados e alertas</h2>
+                  <p>Arquivar remove a mensagem da equipe, preservando conteúdo, anexos e auditoria. Você pode restaurá-la a qualquer momento.</p>
+                  {archivedMessages.length ? archivedMessages.map((item) => (
+                    <article className="notice-card" key={`${item.kind}-${item.id}`}>
+                      <div className="notice-card-top"><span className="badge">{item.kind === "notice" ? "Comunicado" : "Alerta"}</span><time>{new Date(item.archived_at).toLocaleString("pt-BR")}</time></div>
+                      <h3>{item.title}</h3><p>{item.body}</p>
+                      <p className="field-hint">Arquivado por {item.archived_by_name || "administrador"} · registro preservado</p>
+                      {!!item.attachments?.length && <div className="attachment-list">{item.attachments.map((file) => <button className="secondary" key={file.id} onClick={() => void openMessageAttachment(file)}><FileImage size={16} />{file.file_name}</button>)}</div>}
+                      <button className="secondary" disabled={busy} onClick={() => void archiveMessage(item.kind, item.id, false)}>Restaurar para a equipe</button>
+                    </article>
+                  )) : <p>Nenhuma mensagem arquivada.</p>}
+                </section>
+              )}
+              {tab === "reports" && workspace.person.role === "admin" && (
+                <section className="panel">
+                  <h2>Leitura dos comunicados</h2>
+                  <p>Veja rapidamente a abrangência e a confirmação por loja, regional ou outro agrupamento da base.</p>
+                  <div className="form-grid">
+                    <label>Comunicado
+                      <select value={reportNotice} onChange={(event) => {
+                        const selected = reportMessages.find((item) => item.notice_id === event.currentTarget.value);
+                        setReportNotice(event.currentTarget.value);
+                        if (selected) { setReportVersion(selected.version); void loadNoticeReport(selected.notice_id, selected.version, reportGroup); }
+                      }}>
+                        {reportMessages.map((item) => <option key={item.notice_id} value={item.notice_id}>{item.title} · {new Date(item.published_at).toLocaleDateString("pt-BR")}{item.archived_at ? " · arquivado" : ""}</option>)}
+                      </select>
+                    </label>
+                    <label>Agrupar por
+                      <select value={reportGroup} onChange={(event) => { const value = event.currentTarget.value; setReportGroup(value); void loadNoticeReport(reportNotice, reportVersion, value); }}>
+                        <option value="regional">Regional</option><option value="loja">Loja</option><option value="ggl">GGL</option><option value="uf">UF</option><option value="cidade">Cidade</option><option value="tipo">Tipo de loja</option><option value="clima">Clima</option><option value="perfil_preco">Perfil de preço</option><option value="grupo_loja">Grupo de loja</option><option value="safra">Safra</option>
+                      </select>
+                    </label>
+                  </div>
+                  {reportData ? <>
+                    <div className="stats report-stats">
+                      <div className="stat"><div className="stat-top">Lojas destinatárias</div><strong>{reportData.total_stores}</strong></div>
+                      <div className="stat"><div className="stat-top">Lojas com ciência</div><strong>{reportData.stores_with_read}</strong><span className="stat-foot">Pelo menos uma pessoa confirmou</span></div>
+                      <div className="stat"><div className="stat-top">Lojas pendentes</div><strong>{reportData.stores_pending}</strong></div>
+                    </div>
+                    <p className="field-hint">{reportData.read_rule} “Leitura completa” indica que todas as pessoas destinatárias daquela loja confirmaram.</p>
+                    <div className="table-wrap"><table><thead><tr><th>Agrupamento</th><th>Total de lojas</th><th>Com ciência</th><th>Leitura completa</th><th>Pendentes</th></tr></thead>
+                      <tbody>{reportData.groups.map((group) => <tr key={group.group}><td>{group.group}</td><td>{group.total_stores}</td><td>{group.stores_with_read}</td><td>{group.stores_fully_read}</td><td>{group.stores_pending}</td></tr>)}</tbody>
+                    </table></div>
+                  </> : <p>{reportMessages.length ? "Carregando relatório…" : "Ainda não há comunicados publicados para exibir."}</p>}
+                </section>
+              )}
             </>
           )}
           <footer>
@@ -1390,6 +1519,7 @@ export default function ConnectedApp() {
           <span className="badge">Versão {opened.version}</span>
           <h2 className="notice-title">{opened.title}</h2>
           <p className="notice-body">{opened.body}</p>
+          {!!opened.attachments?.length && <div className="attachment-list">{opened.attachments.map((file) => <button className="secondary" key={file.id} disabled={busy} onClick={() => void openMessageAttachment(file)}><FileImage size={16} />{file.file_name}</button>)}</div>}
           {error && (
             <p role="alert" className="form-error">
               {error}
@@ -1403,6 +1533,7 @@ export default function ConnectedApp() {
             <CheckCheck size={18} />
             {opened.acknowledged ? "Ciência confirmada" : "Li e estou ciente"}
           </button>
+          {workspace?.person.role === "admin" && <button className="secondary wide" disabled={busy} onClick={() => { if (window.confirm("Arquivar este comunicado? Ele sairá da equipe e ficará disponível no histórico administrativo.")) void archiveMessage("notice", opened.notice_id, true); }}>Arquivar comunicado</button>}
         </Dialog>
       )}
       {compose && (
@@ -1428,6 +1559,15 @@ export default function ConnectedApp() {
               Mensagem
               <textarea name="body" rows={6} required maxLength={3000} />
             </label>
+            <label className="checkbox-label">
+              <input name="send_push" type="checkbox" />
+              Enviar também como notificação push {" "}<span className="field-hint">Alertas sempre enviam push. Para comunicado, esta opção é adicional.</span>
+            </label>
+            <label>
+              Anexos (PDF, JPG, PNG ou WebP, até 10 MB cada)
+              <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple onChange={(event) => setMessageFiles(Array.from(event.currentTarget.files ?? []))} />
+            </label>
+            {messageFiles.length > 0 && <div className="attachment-list" aria-live="polite">{messageFiles.map((file, index) => <span className="badge" key={`${file.name}-${index}`}>{file.name}</span>)}<button type="button" className="text-button" onClick={() => setMessageFiles([])}>Limpar anexos</button></div>}
             <fieldset>
               <legend>Quem receberá</legend>
               <label>

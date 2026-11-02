@@ -28,13 +28,18 @@ import type {
   AuditRow,
   LiveNotice,
   LivePerson,
+  MessageAttachment,
+  MessageAttachment as AttachmentRecord,
   Store as StoreRecord,
   Workspace,
 } from "../services/supabase";
 import { roleLabels } from "../core/domain";
 import "./native.css";
 
-type AdminTab = "stores" | "people" | "audit";
+type AdminTab = "stores" | "people" | "audit" | "reports" | "archive";
+type ReportMessage = { notice_id: string; version: number; title: string; published_at: string; archived_at: string | null; total_stores: number; eligible_people: number; confirmed_people: number };
+type ReportView = { total_stores: number; stores_with_read: number; stores_fully_read: number; stores_pending: number; read_rule: string; groups: { group: string; total_stores: number; stores_with_read: number; stores_fully_read: number; stores_pending: number }[] };
+type ArchivedMessage = { kind: "notice" | "alert"; id: string; title: string; body: string; archived_at: string; archived_by_name: string | null; attachments: AttachmentRecord[] };
 type MobileRoute =
   | "home"
   | "notices"
@@ -47,6 +52,8 @@ type MobileRoute =
   | "admin-stores"
   | "admin-people"
   | "admin-audit"
+  | "admin-reports"
+  | "admin-archive"
   | "edit-member";
 
 function useMobileRoute(initial: MobileRoute) {
@@ -175,6 +182,19 @@ type NativeExperienceProps = {
   toggleMember: (member: LivePerson) => Promise<void>;
   saveMember: (event: FormEvent<HTMLFormElement>) => Promise<void>;
   issueTemporaryPassword: () => Promise<void>;
+  archivedMessages: ArchivedMessage[];
+  archiveMessage: (kind: "notice" | "alert", id: string, archived: boolean) => Promise<void>;
+  reportMessages: ReportMessage[];
+  reportData: ReportView | null;
+  reportNotice: string;
+  reportVersion: number;
+  reportGroup: string;
+  setReportNotice: (value: string) => void;
+  setReportGroup: (value: string) => void;
+  loadNoticeReport: (id: string, version: number, group: string) => Promise<void>;
+  openMessageAttachment: (file: MessageAttachment) => Promise<void>;
+  messageFiles: File[];
+  setMessageFiles: (files: File[]) => void;
 };
 
 export default function NativeExperience(props: NativeExperienceProps) {
@@ -321,7 +341,7 @@ function NativeWorkspace(props: NativeExperienceProps & { workspace: Workspace }
   const isLeader = isAdmin || workspace.person.role === "diretor";
   const pending = props.notices.filter((notice) => !notice.acknowledged);
   const activeRoot = route.startsWith("admin-") ? "admin" : route === "notice-detail" || route === "compose" ? "notices" : route;
-  const subPage = ["privacy", "notice-detail", "compose", "admin-stores", "admin-people", "admin-audit", "edit-member"].includes(route);
+  const subPage = ["privacy", "notice-detail", "compose", "admin-stores", "admin-people", "admin-audit", "admin-reports", "admin-archive", "edit-member"].includes(route);
   const pageTitle: Record<MobileRoute, string> = {
     home: "Início",
     notices: "Comunicados",
@@ -334,6 +354,8 @@ function NativeWorkspace(props: NativeExperienceProps & { workspace: Workspace }
     "admin-stores": "Lojas",
     "admin-people": "Pessoas e acessos",
     "admin-audit": "Auditoria",
+    "admin-reports": "Relatórios",
+    "admin-archive": "Comunicados arquivados",
     "edit-member": "Editar acesso",
   };
   const navItems: { id: MobileRoute; label: string; icon: LucideIcon }[] = [
@@ -406,10 +428,10 @@ function NativeWorkspace(props: NativeExperienceProps & { workspace: Workspace }
           />
         )}
         {route === "notice-detail" && props.opened && (
-          <NativeNoticeDetail notice={props.opened} busy={props.busy} acknowledge={props.acknowledge} />
+          <NativeNoticeDetail notice={props.opened} busy={props.busy} acknowledge={props.acknowledge} openAttachment={props.openMessageAttachment} />
         )}
         {route === "compose" && (
-          <NativeCompose workspace={workspace} busy={props.busy} error={props.error} publish={props.publish} />
+          <NativeCompose workspace={workspace} busy={props.busy} error={props.error} publish={props.publish} files={props.messageFiles} setFiles={props.setMessageFiles} />
         )}
         {route === "modules" && <NativeModules openNotice={() => goTab("notices")} openFuture={setFuture} />}
         {route === "profile" && (
@@ -435,6 +457,8 @@ function NativeWorkspace(props: NativeExperienceProps & { workspace: Workspace }
           <NativeEditMember member={props.editingMember} workspace={workspace} busy={props.busy} saveMember={props.saveMember} />
         )}
         {route === "admin-audit" && isAdmin && <NativeAudit audit={props.audit} />}
+        {route === "admin-reports" && isAdmin && <NativeReports messages={props.reportMessages} data={props.reportData} notice={props.reportNotice} version={props.reportVersion} group={props.reportGroup} setNotice={props.setReportNotice} setGroup={props.setReportGroup} loadReport={props.loadNoticeReport} />}
+        {route === "admin-archive" && isAdmin && <NativeArchive messages={props.archivedMessages} busy={props.busy} restore={(kind, id) => props.archiveMessage(kind, id, false)} openAttachment={props.openMessageAttachment} />}
         {route.startsWith("admin-") && !isAdmin && <NativeAccessPending busy={props.busy} loading={false} error="Seu perfil não tem acesso à administração." retry={props.refresh} signout={props.signout} />}
       </main>
 
@@ -556,13 +580,14 @@ function NativeNoticeList({
   );
 }
 
-function NativeNoticeDetail({ notice, busy, acknowledge }: { notice: LiveNotice; busy: boolean; acknowledge: (notice: LiveNotice) => Promise<void> }) {
+function NativeNoticeDetail({ notice, busy, acknowledge, openAttachment }: { notice: LiveNotice; busy: boolean; acknowledge: (notice: LiveNotice) => Promise<void>; openAttachment: (file: MessageAttachment) => Promise<void> }) {
   return (
     <article className="native-screen-content native-detail-content">
       <div className="native-detail-badge"><span className={`native-category ${notice.urgent ? "urgent" : ""}`}>{notice.urgent ? "Prioritário" : notice.category}</span><span>Versão {notice.version}</span></div>
       <h1>{notice.title}</h1>
       <p className="native-detail-date">Enviado em {new Date(notice.published_at).toLocaleString("pt-BR", { dateStyle: "long", timeStyle: "short" })}</p>
       <div className="native-detail-body">{notice.body.split("\n").map((line, index) => <p key={index}>{line || <br />}</p>)}</div>
+      {!!notice.attachments?.length && <section className="native-panel"><h2>Arquivos anexados</h2>{notice.attachments.map((file) => <button className="native-secondary" key={file.id} onClick={() => void openAttachment(file).catch(() => window.alert("Não foi possível abrir o anexo."))}>{file.file_name}<ArrowRight size={16} /></button>)}</section>}
       <div className="native-detail-callout"><ShieldCheck size={19} /><span>Sua confirmação fica registrada para este comunicado.</span></div>
       <button className="native-primary native-ack-button" disabled={busy || notice.acknowledged} onClick={() => void acknowledge(notice)}>{notice.acknowledged ? <><CheckCheck size={19} />Ciência confirmada</> : <><CheckCheck size={19} />Li e estou ciente</>}</button>
     </article>
@@ -605,6 +630,8 @@ function NativeAdminHome({ openAdmin }: { openAdmin: (tab: AdminTab) => void }) 
   const items: { id: AdminTab; title: string; detail: string; icon: LucideIcon }[] = [
     { id: "stores", title: "Lojas", detail: "Unidades vinculadas ao espaço", icon: Store },
     { id: "people", title: "Pessoas e acessos", detail: "Perfis, permissões e convites", icon: Users },
+    { id: "reports", title: "Relatórios", detail: "Ciência dos comunicados por loja e regional", icon: Bell },
+    { id: "archive", title: "Comunicados arquivados", detail: "Histórico preservado e restauração", icon: FileImage },
     { id: "audit", title: "Auditoria", detail: "Atividades recentes do sistema", icon: ShieldCheck },
   ];
   return <div className="native-screen-content"><div className="native-page-intro"><span className="native-eyebrow">ÁREA RESTRITA</span><h1>Administração</h1><p>Gerencie os acessos e acompanhe o espaço.</p></div><div className="native-admin-list">{items.map(({ id, title, detail, icon: Icon }) => <button key={id} className="native-admin-card" onClick={() => openAdmin(id)}><span className="native-admin-icon"><Icon size={21} /></span><span><strong>{title}</strong><small>{detail}</small></span><ChevronRight size={19} /></button>)}</div><div className="native-admin-note"><ShieldCheck size={17} /><span>As alterações ficam registradas no histórico de auditoria.</span></div></div>;
@@ -651,9 +678,17 @@ function NativeAudit({ audit }: { audit: AuditRow[] }) {
   return <div className="native-screen-content"><div className="native-summary-strip"><span><ShieldCheck size={17} />Atividade segura</span><strong>{audit.length} eventos</strong></div><p className="native-audit-intro">Últimos eventos registrados pelo servidor.</p>{audit.length ? <div className="native-audit-list">{audit.map((entry) => <article key={entry.id} className="native-audit-item"><span className="native-audit-mark"><ShieldCheck size={17} /></span><div><strong>{entry.action}</strong><p>{entry.actor_name}</p>{entry.action === "alert.published" && entry.detail && <p>{String(entry.detail.title ?? "Alerta")}: {String(entry.detail.body ?? "")} · Lojas: {Array.isArray(entry.detail.store_codes) ? (entry.detail.store_codes as string[]).join(", ") : ""}</p>}{entry.action === "organization.imported" && entry.detail && <p>{String(entry.detail.stores ?? 0)} lojas · {String(entry.detail.managers ?? 0)} gerentes · {String(entry.detail.regionals ?? 0)} regionais</p>}<time>{new Date(entry.created_at).toLocaleString("pt-BR")}</time></div></article>)}</div> : <NativeEmpty icon={ShieldCheck} title="Sem eventos recentes" detail="As ações administrativas serão exibidas aqui." />}</div>;
 }
 
-function NativeCompose({ workspace, busy, error, publish }: { workspace: Workspace; busy: boolean; error: string; publish: (event: FormEvent<HTMLFormElement>) => Promise<void> }) {
+function NativeReports({ messages, data, notice, version, group, setNotice, setGroup, loadReport }: { messages: ReportMessage[]; data: ReportView | null; notice: string; version: number; group: string; setNotice: (value: string) => void; setGroup: (value: string) => void; loadReport: (id: string, version: number, group: string) => Promise<void> }) {
+  return <div className="native-screen-content"><section className="native-panel"><p className="native-form-help">Lojas com ciência contam quando ao menos uma pessoa destinatária confirmou a leitura.</p><label>Comunicado<select value={notice} onChange={(event) => { const selected = messages.find((item) => item.notice_id === event.currentTarget.value); setNotice(event.currentTarget.value); if (selected) void loadReport(selected.notice_id, selected.version, group); }}>{messages.map((item) => <option key={item.notice_id} value={item.notice_id}>{item.title} · {new Date(item.published_at).toLocaleDateString("pt-BR")}</option>)}</select></label><label>Agrupar por<select value={group} onChange={(event) => { setGroup(event.currentTarget.value); void loadReport(notice, version, event.currentTarget.value); }}><option value="regional">Regional</option><option value="loja">Loja</option><option value="ggl">GGL</option><option value="uf">UF</option><option value="cidade">Cidade</option><option value="tipo">Tipo de loja</option><option value="clima">Clima</option><option value="perfil_preco">Perfil de preço</option><option value="grupo_loja">Grupo de loja</option><option value="safra">Safra</option></select></label></section>{data ? <><section className="native-panel"><h2>{data.stores_with_read} de {data.total_stores} lojas com ciência</h2><p>{data.stores_pending} lojas pendentes · {data.stores_fully_read} com leitura completa</p></section><div className="native-admin-list">{data.groups.map((item) => <article className="native-admin-card static" key={item.group}><span className="native-admin-icon"><Bell size={18} /></span><span><strong>{item.group}</strong><small>{item.stores_with_read}/{item.total_stores} com ciência · {item.stores_pending} pendentes</small></span></article>)}</div></> : <NativeEmpty icon={Bell} title={messages.length ? "Carregando relatório" : "Nenhum comunicado"} detail={messages.length ? "Aguarde os dados de leitura." : "Os comunicados publicados aparecerão aqui."} />}</div>;
+}
+
+function NativeArchive({ messages, busy, restore, openAttachment }: { messages: ArchivedMessage[]; busy: boolean; restore: (kind: "notice" | "alert", id: string) => Promise<void>; openAttachment: (file: MessageAttachment) => Promise<void> }) {
+  return <div className="native-screen-content">{messages.length ? messages.map((item) => <article className="native-admin-card static" key={`${item.kind}-${item.id}`}><span className="native-admin-icon"><FileImage size={18} /></span><span><strong>{item.title}</strong><small>{item.kind === "notice" ? "Comunicado" : "Alerta"} · Arquivado em {new Date(item.archived_at).toLocaleString("pt-BR")}</small><small>{item.body}</small>{item.attachments?.map((file) => <button key={file.id} className="native-text-action" onClick={() => void openAttachment(file).catch(() => window.alert("Não foi possível abrir o anexo."))}>{file.file_name}</button>)}<button className="native-secondary" disabled={busy} onClick={() => { if (window.confirm("Restaurar esta mensagem para a equipe?")) void restore(item.kind, item.id); }}>Restaurar para a equipe</button></span></article>) : <NativeEmpty icon={FileImage} title="Arquivo vazio" detail="Mensagens arquivadas serão guardadas aqui." />}</div>;
+}
+
+function NativeCompose({ workspace, busy, error, publish, files, setFiles }: { workspace: Workspace; busy: boolean; error: string; publish: (event: FormEvent<HTMLFormElement>) => Promise<void>; files: File[]; setFiles: (files: File[]) => void }) {
   const regions = [...new Set(workspace.stores.map((store) => store.region.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
-  return <section className="native-panel"><p className="native-form-help">Envie para todas as lojas da sua abrangência, uma regional ou lojas selecionadas. Também pode programar o horário.</p><form className="native-form" onSubmit={(event) => void publish(event)}><label>Tipo de mensagem<select name="message_kind" defaultValue={workspace.person.role === "gerente" ? "alert" : "notice"}>{workspace.person.role !== "gerente" && <option value="notice">Comunicado com confirmação de ciência</option>}<option value="alert">Alerta com notificação push</option></select></label><label>Título<input name="title" required minLength={3} maxLength={120} placeholder="Resumo da orientação" /></label><label>Mensagem<textarea name="body" rows={7} required maxLength={3000} placeholder="Escreva a orientação para a equipe…" /></label><label>Segmentação<select name="target_mode" defaultValue="all"><option value="all">Todas as lojas da minha abrangência</option><option value="region">Uma regional</option><option value="stores">Selecionar lojas</option></select></label><label>Regional (quando aplicável)<select name="target_region" defaultValue=""><option value="">Selecione uma regional</option>{regions.map((region) => <option key={region} value={region}>{region}</option>)}</select></label><fieldset className="native-checks"><legend>Lojas disponíveis</legend>{workspace.stores.map((store) => <label key={store.id}><input type="checkbox" name="stores" value={store.id} />{store.code} · {store.name}{store.region ? ` · ${store.region}` : ""}</label>)}</fieldset><label className="native-check-line"><input name="urgent" type="checkbox" />Destacar como prioritário</label><label>Programar envio (opcional)<input name="schedule_at" type="datetime-local" /><small>Deixe em branco para enviar agora. Horário local do dispositivo.</small></label>{error && <div className="native-message is-error" role="alert">{error}</div>}<button className="native-primary" disabled={busy}>{busy ? "Salvando…" : "Publicar ou programar"}<ArrowRight size={18} /></button></form></section>;
+  return <section className="native-panel"><p className="native-form-help">Envie para todas as lojas da sua abrangência, uma regional ou lojas selecionadas. Também pode programar o horário.</p><form className="native-form" onSubmit={(event) => void publish(event)}><label>Tipo de mensagem<select name="message_kind" defaultValue={workspace.person.role === "gerente" ? "alert" : "notice"}>{workspace.person.role !== "gerente" && <option value="notice">Comunicado com confirmação de ciência</option>}<option value="alert">Alerta com notificação push</option></select></label><label>Título<input name="title" required minLength={3} maxLength={120} placeholder="Resumo da orientação" /></label><label>Mensagem<textarea name="body" rows={7} required maxLength={3000} placeholder="Escreva a orientação para a equipe…" /></label><label className="native-check-line"><input name="send_push" type="checkbox" />Enviar também como push (para comunicado)</label><label>Anexos PDF ou imagem<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple onChange={(event) => setFiles(Array.from(event.currentTarget.files ?? []))} /></label>{files.map((file, index) => <span className="native-form-help" key={`${file.name}-${index}`}>{file.name}</span>)}<label>Segmentação<select name="target_mode" defaultValue="all"><option value="all">Todas as lojas da minha abrangência</option><option value="region">Uma regional</option><option value="stores">Selecionar lojas</option></select></label><label>Regional (quando aplicável)<select name="target_region" defaultValue=""><option value="">Selecione uma regional</option>{regions.map((region) => <option key={region} value={region}>{region}</option>)}</select></label><fieldset className="native-checks"><legend>Lojas disponíveis</legend>{workspace.stores.map((store) => <label key={store.id}><input type="checkbox" name="stores" value={store.id} />{store.code} · {store.name}{store.region ? ` · ${store.region}` : ""}</label>)}</fieldset><label className="native-check-line"><input name="urgent" type="checkbox" />Destacar como prioritário</label><label>Programar envio (opcional)<input name="schedule_at" type="datetime-local" /><small>Deixe em branco para enviar agora. Horário local do dispositivo.</small></label>{error && <div className="native-message is-error" role="alert">{error}</div>}<button className="native-primary" disabled={busy}>{busy ? "Salvando…" : "Publicar ou programar"}<ArrowRight size={18} /></button></form></section>;
 }
 
 function NativeEmpty({ icon: Icon, title, detail }: { icon: LucideIcon; title: string; detail: string }) {
