@@ -13,6 +13,7 @@ import type { AdminTab, AuditRow, ChecklistDetail, ChecklistRun, LiveAlert, Live
 Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true }) });
 
 type Result = { ok: boolean };
+type MessagePayload = { title: string; body: string; stores: string[]; urgent: boolean; scheduledFor?: string };
 type ContextValue = {
   configured: boolean; session: Session | null; initializing: boolean; loading: boolean; busy: boolean;
   passwordMode: boolean; workspace: Workspace | null; notices: LiveNotice[]; more: boolean;
@@ -27,13 +28,13 @@ type ContextValue = {
   inviteMember: (data: { chapa: string; email: string; name: string; role: string; stores: string[] }) => Promise<Result>;
   toggleMember: (member: LivePerson) => Promise<Result>;
   saveMember: (member: LivePerson, data: { chapa: string; name: string; role: string; stores: string[] }) => Promise<Result>;
-  publish: (data: { title: string; body: string; stores: string[]; urgent: boolean }) => Promise<Result>;
+  publish: (data: MessagePayload) => Promise<Result>;
   issueTemporaryPassword: () => Promise<Result>; copyPassword: () => void;
   refreshOperational: () => Promise<void>; markAlert: (alert: LiveAlert, action: "view" | "dismiss") => Promise<Result>;
   moderateAlert: (alert: LiveAlert) => Promise<Result>;
   setSoundEnabled: (enabled: boolean) => Promise<Result>; openChecklist: (id: string) => Promise<Result>;
   saveChecklistAnswer: (run: string, item: string, answer: Record<string, unknown>) => Promise<Result>;
-  publishAlert: (data: { title: string; body: string; stores: string[]; urgent: boolean }) => Promise<Result>;
+  publishAlert: (data: MessagePayload) => Promise<Result>;
   publishChecklist: (data: { title: string; description: string; items: { prompt: string; type: "acceptance" | "photo" | "text" | "yes_no"; required: boolean }[]; stores: string[] }) => Promise<Result>;
   enablePush: () => Promise<Result>; captureChecklistPhoto: (run: string, item: string) => Promise<Result>;
   sendTestPush: () => Promise<Result>;
@@ -159,16 +160,22 @@ export function EOProvider({ children }: { children: ReactNode }) {
     await rpc("eo_checklist_save", { p_run: run, p_item: item, p_answer: answer });
     await refreshOperational(); setChecklistDetail(await rpc<ChecklistDetail>("eo_checklist_detail", { p_run: run }));
   }, "Resposta salva e registrada."), [act, refreshOperational]);
-  const publishAlert = useCallback((data: { title: string; body: string; stores: string[]; urgent: boolean }) => {
+  const publishAlert = useCallback((data: MessagePayload) => {
     let pushDevices = 0;
+    const scheduled = Boolean(data.scheduledFor);
     return act(async () => {
     if (!data.stores.length) throw new Error("Selecione pelo menos uma loja.");
+    if (data.scheduledFor) {
+      await rpc("eo_schedule_message", { p_message_type: "alert", p_title: data.title.trim(), p_body: data.body.trim(), p_stores: data.stores, p_urgent: data.urgent, p_scheduled_for: data.scheduledFor, p_request_id: Crypto.randomUUID() });
+      await refreshOperational();
+      return;
+    }
     const alertId = await rpc<string>("eo_publish_alert", { p_title: data.title.trim(), p_body: data.body.trim(), p_stores: data.stores, p_urgent: data.urgent });
     const { data: pushResult, error: pushError } = await supabase!.functions.invoke("send-alert-push", { body: { alert_id: alertId } });
     if (pushError) throw new Error("Alerta publicado no app, mas o envio push falhou. Confira a configuração do Supabase Functions e os tokens dos aparelhos.");
     pushDevices = Number(pushResult?.devices ?? 0);
     await refreshOperational();
-  }, () => pushDevices ? `Alerta publicado e encaminhado a ${pushDevices} aparelhos registrados. A entrega é confirmada pelo serviço, não pelo aparelho.` : "Alerta publicado no app. Nenhum aparelho registrou permissão push ainda.");
+  }, () => scheduled ? `Alerta programado para ${new Date(data.scheduledFor!).toLocaleString("pt-BR")}.` : pushDevices ? `Alerta publicado e encaminhado a ${pushDevices} aparelhos registrados. A entrega é confirmada pelo serviço, não pelo aparelho.` : "Alerta publicado no app. Nenhum aparelho registrou permissão push ainda.");
   }, [act, refreshOperational]);
   const publishChecklist = useCallback((data: { title: string; description: string; items: { prompt: string; type: "acceptance" | "photo" | "text" | "yes_no"; required: boolean }[]; stores: string[] }) => act(async () => {
     if (!data.stores.length || !data.items.length) throw new Error("Selecione lojas e inclua ao menos uma pergunta.");
@@ -274,11 +281,16 @@ export function EOProvider({ children }: { children: ReactNode }) {
     setMembers(await rpc<LivePerson[]>("eo_admin_people"));
   }, "Perfil e lojas atualizados."), [act]);
 
-  const publish = useCallback((data: { title: string; body: string; stores: string[]; urgent: boolean }) => act(async () => {
+  const publish = useCallback((data: MessagePayload) => act(async () => {
     if (!data.stores.length) throw new Error("Selecione pelo menos uma loja.");
+    if (data.scheduledFor) {
+      await rpc("eo_schedule_message", { p_message_type: "notice", p_title: data.title.trim(), p_body: data.body.trim(), p_stores: data.stores, p_urgent: data.urgent, p_scheduled_for: data.scheduledFor, p_request_id: Crypto.randomUUID() });
+      await refresh();
+      return;
+    }
     await rpc("eo_publish_notice", { p_title: data.title.trim(), p_body: data.body.trim(), p_stores: data.stores, p_urgent: data.urgent, p_request_id: Crypto.randomUUID() });
     await refresh();
-  }, "Comunicado publicado."), [act, refresh]);
+  }, () => data.scheduledFor ? `Comunicado programado para ${new Date(data.scheduledFor).toLocaleString("pt-BR")}.` : "Comunicado publicado."), [act, refresh]);
 
   const issueTemporaryPassword = useCallback(() => act(async () => {
     if (!workspace) throw new Error("Perfil não carregado.");
