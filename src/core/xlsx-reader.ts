@@ -95,6 +95,11 @@ function normalizeHeader(value: string): string {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleUpperCase("pt-BR").replace(/\s+/g, " ").trim();
 }
 
+function hasRowIdentity(row: Record<string, string>, identityHeaders: string[]): boolean {
+  const identity = new Set(identityHeaders.map(normalizeHeader));
+  return Object.entries(row).some(([header, value]) => identity.has(normalizeHeader(header)) && value.trim() !== "");
+}
+
 export async function readOrgWorkbook(file: File): Promise<Record<string, SheetRows>> {
   const entries = await unzipEntries(file);
   const workbook = entries.get("xl/workbook.xml");
@@ -111,6 +116,13 @@ export async function readOrgWorkbook(file: File): Promise<Record<string, SheetR
   const sharedDoc = sharedXml ? parser.parseFromString(sharedXml, "application/xml") : null;
   const shared = sharedDoc ? Array.from(sharedDoc.getElementsByTagNameNS(ns, "si")).map((si) => Array.from(si.getElementsByTagNameNS(ns, "t")).map(textOf).join("")) : [];
   const result: Record<string, SheetRows> = {};
+  const identityHeaders: Record<string, string[]> = {
+    Lojas: ["COD", "LOJA"],
+    Gerentes: ["CHAPA", "COD LOJA"],
+    Regionais: ["GGL", "REGIONAL"],
+    Pessoas: ["CHAPA", "NOME", "CARGO OPERACIONAL"],
+    Vinculos: ["CHAPA", "TIPO ESCOPO", "CODIGO ESCOPO"],
+  };
   for (const sheet of Array.from(workbookDoc.getElementsByTagNameNS(ns, "sheet"))) {
     const name = sheet.getAttribute("name") ?? "";
     if (normalizeHeader(name) === "LEIA-ME") continue;
@@ -120,7 +132,9 @@ export async function readOrgWorkbook(file: File): Promise<Record<string, SheetR
     else if (!target.startsWith("xl/")) target = `xl/${target}`;
     const xml = entries.get(target);
     if (!xml) throw new Error(`Não foi possível abrir a aba ${name}.`);
-    result[name] = parseSheet(xml, shared);
+    const rows = parseSheet(xml, shared);
+    const identity = identityHeaders[name];
+    result[name] = identity ? rows.filter((row) => hasRowIdentity(row, identity)) : rows;
   }
   const required = ["Lojas", "Gerentes", "Regionais", "Pessoas", "Vinculos"];
   const keyMap = new Map(Object.keys(result).map((name) => [normalizeHeader(name), name]));
