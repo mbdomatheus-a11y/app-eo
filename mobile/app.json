@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Excelência Operacional (EO)",
-    "slug": "excelencia-operacional-eo",
+    "slug": "eo",
     "version": "1.0.0",
     "scheme": "eo",
     "orientation": "portrait",
@@ -46,16 +46,19 @@
     },
     "updates": {
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/1b9d38c0-be49-44cf-9783-a179dd812713",
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      }
     },
     "extra": {
       "product": "Excelência Operacional",
-      "updatesSetupPending": true,
       "router": {},
       "eas": {
-        "projectId": "31e7b5e5-f006-4617-8774-8718d875a9ea"
+        "projectId": "1b9d38c0-be49-44cf-9783-a179dd812713"
       }
     },
-    "owner": "controlall"
+    "owner": "controlalls-team"
   }
 }

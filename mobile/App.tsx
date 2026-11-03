@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Linking, Pressable, Text, View } from "react-native";
 import * as Calendar from "expo-calendar";
@@ -47,18 +48,23 @@ export function HomeScreen({ openTab, openNotice, openCompose }: { openTab: (tab
   };
   const initials = workspace.person.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
   const storeContext = workspace.stores.length === 1 ? workspace.stores[0].name : `${workspace.stores.length} lojas vinculadas`;
-  const focusTitle = workspace.person.role === "colaborador" ? "Sua rotina, em um só lugar." : "Sua operação, em movimento.";
+
   return <Page>
     <View style={s.homeHeader}>
       <View style={{ flex: 1, gap: 3 }}><Text style={s.eyebrow}>{date.toUpperCase()}</Text><Text style={s.homeGreeting}>Olá, {name}</Text><Text style={s.homeStore}>{storeContext}  ·  {roleLabels[workspace.person.role]}</Text></View>
       <Pressable accessibilityRole="button" accessibilityLabel="Abrir meu perfil" onPress={() => openTab("profile")} style={s.homeAvatar}><Text style={{ color: C.dark, fontSize: 15, fontWeight: "800" }}>{initials}</Text></Pressable>
     </View>
-    <View style={s.homeHero}><View style={{ gap: 9 }}><Text style={s.homeHeroEyebrow}>EXCELÊNCIA OPERACIONAL  ·  EO</Text><Text style={s.homeHeroTitle}>{focusTitle}</Text><Text style={s.homeHeroDetail}>{roleSummary[workspace.person.role]}</Text></View><Text style={s.homeHeroMeta}>{workspace.stores.length} {workspace.stores.length === 1 ? "UNIDADE NO SEU ACESSO" : "UNIDADES NO SEU ACESSO"}</Text></View>
-    <View style={{ flexDirection: "row", gap: 11 }}><Pressable accessibilityRole="button" accessibilityLabel={`${pending.length} comunicados para ler`} onPress={() => openTab("notices")} style={{ flex: 1 }}><Card style={[s.metricCard, { backgroundColor: C.yellow, borderColor: "#E9E2BD" }]}><Text style={s.small}>PARA ACOMPANHAR</Text><Text style={s.metricValue}>{pending.length.toString().padStart(2, "0")}</Text><Text style={[s.small, { color: C.dark, fontWeight: "800" }]}>{pending.length === 1 ? "comunicado pendente  ›" : "comunicados pendentes  ›"}</Text></Card></Pressable><Card style={s.metricCard}><Text style={s.small}>SEU PERFIL</Text><Text style={[s.strong, { fontSize: 16 }]}>{roleLabels[workspace.person.role]}</Text><Text style={s.small}>{workspace.stores.length} {workspace.stores.length === 1 ? "unidade autorizada" : "unidades autorizadas"}</Text></Card></View>
-    <Section title="Acesso rápido" action="Ver tudo" onAction={() => openTab("modules")} />
-    <ActionRow title="Comunicados" detail={pending.length ? `${pending.length} aguardando sua ciência` : "Você está em dia"} icon="bell.fill" onPress={() => openTab("notices")} />
-    <ActionRow title="Aplicativos e rotinas" detail="Acesse as ferramentas da operação" icon="square.grid.2x2.fill" onPress={() => openTab("modules")} />
-    {leader && <Button title="Criar comunicado" icon="plus" onPress={openCompose} />}
+    <Section title="Hoje" />
+    <Card style={{ padding: 22, gap: 15 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 15 }}><View style={s.actionIcon}><AppIcon name="checklist" size={24} color={C.dark} /></View><View style={{ flex: 1 }}><Text style={s.strong}>{pending.length ? `${pending.length} avisos para acompanhar` : "Seus comunicados estão em dia"}</Text><Text style={s.small}>Sua próxima ação, sem perder o foco.</Text></View></View>
+      <Button title="Abrir minha caixa de avisos" icon="bell.fill" onPress={() => openTab("notices")} />
+    </Card>
+    <Section title="Sua rotina" />
+    <View style={{ flexDirection: "row", gap: 12 }}>
+      <Pressable accessibilityRole="button" onPress={() => openTab("modules")} style={[s.moduleCard, { minHeight: 128 }]}><View style={s.moduleIcon}><AppIcon name="checklist" size={23} color={C.dark} /></View><Text style={s.moduleTitle}>Checklists</Text><Text style={s.moduleDetail}>Pendências e evidências</Text></Pressable>
+      <Pressable accessibilityRole="button" onPress={() => router.push("/device" as never)} style={[s.moduleCard, { minHeight: 128 }]}><View style={s.moduleIcon}><AppIcon name="camera.fill" size={23} color={C.dark} /></View><Text style={s.moduleTitle}>Meu aparelho</Text><Text style={s.moduleDetail}>Câmera, agenda e avisos</Text></Pressable>
+    </View>
+    {leader && <ActionRow title="Criar comunicado" detail="Oriente a equipe e acompanhe a ciência" icon="plus" onPress={openCompose} />}
     <Section title="Recentes" action="Ver todos" onAction={() => openTab("notices")} />
     {app.notices.slice(0, 3).map((notice) => <NoticeCard key={`${notice.notice_id}-${notice.version}`} notice={notice} onPress={() => openNotice(notice.notice_id)} leader={leader} />)}
     {!app.notices.length && <Empty title="Tudo em dia" detail="Quando houver um comunicado para você, ele aparecerá aqui." />}

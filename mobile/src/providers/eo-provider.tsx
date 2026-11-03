@@ -111,7 +111,9 @@ export function EOProvider({ children }: { children: ReactNode }) {
     if (!session?.user.id || !pushGranted || !Device.isDevice || !projectId || !supabase) return;
     const register = (token: string) => rpc("eo_register_push_device", { p_token: token, p_platform: Platform.OS }).catch(() => undefined);
     void Notifications.getExpoPushTokenAsync({ projectId }).then(({ data }) => register(data)).catch(() => undefined);
-    const subscription = Notifications.addPushTokenListener((token) => { void register(token.data); });
+    const subscription = Notifications.addPushTokenListener(() => {
+      void Notifications.getExpoPushTokenAsync({ projectId }).then(({ data }) => register(data)).catch(() => undefined);
+    });
     return () => subscription.remove();
   }, [session?.user.id, pushGranted]);
 

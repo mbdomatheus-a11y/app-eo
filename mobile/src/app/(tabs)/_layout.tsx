@@ -2,6 +2,7 @@ import { Tabs } from "expo-router";
 import { SymbolView, type SymbolViewProps } from "expo-symbols";
 import type { ColorValue } from "react-native";
 import { useEO } from "../../providers/eo-provider";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { C } from "../../ui";
 
 function TabIcon({ ios, android, color }: { ios: string; android: string; color: ColorValue }) {
@@ -10,6 +11,7 @@ function TabIcon({ ios, android, color }: { ios: string; android: string; color:
 
 export default function TabLayout() {
   const app = useEO();
+  const insets = useSafeAreaInsets();
   const isAdmin = app.workspace?.person.role === "admin";
   const pending = app.notices.filter((notice) => !notice.acknowledged).length;
   return <Tabs screenOptions={{
@@ -19,7 +21,7 @@ export default function TabLayout() {
     headerShadowVisible: false,
     tabBarActiveTintColor: C.dark,
     tabBarInactiveTintColor: C.muted,
-    tabBarStyle: { backgroundColor: C.paper, borderTopColor: C.line, height: 62, paddingTop: 5, paddingBottom: 4 },
+    tabBarStyle: { backgroundColor: C.paper, borderTopColor: C.line, height: 58 + Math.max(insets.bottom, 8), paddingTop: 7, paddingBottom: Math.max(insets.bottom, 8) },
     tabBarLabelStyle: { fontSize: 10, fontWeight: "600" },
   }}>
     <Tabs.Screen name="index" options={{ title: "Início", headerShown: false, tabBarIcon: ({ color }) => <TabIcon ios="house.fill" android="home" color={color} /> }} />

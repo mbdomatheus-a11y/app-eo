@@ -1,3 +1,6 @@
+import { useEffect } from "react";
+import * as Notifications from "expo-notifications";
+import { router } from "expo-router";
 import { Redirect, Stack, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { EOProvider, useEO } from "../providers/eo-provider";
@@ -9,6 +12,18 @@ function RootNavigation() {
   const app = useEO();
   const segments = useSegments();
   const first = segments[0] ?? "(tabs)";
+  useEffect(() => {
+    if (!app.workspace || app.passwordMode) return;
+    const open = (response: Notifications.NotificationResponse | null) => {
+      if (!response) return;
+      router.navigate("/notices" as never);
+      void Notifications.clearLastNotificationResponseAsync();
+    };
+    void Notifications.getLastNotificationResponseAsync().then(open);
+    const listener = Notifications.addNotificationResponseReceivedListener(open);
+    return () => listener.remove();
+  }, [app.workspace?.person.id, app.passwordMode]);
+
 
   if (app.initializing) return <RouteFrame noHeader><LoadingScreen configured={app.configured} error={app.error} /></RouteFrame>;
   if (!app.session && !["login", "privacy"].includes(first)) return <Redirect href="/login" />;
@@ -35,6 +50,7 @@ function RootNavigation() {
     <Stack.Screen name="access" options={{ headerShown: false }} />
     <Stack.Screen name="notice/[id]" options={{ title: "Comunicado" }} />
     <Stack.Screen name="compose" options={{ title: "Novo comunicado" }} />
+    <Stack.Screen name="device" options={{ title: "Meu aparelho" }} />
     <Stack.Screen name="stores" options={{ title: "Lojas" }} />
     <Stack.Screen name="people/index" options={{ title: "Pessoas e acessos" }} />
     <Stack.Screen name="people/[id]" options={{ title: "Editar acesso" }} />
