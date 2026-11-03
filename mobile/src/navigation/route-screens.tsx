@@ -7,7 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useEO } from "../providers/eo-provider";
 import { AccessScreen, ArchiveScreen, AuditScreen, ChangePasswordScreen, ComposeScreen, EditPersonScreen, HomeScreen, LoginScreen, ManagementScreen, ModulesScreen, NoticeScreen, NoticesScreen, PeopleScreen, PrivacyScreen, ProfileScreen, ReportsScreen, StoresScreen } from "../../App";
 import type { AdminTab } from "../types";
-import { C, Feedback, s } from "../ui";
+import { C, Feedback, s, Page, Card, ActionRow, Section, Badge } from "../ui";
 
 type FrameProps = { children: ReactNode; home?: boolean; noHeader?: boolean; tabs?: boolean };
 
@@ -55,7 +55,7 @@ export function NoticesRoute() {
   return <RouteFrame tabs><NoticesScreen openNotice={goNotice} openCompose={goCompose} /></RouteFrame>;
 }
 export function ModulesRoute() {
-  return <RouteFrame tabs><ModulesScreen openTab={goTab} /></RouteFrame>;
+  return <RouteFrame tabs><Page><Text style={s.title}>Sua operação</Text><Text style={s.detail}>Escolha uma ferramenta para continuar.</Text><Section title="Rotina da equipe" /><Card><ActionRow title="Checklists" detail="Respostas, fotos e pendências" icon="checklist" onPress={() => router.push("/checklists" as never)} /><ActionRow title="Alertas" detail="Orientações e avisos prioritários" icon="bell.fill" onPress={() => router.push("/alerts" as never)} /><ActionRow title="Comunicados" detail="Sua caixa de entrada e confirmações" icon="doc.text.fill" onPress={() => goTab("notices")} /></Card><Section title="Conectado ao aparelho" /><Card><ActionRow title="Câmera, agenda e telefone" detail="Use os recursos do seu iPhone ou Android" icon="camera.fill" onPress={() => router.push("/device" as never)} /><ActionRow title="Segurança e preferências" detail="Face ID, sessão salva e privacidade" icon="lock.fill" onPress={() => goTab("profile")} /></Card></Page></RouteFrame>;
 }
 export function ManagementRoute() {
   const app = useEO();

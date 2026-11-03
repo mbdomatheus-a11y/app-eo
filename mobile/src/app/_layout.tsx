@@ -1,3 +1,4 @@
+import { DeviceSecurity } from "../providers/device-security";
 import { useEffect } from "react";
 import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
@@ -50,6 +51,8 @@ function RootNavigation() {
     <Stack.Screen name="access" options={{ headerShown: false }} />
     <Stack.Screen name="notice/[id]" options={{ title: "Comunicado" }} />
     <Stack.Screen name="compose" options={{ title: "Novo comunicado" }} />
+    <Stack.Screen name="checklists" options={{ title: "Checklists" }} />
+    <Stack.Screen name="alerts" options={{ title: "Alertas" }} />
     <Stack.Screen name="device" options={{ title: "Meu aparelho" }} />
     <Stack.Screen name="stores" options={{ title: "Lojas" }} />
     <Stack.Screen name="people/index" options={{ title: "Pessoas e acessos" }} />
@@ -61,5 +64,5 @@ function RootNavigation() {
 }
 
 export default function RootLayout() {
-  return <SafeAreaProvider><EOProvider><RootNavigation /></EOProvider></SafeAreaProvider>;
+  return <SafeAreaProvider><EOProvider><DeviceSecurity><RootNavigation /></DeviceSecurity></EOProvider></SafeAreaProvider>;
 }

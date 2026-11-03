@@ -8,7 +8,7 @@
     "userInterfaceStyle": "light",
     "ios": {
       "bundleIdentifier": "com.appeo.mobile",
-      "buildNumber": "13",
+      "buildNumber": "19",
       "supportsTablet": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -16,12 +16,17 @@
     },
     "android": {
       "package": "com.appeo.mobile",
-      "versionCode": 12,
+      "versionCode": 19,
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": true
     },
     "plugins": [
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "Permita que o EO use Face ID para desbloquear sua sessão com segurança."
+        }
+      ],
       "expo-updates",
       "expo-router",
       "expo-notifications",

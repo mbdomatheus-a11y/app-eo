@@ -184,6 +184,10 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Use a unique Apple build number
+        run: |
+          node -e 'const fs = require("fs"); const p = "app.json"; const config = JSON.parse(fs.readFileSync(p, "utf8")); config.expo.ios.buildNumber = String(1000 + Number(process.env.GITHUB_RUN_NUMBER) * 100 + Number(process.env.GITHUB_RUN_ATTEMPT)); fs.writeFileSync(p, JSON.stringify(config, null, 2) + "\n"); console.log("iOS build:", config.expo.ios.buildNumber);'
+
       - name: Generate Expo iOS project
         env:
           CI: '1'

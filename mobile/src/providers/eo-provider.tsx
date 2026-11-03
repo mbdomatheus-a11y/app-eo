@@ -23,7 +23,7 @@ type ContextValue = {
   archivedMessages: ArchivedMessage[]; reportMessages: ReportMessage[]; reportData: NoticeReport | null;
   clearFeedback: () => void; login: (chapa: string, password: string) => Promise<Result>;
   changeTemporaryPassword: (password: string, confirmation: string) => Promise<Result>;
-  signout: () => Promise<void>; refresh: () => Promise<void>; acknowledge: (notice: LiveNotice) => Promise<Result>;
+  signout: () => Promise<Result>; refresh: () => Promise<void>; acknowledge: (notice: LiveNotice) => Promise<Result>;
   loadMore: () => Promise<Result>; loadAdmin: (tab: AdminTab) => Promise<Result>;
   loadNoticeReport: (notice: string, version: number, groupBy: string, segmentBy?: string, segmentValues?: string[]) => Promise<Result>;
   archiveMessage: (kind: "notice" | "alert", id: string, archived: boolean) => Promise<Result>;
@@ -270,9 +270,10 @@ export function EOProvider({ children }: { children: ReactNode }) {
   }), [act]);
 
   const signout = useCallback(async () => {
-    if (!supabase) return;
+    if (!supabase) return { ok: false };
     const { error: authError } = await supabase.auth.signOut({ scope: "local" });
     if (authError) setError("Não foi possível encerrar a sessão.");
+    return { ok: !authError };
   }, []);
 
   const changeTemporaryPassword = useCallback((password: string, confirmation: string) => act(async () => {

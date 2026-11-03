@@ -1,8 +1,9 @@
+import Constants from "expo-constants";
+import * as SecureStore from "expo-secure-store";
+import { useDeviceSecurity } from "./src/providers/device-security";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Linking, Pressable, Text, View } from "react-native";
-import * as Calendar from "expo-calendar";
-import { createEventInCalendarAsync } from "expo-calendar/legacy";
 import * as DocumentPicker from "expo-document-picker";
 import { useEO } from "./src/providers/eo-provider";
 import { ActionRow, AppIcon, Badge, Brand, Button, C, Card, Choice, Field, Heading, Page, Section, s } from "./src/ui";
@@ -10,12 +11,23 @@ import type { AdminTab, AuditRow, LiveNotice, LivePerson, Role } from "./src/typ
 export function LoginScreen({ openPrivacy }: { openPrivacy: () => void }) {
   const app = useEO();
   const [chapa, setChapa] = useState(""); const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
+  useEffect(() => { void SecureStore.getItemAsync("eo.saved-chapa").then((value) => { if (value) setChapa(value); }).catch(() => {}); }, []);
+  const login = async () => {
+    const result = await app.login(chapa, password);
+    if (result.ok) {
+      setPassword("");
+      if (remember) await SecureStore.setItemAsync("eo.saved-chapa", chapa.trim());
+      else await SecureStore.deleteItemAsync("eo.saved-chapa");
+    }
+  };
   return <Page contentStyle={{ flexGrow: 1, justifyContent: "center", paddingHorizontal: 23, paddingTop: 26, paddingBottom: 28, gap: 19 }}>
     <View style={{ gap: 25 }}><Brand /><View style={{ gap: 9 }}><Badge warning>PLATAFORMA EO</Badge><Text style={s.title}>Sua loja,{"\n"}<Text style={{ color: C.dark }}>em sintonia.</Text></Text><Text style={s.detail}>Comunicados, rotinas e ferramentas da equipe em um único espaço.</Text></View></View>
     <Card style={{ padding: 20, gap: 15, borderRadius: 22 }}><View><Text style={s.strong}>Acesse sua conta</Text><Text style={[s.small, { marginTop: 5 }]}>Entre com sua chapa e senha individual.</Text></View>
-      <Field label="Chapa" value={chapa} onChangeText={setChapa} keyboardType="number-pad" maxLength={20} placeholder="Número da chapa" autoComplete="username" />
-      <Field label="Senha" value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" placeholder="Sua senha" />
-      <Button title={app.busy ? "Acessando…" : "Entrar no EO"} icon="→" disabled={app.busy} onPress={() => void app.login(chapa, password)} />
+      <Field label="Chapa" value={chapa} onChangeText={setChapa} keyboardType="number-pad" maxLength={20} placeholder="Número da chapa" autoComplete="username" textContentType="username" autoCapitalize="none" />
+      <Field label="Senha" value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" textContentType="password" autoCapitalize="none" autoCorrect={false} placeholder="Sua senha" />
+      <Choice label="Lembrar minha chapa neste aparelho" selected={remember} onPress={() => setRemember(!remember)} /><Text style={s.small}>Use o preenchimento de senhas do aparelho. Sua sessão fica salva com segurança; ative Face ID no Perfil após entrar.</Text>
+      <Button title={app.busy ? "Acessando…" : "Entrar no EO"} icon="→" disabled={app.busy} onPress={() => void login()} />
       <Text style={[s.small, { textAlign: "center" }]}>Precisa de acesso ou redefinir a senha? Fale com a administração.</Text>
     </Card>
     <Pressable onPress={openPrivacy} style={{ alignSelf: "center", padding: 8 }}><Text style={{ color: C.dark, fontWeight: "800", fontSize: 12 }}>Privacidade e suporte  ›</Text></Pressable>
@@ -61,7 +73,7 @@ export function HomeScreen({ openTab, openNotice, openCompose }: { openTab: (tab
     </Card>
     <Section title="Sua rotina" />
     <View style={{ flexDirection: "row", gap: 12 }}>
-      <Pressable accessibilityRole="button" onPress={() => openTab("modules")} style={[s.moduleCard, { minHeight: 128 }]}><View style={s.moduleIcon}><AppIcon name="checklist" size={23} color={C.dark} /></View><Text style={s.moduleTitle}>Checklists</Text><Text style={s.moduleDetail}>Pendências e evidências</Text></Pressable>
+      <Pressable accessibilityRole="button" onPress={() => router.push("/checklists" as never)} style={[s.moduleCard, { minHeight: 128 }]}><View style={s.moduleIcon}><AppIcon name="checklist" size={23} color={C.dark} /></View><Text style={s.moduleTitle}>Checklists</Text><Text style={s.moduleDetail}>Pendências e evidências</Text></Pressable>
       <Pressable accessibilityRole="button" onPress={() => router.push("/device" as never)} style={[s.moduleCard, { minHeight: 128 }]}><View style={s.moduleIcon}><AppIcon name="camera.fill" size={23} color={C.dark} /></View><Text style={s.moduleTitle}>Meu aparelho</Text><Text style={s.moduleDetail}>Câmera, agenda e avisos</Text></Pressable>
     </View>
     {leader && <ActionRow title="Criar comunicado" detail="Oriente a equipe e acompanhe a ciência" icon="plus" onPress={openCompose} />}
@@ -103,7 +115,7 @@ export function NoticeScreen({ id, back }: { id: string; back: () => void }) {
   </Page>;
 }
 
-export function ModulesScreen({ openTab }: { openTab: (tab: string) => void }) {
+export function ModulesScreen({ openTab, mode = "checklists" }: { openTab: (tab: string) => void; mode?: "checklists" | "alerts" }) {
   const app = useEO();
   const [checklistId, setChecklistId] = useState("");
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -113,32 +125,10 @@ export function ModulesScreen({ openTab }: { openTab: (tab: string) => void }) {
   const [questionType, setQuestionType] = useState<"acceptance" | "photo" | "text" | "yes_no">("acceptance");
   const [questions, setQuestions] = useState<{ prompt: string; type: "acceptance" | "photo" | "text" | "yes_no"; required: boolean }[]>([]);
   const [checklistStores, setChecklistStores] = useState<string[]>([]);
-  const [eventTitle, setEventTitle] = useState(""); const [eventNotes, setEventNotes] = useState("");
-  const [eventStart, setEventStart] = useState(() => { const date = new Date(Date.now() + 60 * 60 * 1000); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`; });
-  const [phoneNumber, setPhoneNumber] = useState("");
   const canPublish = ["admin", "diretor", "gerente"].includes(app.workspace!.person.role);
   const availableRegions = [...new Set(app.workspace!.stores.map((store) => store.region.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   const alertRecipientStores = alertTarget === "all" ? app.workspace!.stores.map((store) => store.id) : alertTarget === "region" ? app.workspace!.stores.filter((store) => store.region === alertRegion).map((store) => store.id) : alertStores;
   const activeRun = app.checklists.find((run) => run.run_id === checklistId);
-  const addToCalendar = async () => {
-    const match = eventStart.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/);
-    if (!eventTitle.trim() || !match) { Alert.alert("Confira a agenda", "Informe o título e a data no formato AAAA-MM-DD HH:MM."); return; }
-    const [, year, month, day, hour, minute] = match;
-    const startDate = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute));
-    if (Number.isNaN(startDate.getTime()) || startDate.getMonth() !== Number(month) - 1 || startDate.getDate() !== Number(day) || startDate.getHours() !== Number(hour) || startDate.getMinutes() !== Number(minute)) { Alert.alert("Data inválida", "Confira a data e o horário digitados."); return; }
-    try {
-      const permission = await Calendar.requestCalendarPermissions(true);
-      if (!permission.granted) { Alert.alert("Acesso à agenda", "Permita adicionar eventos à agenda nas configurações do aparelho."); return; }
-      const result = await createEventInCalendarAsync({ title: eventTitle.trim(), notes: eventNotes.trim() || undefined, startDate, endDate: new Date(startDate.getTime() + 30 * 60 * 1000) });
-      if (result.action === "saved" || result.action === "done") { app.clearFeedback(); setEventTitle(""); setEventNotes(""); Alert.alert(result.action === "saved" ? "Evento salvo" : "Agenda aberta", result.action === "saved" ? "O evento foi adicionado ao calendário do aparelho." : "Confira os detalhes e conclua ou cancele no calendário do aparelho."); }
-    } catch { Alert.alert("Agenda indisponível", "Atualize o aplicativo para incluir a integração com o calendário do aparelho."); }
-  };
-  const openPhone = async () => {
-    const digits = phoneNumber.replace(/\D/g, "");
-    if (digits.length < 8 || !/^[+\d\s()-]+$/.test(phoneNumber)) { Alert.alert("Número inválido", "Digite um telefone válido com DDD."); return; }
-    try { await Linking.openURL(`tel:${phoneNumber.replace(/[^+\d]/g, "")}`); }
-    catch { Alert.alert("Telefone indisponível", "Não foi possível abrir o aplicativo de telefone neste aparelho."); }
-  };
   useEffect(() => { if (checklistId && !activeRun) setChecklistId(""); }, [checklistId, activeRun]);
   useEffect(() => { if (activeRun && app.checklistDetail?.run.id !== checklistId && !app.busy) void app.openChecklist(checklistId); }, [checklistId, activeRun, app.checklistDetail?.run.id, app.busy]);
   if (activeRun && app.checklistDetail?.run.id === checklistId) {
@@ -150,28 +140,19 @@ export function ModulesScreen({ openTab }: { openTab: (tab: string) => void }) {
       </Card>)}
     </Page>;
   }
-  const modules = [
-    ["Checklist", "Rotinas e padrões da loja", "checklist"], ["Cartazeamento", "Materiais de campanha", "paintbrush.fill"],
-    ["Escala da equipe", "Pessoas e horários", "person.3.fill"], ["Fotos e evidências", "Registros da operação", "camera.fill"], ["Diário de vendas", "Relato de voz e resumo", "waveform"],
-  ];
   return <Page><Text style={s.detail}>Alertas e rotinas da operação, com atualização em tempo real e histórico no Supabase.</Text>
+    {mode === "alerts" && <>
     <Section title="Alertas" />
     {!app.alerts.filter((item) => !item.dismissed_at).length && <Text style={s.small}>Nenhum alerta ativo para você.</Text>}
     {app.alerts.filter((item) => !item.dismissed_at).slice(0, 5).map((alert) => <Card key={alert.id}><View style={{ flexDirection: "row", justifyContent: "space-between" }}><Badge warning={alert.urgent}>{alert.urgent ? "Prioritário" : "Alerta"}</Badge><Text style={s.small}>{new Date(alert.created_at).toLocaleDateString("pt-BR")}</Text></View>{alert.hidden_from_users && app.workspace!.person.role === "admin" && <Badge>Oculto das equipes</Badge>}<Text style={s.strong}>{alert.title}</Text><Text style={s.body}>{alert.body}</Text><View style={{ flexDirection: "row", gap: 8 }}><View style={{ flex: 1 }}><Button title="Visualizar" secondary onPress={() => void app.markAlert(alert, "view")} /></View><View style={{ flex: 1 }}><Button title="Descartar" secondary onPress={() => void app.markAlert(alert, "dismiss")} /></View></View>{app.workspace!.person.role === "admin" && <Button title={alert.hidden_from_users ? "Restaurar para equipes" : "Ocultar das equipes"} danger={!alert.hidden_from_users} secondary onPress={() => Alert.alert(alert.hidden_from_users ? "Restaurar alerta?" : "Ocultar alerta para as equipes?", "O registro e o conteúdo continuarão visíveis para administradores e na auditoria.", [{ text: "Cancelar", style: "cancel" }, { text: alert.hidden_from_users ? "Restaurar" : "Ocultar", onPress: () => void app.moderateAlert(alert) }])} />}</Card>)}
     {canPublish && <Card><Badge>ALERTA PARA AS EQUIPES</Badge><Field label="Título do alerta" value={alertTitle} onChangeText={setAlertTitle} placeholder="Ex.: Atenção à abertura" maxLength={120} /><Field label="Mensagem" value={alertBody} onChangeText={setAlertBody} multiline placeholder="Escreva o que a equipe precisa saber" maxLength={3000} /><Text style={s.label}>Destinatários</Text><Choice label={`Todas as lojas da minha abrangência · ${app.workspace!.stores.length}`} selected={alertTarget === "all"} onPress={() => setAlertTarget("all")} /><Choice label="Uma regional" selected={alertTarget === "region"} onPress={() => setAlertTarget("region")} /><Choice label="Selecionar lojas" selected={alertTarget === "stores"} onPress={() => setAlertTarget("stores")} />{alertTarget === "region" && availableRegions.map((item) => <Choice key={item} label={item} selected={alertRegion === item} onPress={() => setAlertRegion(item)} />)}{alertTarget === "stores" && app.workspace!.stores.map((store) => <Choice key={store.id} label={`${store.code} · ${store.name}${store.region ? ` · ${store.region}` : ""}`} selected={alertStores.includes(store.id)} onPress={() => setAlertStores((old) => old.includes(store.id) ? old.filter((id) => id !== store.id) : [...old, store.id])} />)}<Text style={s.small}>{alertRecipientStores.length} {alertRecipientStores.length === 1 ? "loja selecionada" : "lojas selecionadas"}</Text><Field label="Programar envio (opcional) · AAAA-MM-DD HH:MM" value={alertSchedule} onChangeText={setAlertSchedule} placeholder="2026-11-02 15:30" maxLength={16} /><Button title={app.busy ? "Salvando…" : alertSchedule ? "Programar alerta" : "Enviar alerta"} disabled={app.busy || !alertRecipientStores.length || !alertTitle.trim() || !alertBody.trim()} onPress={async () => { let scheduledFor: string | undefined; if (alertSchedule.trim()) { const match = alertSchedule.trim().match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/); if (!match) { Alert.alert("Data incompleta", "Use o formato AAAA-MM-DD HH:MM."); return; } const [, year, month, day, hour, minute] = match; const date = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute)); if (date.getFullYear() !== Number(year) || date.getMonth() !== Number(month) - 1 || date.getDate() !== Number(day) || date.getHours() !== Number(hour) || date.getMinutes() !== Number(minute) || date.getTime() < Date.now() + 120_000) { Alert.alert("Horário inválido", "Confira a data e escolha um horário pelo menos dois minutos à frente."); return; } scheduledFor = date.toISOString(); } const result = await app.publishAlert({ title: alertTitle, body: alertBody, stores: alertRecipientStores, urgent: false, scheduledFor }); if (result.ok) { setAlertTitle(""); setAlertBody(""); setAlertStores([]); setAlertSchedule(""); setAlertRegion(""); setAlertTarget("all"); } }} /></Card>}
+    </>}
+    {mode === "checklists" && <>
     <Section title={`Checklists · ${app.checklists.filter((item) => item.status !== "completed").length} pendentes`} />
     {canPublish && <Card><Badge>NOVO CHECKLIST</Badge><Text style={s.strong}>Monte uma rotina para sua equipe</Text><Field label="Nome da rotina" value={templateTitle} onChangeText={setTemplateTitle} placeholder="Ex.: Abertura da loja" maxLength={120} /><Field label="Orientação" value={templateDescription} onChangeText={setTemplateDescription} placeholder="Objetivo ou instruções" multiline maxLength={1000} /><Field label="Pergunta ou etapa" value={question} onChangeText={setQuestion} placeholder="Ex.: A área está organizada?" maxLength={500} /><Text style={s.label}>Formato</Text>{([ ["acceptance", "Aceite"], ["photo", "Foto"], ["text", "Resposta aberta"], ["yes_no", "Sim ou não"] ] as const).map(([type, label]) => <Choice key={type} label={label} selected={questionType === type} onPress={() => setQuestionType(type)} />)}<Button title="Adicionar pergunta" secondary disabled={!question.trim()} onPress={() => { setQuestions((old) => [...old, { prompt: question.trim(), type: questionType, required: true }]); setQuestion(""); }} />{questions.map((item, index) => <View key={`${item.prompt}-${index}`} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Text style={[s.small, { flex: 1 }]}>{index + 1}. {item.prompt}</Text><Pressable accessibilityRole="button" onPress={() => setQuestions((old) => old.filter((_, i) => i !== index))}><Text style={{ color: C.red, fontWeight: "800", padding: 8 }}>Remover</Text></Pressable></View>)}<Text style={s.label}>Lojas que receberão a rotina</Text>{app.workspace!.stores.map((store) => <Choice key={store.id} label={`${store.code} · ${store.name}`} selected={checklistStores.includes(store.id)} onPress={() => setChecklistStores((old) => old.includes(store.id) ? old.filter((id) => id !== store.id) : [...old, store.id])} />)}<Button title="Salvar e atribuir" disabled={app.busy || !questions.length || !checklistStores.length} onPress={async () => { const result = await app.publishChecklist({ title: templateTitle, description: templateDescription, items: questions, stores: checklistStores }); if (result.ok) { setTemplateTitle(""); setTemplateDescription(""); setQuestions([]); setChecklistStores([]); } }} /></Card>}
     {app.checklists.map((run) => <Pressable key={run.run_id} accessibilityRole="button" onPress={() => setChecklistId(run.run_id)} style={({ pressed }) => [s.card, pressed && s.pressed]}><View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Badge warning={run.status !== "completed"}>{run.status === "completed" ? "Concluído" : run.status === "in_progress" ? "Em andamento" : "Pendente"}</Badge><Text style={s.small}>{run.answered_count}/{run.item_count}</Text></View><Text style={s.strong}>{run.title}</Text><Text style={s.small}>{run.store_name} · Atualizado {new Date(run.updated_at).toLocaleDateString("pt-BR")}</Text><Text style={{ color: C.dark, fontSize: 12, fontWeight: "800" }}>Abrir rotina  ›</Text></Pressable>)}
     {!app.checklists.length && <Card><Text style={s.strong}>Sua lista de rotinas está vazia</Text><Text style={s.small}>Quando um checklist for atribuído à sua loja, ele aparecerá aqui com o estágio de andamento.</Text></Card>}
-    <Section title="Notificações" /><Card><Text style={s.strong}>Preferência de som</Text><Text style={s.small}>Esta preferência não desativa o banner nem o push. A entrega push ainda depende da configuração do projeto Expo; permissões do sistema são controladas nas configurações do aparelho.</Text><Button title={app.soundEnabled ? "Silenciar som" : "Ativar som"} secondary onPress={() => void app.setSoundEnabled(!app.soundEnabled)} />{app.workspace!.person.role === "admin" && <><Text style={s.small}>O teste vai somente para seus aparelhos registrados, sem notificar as lojas.</Text><Button title="Enviar teste para meus aparelhos" secondary disabled={app.busy} onPress={() => void app.sendTestPush()} /></>}</Card>
-    <Section title="Agenda do aparelho" /><Card><Text style={s.small}>Crie um lembrete no calendário do iPhone ou Android. O sistema mostra os detalhes antes de salvar.</Text><Field label="Título" value={eventTitle} onChangeText={setEventTitle} placeholder="Ex.: Reunião de abertura" maxLength={120} /><Field label="Data e hora local · AAAA-MM-DD HH:MM" value={eventStart} onChangeText={setEventStart} placeholder="2026-11-01 09:00" maxLength={16} /><Field label="Observações" value={eventNotes} onChangeText={setEventNotes} placeholder="Opcional" multiline maxLength={500} /><Button title="Adicionar à agenda" secondary onPress={() => void addToCalendar()} /></Card>
-    <Section title="Ligar pelo aparelho" /><Card><Text style={s.small}>O EO abre o aplicativo de telefone com o número preenchido. Você confirma a ligação no sistema.</Text><Field label="Telefone com DDD" value={phoneNumber} onChangeText={setPhoneNumber} keyboardType="phone-pad" placeholder="(11) 3333-4444" maxLength={20} /><Button title="Abrir aplicativo Telefone" secondary onPress={() => void openPhone()} /></Card>
-    <Section title="Aplicativos" />
-    <Section title="Disponível agora" />
-    <Pressable accessibilityRole="button" onPress={() => openTab("notices")} style={({ pressed }) => [s.card, { flexDirection: "row", alignItems: "center" }, pressed && s.pressed]}><View style={s.actionIcon}><AppIcon name="bell.fill" size={20} color={C.dark} /></View><View style={{ flex: 1, gap: 4 }}><Text style={s.strong}>Comunicados</Text><Text style={s.small}>Orientações e confirmação de leitura</Text></View><Text style={s.chevron}>›</Text></Pressable>
-    <Section title="Próximas ferramentas" />
-    <Text style={s.small}>Novos recursos serão liberados aqui à medida que ficarem prontos.</Text>
-    {modules.map(([title, detail, icon]) => <View key={title} style={s.actionRow}><View style={[s.actionIcon, { backgroundColor: C.sand }]}><AppIcon name={icon} size={20} color={C.dark} /></View><View style={s.actionCopy}><Text style={s.actionTitle}>{title}</Text><Text style={s.actionDetail}>{detail}</Text></View><Badge>Em breve</Badge></View>)}
+    </>}
   </Page>;
 }
 
@@ -326,12 +307,14 @@ function MasterPassword() {
 }
 
 export function ProfileScreen({ openPrivacy }: { openPrivacy: () => void }) {
+  const security = useDeviceSecurity();
   const app = useEO(); const workspace = app.workspace!; const initials = workspace.person.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
   return <Page><Card style={{ alignItems: "center", paddingVertical: 24 }}><View style={{ width: 68, height: 68, borderRadius: 34, backgroundColor: C.yellow, alignItems: "center", justifyContent: "center" }}><Text style={{ color: C.dark, fontSize: 24, fontWeight: "800" }}>{initials}</Text></View><Text style={[s.title, { fontSize: 20 }]}>{workspace.person.name}</Text><Badge>{roleLabels[workspace.person.role]}</Badge></Card>
     <Card><Text style={s.eyebrow}>SEU ACESSO</Text><Text style={s.body}>Perfil: {roleLabels[workspace.person.role]}</Text><Text style={s.body}>Lojas autorizadas: {workspace.stores.length}</Text>{workspace.stores.map((store) => <Badge key={store.id}>{store.code} · {store.name}</Badge>)}</Card>
+    <Card><Text style={s.eyebrow}>SEGURANÇA DO APARELHO</Text><Text style={s.body}>Sua sessão permanece salva de forma protegida no aparelho.</Text><ActionRow title={security.enabled ? "Desativar Face ID / biometria" : "Ativar Face ID / biometria"} detail={security.enabled ? "EO bloqueia ao ir para segundo plano" : "Desbloqueie sua sessão sem digitar a senha"} icon="lock.fill" onPress={() => void security.configure(!security.enabled)} /></Card>
     <Card><Text style={s.eyebrow}>AJUDA E PRIVACIDADE</Text><ActionRow title="Política de Privacidade" detail="Como seus dados são tratados" icon="lock.fill" onPress={openPrivacy} /><ActionRow title="Suporte" detail="Ajuda e contato" icon="questionmark.circle.fill" onPress={() => void Linking.openURL("mailto:mbdo.matheus@gmail.com")} /></Card>
     <Button title={app.busy ? "Saindo…" : "Sair da conta"} secondary icon="↪" disabled={app.busy} onPress={() => void app.signout()} />
-    <Text style={[s.small, { textAlign: "center" }]}>Excelência Operacional · EO</Text>
+    <Text style={[s.small, { textAlign: "center" }]}>Excelência Operacional · {Constants.expoConfig?.version ?? "1.0.0"} ({Constants.expoConfig?.ios?.buildNumber ?? "dev"})</Text>
   </Page>;
 }
 
@@ -339,7 +322,7 @@ export function PrivacyScreen({ back }: { back: () => void }) {
   return <Page><Brand compact /><Heading title="Política de Privacidade" detail="Última atualização: 30 de outubro de 2026" />
     <Text style={s.body}>Esta política explica como o aplicativo Excelência Operacional (EO), desenvolvido como projeto independente, trata dados pessoais. O app oferece comunicados e recursos de administração para equipes de loja. O acesso é liberado individualmente por um administrador.</Text>
     <Section title="Dados tratados" /><Text style={s.body}>Para autenticar e operar uma conta, o app trata chapa, nome e e-mail de contato, identificador da conta, perfil e lojas associadas. Também registra comunicados, confirmações de leitura e eventos de administração e segurança. A senha é gerenciada pelo Supabase e não é armazenada pelo app em texto aberto.</Text>
-    <Text style={s.body}>A versão atual não solicita localização, fotos, vídeos ou gravações de áudio. Não inclui publicidade ou recursos de IA.</Text>
+    <Text style={s.body}>A câmera é usada com sua permissão para evidências dos checklists. A agenda abre o formulário do sistema para você confirmar eventos. As notificações usam Expo, Apple e Google para entregar avisos. A biometria é validada pelo sistema do aparelho; o EO não recebe dados faciais ou impressões digitais. Não inclui publicidade.</Text>
     <Section title="Finalidades e segurança" /><Text style={s.body}>Os dados são usados para autenticação, aplicação de permissões, apresentação de comunicados, registro de ciência e administração do acesso. São usadas conexões protegidas e controles por perfil e loja. Nenhuma medida técnica elimina todos os riscos inerentes à transmissão e ao armazenamento de informações.</Text>
     <Section title="Serviços utilizados" /><Text style={s.body}>O serviço utiliza Supabase para autenticação e dados operacionais e Vercel para hospedagem do portal e das páginas públicas. Os dados não são vendidos nem compartilhados para publicidade.</Text>
     <Section title="Direitos e solicitações" /><Text style={s.body}>Para solicitar acesso, correção ou esclarecimentos sobre seus dados, escreva para mbdo.matheus@gmail.com. Poderemos confirmar sua identidade antes de atender ao pedido.</Text>
