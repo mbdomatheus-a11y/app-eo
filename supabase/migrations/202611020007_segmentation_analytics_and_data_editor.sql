@@ -142,7 +142,7 @@ begin
       where nr.notice_id=p_notice and nr.version=p_version and (exists(select 1 from public.eo_store_members m where m.user_id=p.id and m.store_id=t.id)
       or exists(select 1 from public.eo_org_assignments a where a.active and a.chapa=p.login_chapa and ((a.scope_type='LOJA' and a.scope_code=t.code) or (a.scope_type='GGL' and a.scope_code=t.ggl))))
     ) x on true
-  ), filtered as (select * from eligible where p_segment_by is null or coalesce(seg->>v_key,'')=any(coalesce(p_segment_values,'{}'))), labeled as (
+  ), filtered as (select * from eligible where p_segment_by is null or coalesce(cardinality(p_segment_values),0)=0 or coalesce(seg->>v_key,'')=any(coalesce(p_segment_values,'{}'))), labeled as (
     select *,case p_group_by when 'regional' then regional when 'loja' then code||' · '||name when 'ggl' then coalesce(nullif(ggl,''),'Sem GGL')
       when 'uf' then coalesce(nullif(a->>'UF',''),'Sem UF') when 'cidade' then coalesce(nullif(a->>'CIDADE',''),'Sem cidade')
       when 'tipo' then coalesce(nullif(a->>'TIPO',''),'Sem tipo') when 'clima' then coalesce(nullif(a->>'CLIMA',''),'Sem clima')
