@@ -51,6 +51,7 @@ function RootNavigation() {
     <Stack.Screen name="access" options={{ headerShown: false }} />
     <Stack.Screen name="notice/[id]" options={{ title: "Comunicado" }} />
     <Stack.Screen name="compose" options={{ title: "Novo comunicado" }} />
+    <Stack.Screen name="scope" options={{ title: "Minhas lojas" }} />
     <Stack.Screen name="checklists" options={{ title: "Checklists" }} />
     <Stack.Screen name="alerts" options={{ title: "Alertas" }} />
     <Stack.Screen name="device" options={{ title: "Meu aparelho" }} />

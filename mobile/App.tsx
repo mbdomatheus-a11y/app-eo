@@ -1,3 +1,4 @@
+import { ScreenTitle, IconButton, Group, MenuItem, Tile, d } from "./src/design";
 import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
 import { useDeviceSecurity } from "./src/providers/device-security";
@@ -49,47 +50,38 @@ export function ChangePasswordScreen() {
 }
 
 export function HomeScreen({ openTab, openNotice, openCompose }: { openTab: (tab: string) => void; openNotice: (id: string) => void; openCompose: () => void }) {
-  const app = useEO(); const workspace = app.workspace!; const pending = app.notices.filter((item) => !item.acknowledged);
-  const name = workspace.person.name.trim().split(/\s+/)[0]; const date = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
+  const app = useEO(); const workspace = app.workspace!;
+  const name = workspace.person.name.trim().split(/\s+/)[0];
+  const pending = app.notices.filter((item) => !item.acknowledged).length;
+  const routines = app.checklists.filter((item) => item.status !== "completed").length;
+  const complete = app.checklists.filter((item) => item.status === "completed").length + app.notices.filter((item) => item.acknowledged).length;
+  const total = app.checklists.length + app.notices.length;
+  const progress = total ? Math.round(complete / total * 100) : 100;
+  const date = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "short" }).format(new Date());
   const leader = ["admin", "diretor"].includes(workspace.person.role);
-  const roleSummary: Record<Role, string> = {
-    colaborador: "Veja os comunicados e recursos disponíveis para você.",
-    gerente: "Acompanhe as orientações da sua equipe.",
-    diretor: "Consulte as informações das lojas autorizadas.",
-    admin: "Acesse os recursos e controles do EO.",
-  };
-  const initials = workspace.person.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
-  const storeContext = workspace.stores.length === 1 ? workspace.stores[0].name : `${workspace.stores.length} lojas vinculadas`;
-
   return <Page>
-    <View style={s.homeHeader}>
-      <View style={{ flex: 1, gap: 3 }}><Text style={s.eyebrow}>{date.toUpperCase()}</Text><Text style={s.homeGreeting}>Olá, {name}</Text><Text style={s.homeStore}>{storeContext}  ·  {roleLabels[workspace.person.role]}</Text></View>
-      <Pressable accessibilityRole="button" accessibilityLabel="Abrir meu perfil" onPress={() => openTab("profile")} style={s.homeAvatar}><Text style={{ color: C.dark, fontSize: 15, fontWeight: "800" }}>{initials}</Text></Pressable>
-    </View>
-    <Section title="Hoje" />
-    <Card style={{ padding: 22, gap: 15 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 15 }}><View style={s.actionIcon}><AppIcon name="checklist" size={24} color={C.dark} /></View><View style={{ flex: 1 }}><Text style={s.strong}>{pending.length ? `${pending.length} avisos para acompanhar` : "Seus comunicados estão em dia"}</Text><Text style={s.small}>Sua próxima ação, sem perder o foco.</Text></View></View>
-      <Button title="Abrir minha caixa de avisos" icon="bell.fill" onPress={() => openTab("notices")} />
-    </Card>
-    <Section title="Sua rotina" />
-    <View style={{ flexDirection: "row", gap: 12 }}>
-      <Pressable accessibilityRole="button" onPress={() => router.push("/checklists" as never)} style={[s.moduleCard, { minHeight: 128 }]}><View style={s.moduleIcon}><AppIcon name="checklist" size={23} color={C.dark} /></View><Text style={s.moduleTitle}>Checklists</Text><Text style={s.moduleDetail}>Pendências e evidências</Text></Pressable>
-      <Pressable accessibilityRole="button" onPress={() => router.push("/device" as never)} style={[s.moduleCard, { minHeight: 128 }]}><View style={s.moduleIcon}><AppIcon name="camera.fill" size={23} color={C.dark} /></View><Text style={s.moduleTitle}>Meu aparelho</Text><Text style={s.moduleDetail}>Câmera, agenda e avisos</Text></Pressable>
-    </View>
-    {leader && <ActionRow title="Criar comunicado" detail="Oriente a equipe e acompanhe a ciência" icon="plus" onPress={openCompose} />}
-    <Section title="Recentes" action="Ver todos" onAction={() => openTab("notices")} />
-    {app.notices.slice(0, 3).map((notice) => <NoticeCard key={`${notice.notice_id}-${notice.version}`} notice={notice} onPress={() => openNotice(notice.notice_id)} leader={leader} />)}
-    {!app.notices.length && <Empty title="Tudo em dia" detail="Quando houver um comunicado para você, ele aparecerá aqui." />}
+    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Brand compact /><View style={{ flexDirection: "row", gap: 10 }}><IconButton icon="bell.fill" label="Abrir avisos pendentes" badge={pending} onPress={() => openTab("notices")} /><IconButton icon="person.crop.circle.fill" label="Abrir perfil" onPress={() => openTab("profile")} /></View></View>
+    <View style={{ gap: 5, paddingBottom: 3 }}><Text style={{ color: C.muted, fontSize: 13 }}>{date}</Text><Text style={{ color: C.ink, fontSize: 32, fontWeight: "800", letterSpacing: -1 }}>Olá, {name}.</Text><Text style={s.detail}>Vamos cuidar da sua operação.</Text></View>
+    <Pressable accessibilityRole="button" accessibilityLabel="Abrir minhas pendências" onPress={() => routines ? router.push("/checklists" as never) : openTab("notices")} style={({ pressed }) => [d.summary, pressed && d.pressed]}>
+      <View style={d.summaryTop}><Text style={d.summaryEyebrow}>Seu dia em foco</Text><View style={d.summaryBadge}><Text style={d.summaryBadgeText}>{progress}% em dia</Text></View></View>
+      <View><Text style={d.summaryValue}>{String(pending + routines).padStart(2, "0")}</Text><Text style={d.summaryCaption}>pendências entre os itens carregados</Text></View>
+      <View style={d.progressTrack}><View style={[d.progressFill, { width: `${progress}%` }]} /></View>
+      <View style={d.summaryStats}><View style={d.stat}><Text style={d.statValue}>{pending}</Text><Text style={d.statLabel}>avisos para ler</Text></View><View style={d.stat}><Text style={d.statValue}>{routines}</Text><Text style={d.statLabel}>rotinas abertas</Text></View><View style={d.stat}><Text style={d.statValue}>{workspace.stores.length}</Text><Text style={d.statLabel}>lojas no acesso</Text></View></View>
+    </Pressable>
+    <Section title="Acesso rápido" action="Explorar" onAction={() => openTab("modules")} />
+    <View style={{ flexDirection: "row", gap: 12 }}><Tile title="Minha rotina" detail="Checklists e evidências" icon="checklist" tint="#ECF2FF" color="#4C73BC" onPress={() => router.push("/checklists" as never)} /><Tile title="Comunicados" detail={pending ? `${pending} aguardando leitura` : "Sua caixa está em dia"} icon="doc.text.fill" tint="#F7F1D7" color="#9C873D" onPress={() => openTab("notices")} /></View>
+    {leader && <Group><MenuItem title="Novo comunicado" detail="Conecte e oriente a sua equipe" icon="plus" color="#597659" tint="#EAF3E9" last onPress={openCompose} /></Group>}
+    <Section title="Últimos avisos" action="Ver todos" onAction={() => openTab("notices")} />
+    <Group>{app.notices.slice(0, 3).map((notice, index, list) => <Pressable key={`${notice.notice_id}-${notice.version}`} accessibilityRole="button" onPress={() => openNotice(notice.notice_id)} style={({ pressed }) => [d.feedItem, index < list.length - 1 && { borderBottomWidth: 0.5, borderBottomColor: "#E8E9ED" }, pressed && d.pressed]}><View style={[d.feedIcon, notice.acknowledged && { backgroundColor: "#ECF4EF" }]}><AppIcon name={notice.acknowledged ? "checkmark.circle.fill" : "bell.fill"} size={21} color={notice.acknowledged ? C.green : "#99843C"} /></View><View style={{ flex: 1 }}><Text style={d.feedTitle} numberOfLines={2}>{notice.title}</Text><Text style={d.feedMeta}>{notice.acknowledged ? "Ciência confirmada" : "Aguardando sua ciência"} · {new Date(notice.published_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}</Text></View><AppIcon name="chevron.right" color="#AFB1B8" size={13} /></Pressable>)}{!app.notices.length && <View style={{ padding: 22 }}><Text style={s.strong}>Tudo tranquilo por aqui.</Text><Text style={[s.small, { marginTop: 6 }]}>Os novos comunicados aparecerão neste espaço.</Text></View>}</Group>
   </Page>;
 }
 
 export function NoticesScreen({ openNotice, openCompose }: { openNotice: (id: string) => void; openCompose: () => void }) {
   const app = useEO(); const leader = ["admin", "diretor"].includes(app.workspace!.person.role); const pending = app.notices.filter((item) => !item.acknowledged).length; const [filter, setFilter] = useState<"all" | "pending" | "read">("all");
   const visible = app.notices.filter((item) => filter === "all" || (filter === "pending" ? !item.acknowledged : item.acknowledged));
-  return <Page><Text style={s.detail}>Orientações da sua operação. Confirme a ciência em cada comunicado.</Text>
-    <View style={{ flexDirection: "row", gap: 7 }}>{([["all", "Todos"], ["pending", `Pendentes · ${pending}`], ["read", "Lidos"]] as const).map(([value, label]) => <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: filter === value }} onPress={() => setFilter(value)} style={{ flex: 1, alignItems: "center", paddingVertical: 11, paddingHorizontal: 4, borderRadius: 13, backgroundColor: filter === value ? C.dark : C.paper, borderWidth: 1, borderColor: filter === value ? C.dark : C.line }}><Text numberOfLines={1} style={{ color: filter === value ? C.paper : C.muted, fontSize: 10, fontWeight: "800" }}>{label}</Text></Pressable>)}</View>
+  return <Page><ScreenTitle title="Avisos" subtitle="Sua equipe, sempre em sintonia." action={leader ? <IconButton icon="plus" label="Novo comunicado" onPress={openCompose} /> : undefined} />
+    <View style={d.filterTrack}>{([["all", "Todos"], ["pending", `Pendentes ${pending}`], ["read", "Lidos"]] as const).map(([value, label]) => <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: filter === value }} onPress={() => setFilter(value)} style={[d.filter, filter === value && d.filterActive]}><Text numberOfLines={1} style={[d.filterText, filter === value && d.filterTextActive]}>{label}</Text></Pressable>)}</View>
     <Text style={s.small}>{visible.length} {visible.length === 1 ? "comunicado" : "comunicados"} {filter === "pending" ? "aguardando ciência" : filter === "read" ? "com ciência confirmada" : "no seu espaço"}</Text>
-    {leader && <Button title="Novo comunicado" icon="＋" onPress={openCompose} />}
     {visible.map((notice) => <NoticeCard key={`${notice.notice_id}-${notice.version}`} notice={notice} onPress={() => openNotice(notice.notice_id)} leader={leader} />)}
     {!visible.length && <Empty title={filter === "pending" ? "Tudo lido" : filter === "read" ? "Ainda sem leituras" : "Nenhum comunicado"} detail={filter === "pending" ? "Você não tem comunicados pendentes." : "As orientações destinadas a você aparecerão aqui."} />}
     {app.more && <Button title={app.busy ? "Carregando…" : "Carregar mais"} secondary disabled={app.busy} onPress={() => void app.loadMore()} />}
@@ -157,15 +149,7 @@ export function ModulesScreen({ openTab, mode = "checklists" }: { openTab: (tab:
 }
 
 export function ManagementScreen({ open }: { open: (tab: AdminTab) => void }) {
-  return <Page><Text style={s.detail}>Administre o acesso e acompanhe as atividades da plataforma.</Text>
-    <ActionRow title="Lojas" detail="Unidades vinculadas ao espaço" icon="house.fill" onPress={() => open("stores")} />
-    <ActionRow title="Pessoas e acessos" detail="Perfis, permissões e convites" icon="person.2.fill" onPress={() => open("people")} />
-    <ActionRow title="Relatórios" detail="Leitura dos comunicados por regional e loja" icon="chart.bar.fill" onPress={() => open("reports")} />
-    <ActionRow title="Comunicados arquivados" detail="Histórico preservado e restauração" icon="archivebox.fill" onPress={() => open("archive")} />
-    <ActionRow title="Modelo de importação" detail="Baixe a planilha padrão de lojas, gerentes, regionais e equipe" icon="doc.text.fill" onPress={() => void Linking.openURL("https://app-eo.vercel.app/modelo-importacao-administrativa-eo.xlsx")} />
-    <ActionRow title="Auditoria" detail="Atividades recentes do sistema" icon="checkmark.shield.fill" onPress={() => open("audit")} />
-    <Card style={{ backgroundColor: C.soft }}><Text style={s.small}>◈  Alterações administrativas ficam registradas no histórico de auditoria.</Text><Text style={s.small}>A importação e a manutenção completa da base estão disponíveis na administração web.</Text></Card>
-  </Page>;
+  return <Page><ScreenTitle title="Gestão" subtitle="Visibilidade para cuidar de cada loja." /><View style={{ backgroundColor: "#343842", borderRadius: 24, padding: 22, gap: 10 }}><Text style={{ color: C.yellow, fontSize: 12, fontWeight: "700" }}>ADMINISTRAÇÃO EO</Text><Text style={{ color: C.paper, fontSize: 23, fontWeight: "700", lineHeight: 30 }}>Uma equipe conectada.\nUma operação organizada.</Text><Text style={{ color: "#CBCDD4", fontSize: 13, lineHeight: 20 }}>Acompanhe as unidades, os acessos e a comunicação.</Text></View><Section title="Operação" /><Group><MenuItem title="Lojas" detail="Unidades e regionais" icon="building.2.fill" tint="#EAF4ED" color="#508267" onPress={() => open("stores")} /><MenuItem title="Pessoas e acessos" detail="Perfis e permissões" icon="person.2.fill" tint="#EEF1FC" color="#617BAC" last onPress={() => open("people")} /></Group><Section title="Acompanhamento" /><Group><MenuItem title="Relatórios" detail="Leitura por regional e por loja" icon="chart.bar.fill" tint="#F7F0DB" color="#A48A39" onPress={() => open("reports")} /><MenuItem title="Arquivo de comunicados" detail="Histórico preservado e restauração" icon="archivebox.fill" tint="#F4EDE6" color="#A27D57" onPress={() => open("archive")} /><MenuItem title="Auditoria" detail="Atividades registradas na plataforma" icon="checkmark.shield.fill" tint="#EAF2F3" color="#5C8A8C" last onPress={() => open("audit")} /></Group><Section title="Base de dados" /><Group><MenuItem title="Modelo de importação" detail="Baixar a planilha padrão" icon="doc.text.fill" last onPress={() => void Linking.openURL("https://app-eo.vercel.app/modelo-importacao-administrativa-eo.xlsx")} /></Group><Text style={d.sectionNote}>A manutenção completa da base está disponível na administração web. As alterações ficam registradas na auditoria.</Text></Page>;
 }
 
 export function StoresScreen() {
@@ -307,14 +291,15 @@ function MasterPassword() {
 }
 
 export function ProfileScreen({ openPrivacy }: { openPrivacy: () => void }) {
-  const security = useDeviceSecurity();
-  const app = useEO(); const workspace = app.workspace!; const initials = workspace.person.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
-  return <Page><Card style={{ alignItems: "center", paddingVertical: 24 }}><View style={{ width: 68, height: 68, borderRadius: 34, backgroundColor: C.yellow, alignItems: "center", justifyContent: "center" }}><Text style={{ color: C.dark, fontSize: 24, fontWeight: "800" }}>{initials}</Text></View><Text style={[s.title, { fontSize: 20 }]}>{workspace.person.name}</Text><Badge>{roleLabels[workspace.person.role]}</Badge></Card>
-    <Card><Text style={s.eyebrow}>SEU ACESSO</Text><Text style={s.body}>Perfil: {roleLabels[workspace.person.role]}</Text><Text style={s.body}>Lojas autorizadas: {workspace.stores.length}</Text>{workspace.stores.map((store) => <Badge key={store.id}>{store.code} · {store.name}</Badge>)}</Card>
-    <Card><Text style={s.eyebrow}>SEGURANÇA DO APARELHO</Text><Text style={s.body}>Sua sessão permanece salva de forma protegida no aparelho.</Text><ActionRow title={security.enabled ? "Desativar Face ID / biometria" : "Ativar Face ID / biometria"} detail={security.enabled ? "EO bloqueia ao ir para segundo plano" : "Desbloqueie sua sessão sem digitar a senha"} icon="lock.fill" onPress={() => void security.configure(!security.enabled)} /></Card>
-    <Card><Text style={s.eyebrow}>AJUDA E PRIVACIDADE</Text><ActionRow title="Política de Privacidade" detail="Como seus dados são tratados" icon="lock.fill" onPress={openPrivacy} /><ActionRow title="Suporte" detail="Ajuda e contato" icon="questionmark.circle.fill" onPress={() => void Linking.openURL("mailto:mbdo.matheus@gmail.com")} /></Card>
-    <Button title={app.busy ? "Saindo…" : "Sair da conta"} secondary icon="↪" disabled={app.busy} onPress={() => void app.signout()} />
-    <Text style={[s.small, { textAlign: "center" }]}>Excelência Operacional · {Constants.expoConfig?.version ?? "1.0.0"} ({Constants.expoConfig?.ios?.buildNumber ?? "dev"})</Text>
+  const security = useDeviceSecurity(); const app = useEO(); const workspace = app.workspace!;
+  const initials = workspace.person.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+  return <Page><ScreenTitle title="Seu perfil" subtitle="Do seu jeito. Com segurança." />
+    <View style={{ backgroundColor: C.paper, borderRadius: 24, padding: 22, flexDirection: "row", alignItems: "center", gap: 16 }}><View style={{ width: 64, height: 64, borderRadius: 22, backgroundColor: C.yellow, alignItems: "center", justifyContent: "center" }}><Text style={{ fontSize: 23, color: C.dark, fontWeight: "800" }}>{initials}</Text></View><View style={{ flex: 1, gap: 7 }}><Text style={{ fontSize: 19, lineHeight: 25, fontWeight: "700", color: C.ink }}>{workspace.person.name}</Text><Badge>{roleLabels[workspace.person.role]}</Badge></View></View>
+    <Section title="Seu espaço" /><Group><MenuItem title="Lojas e regionais" detail="Unidades da sua abrangência" icon="building.2.fill" color="#4E7C68" tint="#ECF5EF" value={String(workspace.stores.length)} last onPress={() => router.push("/scope" as never)} /></Group>
+    <Section title="Preferências" /><Group><MenuItem title="Face ID / biometria" detail={security.enabled ? "Ativado · bloquear ao sair do app" : "Toque para proteger a sessão salva"} icon="lock.fill" color="#7871A1" tint="#F0EDF8" value={security.enabled ? "Ativo" : "Ativar"} onPress={() => void security.configure(!security.enabled)} /><MenuItem title="Notificações e aparelho" detail="Push, câmera, agenda e telefone" icon="bell.fill" color="#B87C4F" tint="#FCF0E6" last onPress={() => router.push("/device" as never)} /></Group>
+    <Section title="Ajuda" /><Group><MenuItem title="Privacidade" detail="Como seus dados são tratados" icon="checkmark.shield.fill" color="#65788B" tint="#EFF2F5" onPress={openPrivacy} /><MenuItem title="Falar com o suporte" detail="Tire suas dúvidas sobre o EO" icon="questionmark.circle.fill" color="#587C9D" tint="#EAF2FA" last onPress={() => void Linking.openURL("mailto:mbdo.matheus@gmail.com")} /></Group>
+    <Button title={app.busy ? "Saindo…" : "Sair da conta"} secondary disabled={app.busy} onPress={() => Alert.alert("Sair do EO?", "Será necessário entrar com sua senha novamente.", [{ text: "Cancelar", style: "cancel" }, { text: "Sair", style: "destructive", onPress: () => void app.signout() }])} />
+    <Text style={[s.small, { textAlign: "center", paddingVertical: 8 }]}>EO · {Constants.expoConfig?.version ?? "1.0.0"} ({Constants.expoConfig?.ios?.buildNumber ?? "dev"})</Text>
   </Page>;
 }
 

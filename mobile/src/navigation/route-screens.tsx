@@ -1,3 +1,4 @@
+import { ScreenTitle, Group, MenuItem, Tile } from "../design";
 import { useEffect, type ReactNode } from "react";
 import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { KeyboardAvoidingView, Modal, Platform, Pressable, StatusBar, Text, View } from "react-native";
@@ -13,15 +14,15 @@ type FrameProps = { children: ReactNode; home?: boolean; noHeader?: boolean; tab
 
 export function RouteFrame({ children, home = false, noHeader = false, tabs = false }: FrameProps) {
   const app = useEO();
-  const [pushConsent, setPushConsent] = useState<"unknown" | "accepted" | "deferred">("unknown");
+  const [pushConsent, setPushConsent] = useState<"loading" | "unknown" | "accepted" | "deferred">("loading");
   useEffect(() => {
     let alive = true;
-    if (!app.session) { setPushConsent("unknown"); return () => { alive = false; }; }
-    void SecureStore.getItemAsync("eo.push-consent-v1").then((value) => { if (alive && value) setPushConsent(value === "accepted" ? "accepted" : "deferred"); });
+    if (!app.session) { setPushConsent("loading"); return () => { alive = false; }; }
+    void SecureStore.getItemAsync("eo.push-consent-v1").then((value) => { if (alive) setPushConsent(!value ? "unknown" : value === "accepted" ? "accepted" : "deferred"); });
     return () => { alive = false; };
   }, [app.session?.user.id]);
   const banner = app.alerts.find((item) => !item.seen_at && !item.dismissed_at);
-  const edges = home ? ["top", "left", "right"] as const : tabs ? ["left", "right"] as const : noHeader ? ["top", "left", "right", "bottom"] as const : ["left", "right", "bottom"] as const;
+  const edges = home ? ["top", "left", "right"] as const : tabs ? ["top", "left", "right"] as const : noHeader ? ["top", "left", "right", "bottom"] as const : ["left", "right", "bottom"] as const;
   return <SafeAreaView style={s.screen} edges={edges}>
     <StatusBar barStyle="dark-content" backgroundColor={C.canvas} />
     <Feedback error={app.error} message={app.message} onClose={app.clearFeedback} />
@@ -55,7 +56,7 @@ export function NoticesRoute() {
   return <RouteFrame tabs><NoticesScreen openNotice={goNotice} openCompose={goCompose} /></RouteFrame>;
 }
 export function ModulesRoute() {
-  return <RouteFrame tabs><Page><Text style={s.title}>Sua operação</Text><Text style={s.detail}>Escolha uma ferramenta para continuar.</Text><Section title="Rotina da equipe" /><Card><ActionRow title="Checklists" detail="Respostas, fotos e pendências" icon="checklist" onPress={() => router.push("/checklists" as never)} /><ActionRow title="Alertas" detail="Orientações e avisos prioritários" icon="bell.fill" onPress={() => router.push("/alerts" as never)} /><ActionRow title="Comunicados" detail="Sua caixa de entrada e confirmações" icon="doc.text.fill" onPress={() => goTab("notices")} /></Card><Section title="Conectado ao aparelho" /><Card><ActionRow title="Câmera, agenda e telefone" detail="Use os recursos do seu iPhone ou Android" icon="camera.fill" onPress={() => router.push("/device" as never)} /><ActionRow title="Segurança e preferências" detail="Face ID, sessão salva e privacidade" icon="lock.fill" onPress={() => goTab("profile")} /></Card></Page></RouteFrame>;
+  return <RouteFrame tabs><Page><ScreenTitle title="Explorar" subtitle="Tudo o que sua equipe precisa." /><View style={{ flexDirection: "row", gap: 12 }}><Tile title="Checklists" detail="Rotinas e evidências" icon="checklist" tint="#EDF3FF" color="#4372BC" onPress={() => router.push("/checklists" as never)} /><Tile title="Alertas" detail="Atenção ao que importa" icon="bell.fill" tint="#FFF0E8" color="#BF7148" onPress={() => router.push("/alerts" as never)} /></View><Section title="Na sua operação" /><Group><MenuItem title="Comunicados" detail="Orientações e confirmações de leitura" icon="doc.text.fill" tint="#F4F0D7" color="#8C7D35" onPress={() => goTab("notices")} /><MenuItem title="Minhas lojas" detail="Unidades e regionais do seu acesso" icon="building.2.fill" tint="#EAF3ED" color="#4B8061" last onPress={() => router.push("/scope" as never)} /></Group><Section title="No seu aparelho" /><Group><MenuItem title="Câmera, agenda e telefone" detail="Recursos conectados à sua rotina" icon="camera.fill" tint="#EEEFF8" color="#7067A0" onPress={() => router.push("/device" as never)} /><MenuItem title="Segurança e preferências" detail="Biometria, sessão e privacidade" icon="lock.fill" tint="#EDF0F5" color="#65758C" last onPress={() => goTab("profile")} /></Group></Page></RouteFrame>;
 }
 export function ManagementRoute() {
   const app = useEO();
