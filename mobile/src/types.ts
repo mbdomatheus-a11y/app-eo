@@ -1,7 +1,7 @@
 export type Role = "colaborador" | "gerente" | "diretor" | "admin";
 export type AdminTab = "stores" | "people" | "audit" | "reports" | "archive";
 
-export type Store = { id: string; code: string; name: string; region: string };
+export type Store = { id: string; code: string; name: string; region: string; segments?: Record<string, string>; team_count?: number };
 export type Workspace = {
   person: { id: string; name: string; role: Role; master_admin: boolean };
   stores: Store[];

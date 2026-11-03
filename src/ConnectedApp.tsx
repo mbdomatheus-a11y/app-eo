@@ -37,6 +37,7 @@ import {
   supabase,
   rpc,
   type Workspace,
+  type Store,
   type LiveNotice,
   type LivePerson,
   type AuditRow,
@@ -44,6 +45,7 @@ import {
 } from "./services/supabase";
 import { roleLabels } from "./core/domain";
 import { readOrgWorkbook } from "./core/xlsx-reader";
+import { createXlsx } from "./core/xlsx-writer";
 import NativeExperience from "./mobile/NativeExperience";
 
 type Page = "home" | "notices" | "modules" | "admin";
@@ -112,6 +114,15 @@ export default function ConnectedApp() {
   const [reportNotice, setReportNotice] = useState("");
   const [reportVersion, setReportVersion] = useState(1);
   const [reportGroup, setReportGroup] = useState("regional");
+  const [reportSegmentBy, setReportSegmentBy] = useState("");
+  const [reportSegmentValues, setReportSegmentValues] = useState<string[]>([]);
+  const [composeSegmentBy, setComposeSegmentBy] = useState("");
+  const [composeSegmentValues, setComposeSegmentValues] = useState<string[]>([]);
+  const [importedStores, setImportedStores] = useState<Record<string, unknown>[]>([]);
+  const [storeSort, setStoreSort] = useState<{ key: string; direction: "asc" | "desc" }>({ key: "COD", direction: "asc" });
+  const [editingStore, setEditingStore] = useState<Record<string, unknown> | null>(null);
+  const [templateChoice, setTemplateChoice] = useState(false);
+  const [storeSearch, setStoreSearch] = useState("");
   const epoch = useRef(0),
     requestId = useRef(crypto.randomUUID());
   const clear = useCallback(() => {
@@ -290,9 +301,9 @@ export default function ConnectedApp() {
       setMessage(archived ? "Comunicado arquivado; o histórico e a auditoria foram preservados." : "Mensagem restaurada para a equipe.");
     });
   }
-  async function loadNoticeReport(noticeId: string, version: number, groupBy: string) {
+  async function loadNoticeReport(noticeId: string, version: number, groupBy: string, segmentBy = reportSegmentBy, segmentValues = reportSegmentValues) {
     if (!noticeId) { setReportData(null); return; }
-    await act(async () => setReportData(await rpc("eo_admin_notice_report", { p_notice: noticeId, p_version: version, p_group_by: groupBy })));
+    await act(async () => setReportData(await rpc("eo_admin_notice_report", { p_notice: noticeId, p_version: version, p_group_by: groupBy, p_segment_by: segmentBy || null, p_segment_values: segmentValues })));
   }
   async function publish(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -302,11 +313,12 @@ export default function ConnectedApp() {
       const messageKind = String(data.get("message_kind")) === "alert" ? "alert" : "notice";
       const targetMode = String(data.get("target_mode") || "all");
       const targetRegion = String(data.get("target_region") || "");
+      const eligibleStores = filterStores(workspace?.stores ?? [], composeSegmentBy, composeSegmentValues);
       const stores = targetMode === "all"
-        ? (workspace?.stores ?? []).map((store) => store.id)
+        ? eligibleStores.map((store) => store.id)
         : targetMode === "region"
-          ? (workspace?.stores ?? []).filter((store) => store.region === targetRegion).map((store) => store.id)
-          : data.getAll("stores").map(String);
+          ? eligibleStores.filter((store) => store.region === targetRegion).map((store) => store.id)
+          : data.getAll("stores").map(String).filter((id) => eligibleStores.some((store) => store.id === id));
       if (!stores.length) throw new Error("Selecione ao menos uma loja.");
       const title = String(data.get("title")).trim();
       const body = String(data.get("body")).trim();
@@ -366,6 +378,56 @@ export default function ConnectedApp() {
           : "Alerta enviado para as lojas selecionadas.");
     });
   }
+  const segmentOptions = [
+    ["GGL", "GGL"], ["REGIONAL", "Regional"], ["UF", "UF"], ["CIDADE", "Cidade"], ["SAFRA", "Safra"],
+    ["GRUPO_CIDADE", "Grupo cidade"], ["POPULACAO", "População"], ["GRUPO_LOJA", "Grupo de loja"],
+    ["CLIMA", "Clima"], ["PERFIL_PRECO", "Perfil de preço"], ["CLUSTERS_VEST_26", "Cluster vestuário 26"],
+    ["CLUSTERS_VEST_10_25", "Cluster vestuário 10/25"], ["RE_VAREJO_24", "RE varejo 24"], ["STATUS_RE_24", "Status RE 24"],
+    ["LATITUDE", "Latitude"], ["LONGITUDE", "Longitude"], ["COORDENADAS", "Coordenadas"], ["TIPO", "Tipo de loja"],
+    ["AT", "Área construída"], ["TOTAL_VENDAS", "Total de vendas"], ["PORTE_VENDAS", "Porte de vendas"],
+  ] as const;
+  function segmentValuesFor(stores: Store[], key: string) {
+    if (!key) return [];
+    return [...new Set(stores.map((store) => store.segments?.[key]?.trim() ?? "").filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }));
+  }
+  function filterStores(stores: Store[], key: string, values: string[]) {
+    if (!key || !values.length) return stores;
+    return stores.filter((store) => values.includes(store.segments?.[key] ?? ""));
+  }
+  function downloadCurrentModel() {
+    void act(async () => {
+      const workbook = await rpc<Record<string, Record<string, string | number | null>[]>>("eo_admin_export_org");
+      const blob = createXlsx(workbook);
+      const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
+      anchor.href = url; anchor.download = "Modelo-importacao-administrativa-EO-dados-atuais.xlsx"; anchor.click(); URL.revokeObjectURL(url);
+      setMessage("Planilha com os dados atuais baixada.");
+    });
+  }
+  function storeRecords() {
+    return importedStores.map((raw) => {
+      const item = raw as Record<string, unknown>; const attrs = (item.attributes ?? {}) as Record<string, unknown>;
+      return { ...attrs, COD: item.code ?? attrs.COD ?? "", LOJA: item.name ?? attrs.LOJA ?? "", REGIONAL: item.region ?? attrs.REGIONAL ?? "", GGL: item.ggl ?? attrs.GGL ?? "", "CHAPA GERENTE": item.manager_chapa ?? attrs["CHAPA GERENTE"] ?? "", "NOME DO GERENTE": item.manager_name ?? attrs["NOME DO GERENTE"] ?? "", TELEFONE: item.manager_phone ?? attrs.TELEFONE ?? "", __id: item.id } as Record<string, unknown>;
+    });
+  }
+  function orderedStoreRecords() {
+    const q = storeSearch.trim().toLocaleLowerCase("pt-BR");
+    return storeRecords().filter((row) => !q || Object.entries(row).some(([key, value]) => key !== "__id" && String(value ?? "").toLocaleLowerCase("pt-BR").includes(q)))
+      .sort((a, b) => {
+        const av = String(a[storeSort.key] ?? ""), bv = String(b[storeSort.key] ?? "");
+        const an = Number(av.replace(/[^\d,.-]/g, "").replace(",", ".")), bn = Number(bv.replace(/[^\d,.-]/g, "").replace(",", "."));
+        const cmp = av && bv && Number.isFinite(an) && Number.isFinite(bn) ? an - bn : av.localeCompare(bv, "pt-BR", { numeric: true, sensitivity: "base" });
+        return storeSort.direction === "asc" ? cmp : -cmp;
+      });
+  }
+  async function saveStoreEdits(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!editingStore) return;
+    const data = new FormData(event.currentTarget); const attributes = Object.fromEntries([...data.entries()].map(([key, value]) => [key, String(value)]));
+    await act(async () => {
+      await rpc("eo_admin_update_store_attributes", { p_store: editingStore.__id, p_attributes: attributes });
+      setImportedStores(await rpc<Record<string, unknown>[]>("eo_admin_imported_stores")); setEditingStore(null);
+      setMessage("Dados da loja atualizados e registrados na auditoria.");
+    });
+  }
   const availableRegions = [...new Set((workspace?.stores ?? []).map((store) => store.region.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   async function loadMore() {
     await act(async () => {
@@ -391,7 +453,7 @@ export default function ConnectedApp() {
         if (messages.length) {
           setReportNotice(messages[0].notice_id);
           setReportVersion(messages[0].version);
-          setReportData(await rpc("eo_admin_notice_report", { p_notice: messages[0].notice_id, p_version: messages[0].version, p_group_by: reportGroup }));
+          setReportData(await rpc("eo_admin_notice_report", { p_notice: messages[0].notice_id, p_version: messages[0].version, p_group_by: reportGroup, p_segment_by: reportSegmentBy || null, p_segment_values: reportSegmentValues }));
         } else setReportData(null);
       }
       if (which === "people")
@@ -401,6 +463,7 @@ export default function ConnectedApp() {
           const latest = await rpc<{ id?: string; created_at?: string; source_name?: string; store_count?: number; manager_count?: number; regional_count?: number; people_count?: number; assignment_count?: number }>("eo_admin_import_status");
           setActiveImport(latest.id ? latest as NonNullable<typeof activeImport> : null);
           setImportReady(true);
+          setImportedStores(await rpc<Record<string, unknown>[]>("eo_admin_imported_stores"));
         } catch (e) {
           setImportReady(false);
           throw e;
@@ -1165,14 +1228,22 @@ export default function ConnectedApp() {
                     regionais, equipe e vínculos. O COD identifica a loja e o
                     GGL conecta cada loja ao regional responsável.
                   </p>
-                  <a
-                    className="primary template-download"
-                    href="/modelo-importacao-administrativa-eo.xlsx"
-                    download="Modelo-importacao-administrativa-EO.xlsx"
-                  >
+                  <button className="primary template-download" type="button" onClick={() => setTemplateChoice(true)}>
                     <Download size={18} />
                     Baixar modelo Excel
-                  </a>
+                  </button>
+                  <div className="panel" style={{ marginTop: 20 }}>
+                    <h3>Análise da base carregada</h3>
+                    <p>Consulte os registros atuais, ordene as colunas e edite os dados da loja. As alterações ficam na auditoria.</p>
+                    <div className="form-grid"><label>Buscar em todas as colunas<input value={storeSearch} onChange={(event) => setStoreSearch(event.currentTarget.value)} placeholder="COD, loja, cidade, gerente…" /></label>
+                      <label>Ordenar coluna<select value={storeSort.key} onChange={(event) => setStoreSort((current) => ({ ...current, key: event.currentTarget.value }))}>{Object.keys(storeRecords()[0] ?? {}).filter((key) => key !== "__id").map((key) => <option key={key}>{key}</option>)}</select></label>
+                      <label>Ordem<select value={storeSort.direction} onChange={(event) => setStoreSort((current) => ({ ...current, direction: event.currentTarget.value as "asc" | "desc" }))}><option value="asc">A a Z · menor para maior</option><option value="desc">Z a A · maior para menor</option></select></label>
+                    </div>
+                    <div className="info-strip" style={{ margin: "10px 0" }}>{orderedStoreRecords().length.toLocaleString("pt-BR")} lojas visíveis · {Object.keys(storeRecords()[0] ?? {}).filter((key) => key !== "__id").length} colunas carregadas</div>
+                    <div className="table-wrap"><table><thead><tr>{Object.keys(storeRecords()[0] ?? {}).filter((key) => key !== "__id").map((key) => <th key={key}><button className="text-button" type="button" onClick={() => setStoreSort((current) => ({ key, direction: current.key === key && current.direction === "asc" ? "desc" : "asc" }))}>{key}{storeSort.key === key ? storeSort.direction === "asc" ? " ↑" : " ↓" : ""}</button></th>)}<th>Ação</th></tr></thead><tbody>{orderedStoreRecords().slice(0, 500).map((row) => <tr key={String(row.__id)}>{Object.keys(row).filter((key) => key !== "__id").map((key) => <td key={key}>{String(row[key] ?? "")}</td>)}<td><button type="button" className="secondary" onClick={() => setEditingStore(row)}>Editar</button></td></tr>)}</tbody></table></div>
+                    {orderedStoreRecords().length > 500 && <p className="field-hint">A tabela mostra as primeiras 500 linhas filtradas para manter a navegação rápida. Use a busca para localizar as demais.</p>}
+                    {!importedStores.length && <p className="field-hint">Aplique a migration 007 para habilitar a consulta e edição da base ativa.</p>}
+                  </div>
                   {activeImport ? (
                     <div className="info-strip" style={{ marginTop: 18 }}>
                       <ShieldCheck size={20} />
@@ -1474,6 +1545,19 @@ export default function ConnectedApp() {
                         <option value="regional">Regional</option><option value="loja">Loja</option><option value="ggl">GGL</option><option value="uf">UF</option><option value="cidade">Cidade</option><option value="tipo">Tipo de loja</option><option value="clima">Clima</option><option value="perfil_preco">Perfil de preço</option><option value="grupo_loja">Grupo de loja</option><option value="safra">Safra</option>
                       </select>
                     </label>
+                    <label>Filtrar primeiro por
+                      <select value={reportSegmentBy} onChange={(event) => {
+                        const key = event.currentTarget.value; setReportSegmentBy(key); setReportSegmentValues([]);
+                        void loadNoticeReport(reportNotice, reportVersion, reportGroup, key, []);
+                      }}><option value="">Todas as lojas do comunicado</option>{segmentOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
+                    </label>
+                    {reportSegmentBy && <label>Depois selecione valores
+                      <select multiple value={reportSegmentValues} onChange={(event) => {
+                        const values = Array.from(event.currentTarget.selectedOptions, (option) => option.value); setReportSegmentValues(values);
+                        void loadNoticeReport(reportNotice, reportVersion, reportGroup, reportSegmentBy, values);
+                      }}>{segmentValuesFor(workspace.stores, reportSegmentBy).map((value) => <option key={value} value={value}>{value}</option>)}</select>
+                      <span className="field-hint">Use Ctrl ou Command para selecionar mais de um valor. {filterStores(workspace.stores, reportSegmentBy, reportSegmentValues).length} lojas elegíveis na base.</span>
+                    </label>}
                   </div>
                   {reportData ? <>
                     <div className="stats report-stats">
@@ -1579,6 +1663,20 @@ export default function ConnectedApp() {
                 </select>
               </label>
               <label>
+                Filtrar primeiro por atributo
+                <select value={composeSegmentBy} onChange={(event) => { setComposeSegmentBy(event.currentTarget.value); setComposeSegmentValues([]); }}>
+                  <option value="">Todas as lojas da abrangência</option>
+                  {segmentOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                </select>
+              </label>
+              {composeSegmentBy && <label>
+                Depois selecione os valores
+                <select multiple value={composeSegmentValues} onChange={(event) => setComposeSegmentValues(Array.from(event.currentTarget.selectedOptions, (option) => option.value))}>
+                  {segmentValuesFor(workspace.stores, composeSegmentBy).map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+                <span className="field-hint">A lista será reduzida a {filterStores(workspace.stores, composeSegmentBy, composeSegmentValues).length} lojas e {filterStores(workspace.stores, composeSegmentBy, composeSegmentValues).reduce((total, store) => total + (store.team_count ?? 0), 0)} pessoas elegíveis.</span>
+              </label>}
+              <label>
                 Regional (usada quando a segmentação for por regional)
                 <select name="target_region" defaultValue="">
                   <option value="">Selecione uma regional</option>
@@ -1586,7 +1684,7 @@ export default function ConnectedApp() {
                 </select>
               </label>
               <div className="store-target-list">
-                {workspace.stores.map((store) => (
+                {filterStores(workspace.stores, composeSegmentBy, composeSegmentValues).map((store) => (
                   <label className="checkbox-label" key={store.id}>
                     <input type="checkbox" name="stores" value={store.id} />
                     {store.code} · {store.name}{store.region ? ` · ${store.region}` : ""}
@@ -1676,6 +1774,20 @@ export default function ConnectedApp() {
           </form>
         </Dialog>
       )}
+      {templateChoice && <Dialog title="Como deseja baixar o modelo?" close={() => setTemplateChoice(false)}>
+        <p>Escolha se a planilha deve vir limpa para uma nova carga ou preenchida com a base atualmente ativa.</p>
+        <div className="form-grid">
+          <a className="primary template-download" href="/modelo-importacao-administrativa-eo.xlsx" download="Modelo-importacao-administrativa-EO.xlsx" onClick={() => setTemplateChoice(false)}>Baixar modelo em branco</a>
+          <button className="secondary" type="button" disabled={busy} onClick={() => { setTemplateChoice(false); downloadCurrentModel(); }}>Baixar com dados atuais</button>
+        </div>
+      </Dialog>}
+      {editingStore && <Dialog title={`Editar loja ${String(editingStore.COD ?? "")}`} close={() => setEditingStore(null)}>
+        <form className="form" onSubmit={(event) => void saveStoreEdits(event)}>
+          {Object.entries(editingStore).filter(([key]) => key !== "__id").map(([key, value]) => <label key={key}>{key}<input name={key} defaultValue={String(value ?? "")} maxLength={500} /></label>)}
+          <p className="field-hint">COD, LOJA e gerente são validados. A atualização preserva o vínculo da loja e registra quem alterou os dados.</p>
+          <button className="primary" disabled={busy}>{busy ? "Salvando…" : "Salvar alterações"}</button>
+        </form>
+      </Dialog>}
       {future && (
         <Dialog title={future} close={() => setFuture("")}>
           <p>

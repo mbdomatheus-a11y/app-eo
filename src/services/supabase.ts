@@ -20,6 +20,8 @@ export interface Store {
   code: string;
   name: string;
   region: string;
+  segments?: Record<string, string>;
+  team_count?: number;
 }
 export interface Workspace {
   person: {

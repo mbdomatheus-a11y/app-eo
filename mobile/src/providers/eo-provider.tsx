@@ -25,7 +25,7 @@ type ContextValue = {
   changeTemporaryPassword: (password: string, confirmation: string) => Promise<Result>;
   signout: () => Promise<void>; refresh: () => Promise<void>; acknowledge: (notice: LiveNotice) => Promise<Result>;
   loadMore: () => Promise<Result>; loadAdmin: (tab: AdminTab) => Promise<Result>;
-  loadNoticeReport: (notice: string, version: number, groupBy: string) => Promise<Result>;
+  loadNoticeReport: (notice: string, version: number, groupBy: string, segmentBy?: string, segmentValues?: string[]) => Promise<Result>;
   archiveMessage: (kind: "notice" | "alert", id: string, archived: boolean) => Promise<Result>;
   addStore: (data: { code: string; name: string; region: string }) => Promise<Result>;
   inviteMember: (data: { chapa: string; email: string; name: string; role: string; stores: string[] }) => Promise<Result>;
@@ -302,9 +302,9 @@ export function EOProvider({ children }: { children: ReactNode }) {
     }
   }), [act]);
 
-  const loadNoticeReport = useCallback((notice: string, version: number, groupBy: string) => act(async () => {
+  const loadNoticeReport = useCallback((notice: string, version: number, groupBy: string, segmentBy = "", segmentValues: string[] = []) => act(async () => {
     if (!notice) throw new Error("Selecione um comunicado.");
-    setReportData(await rpc<NoticeReport>("eo_admin_notice_report", { p_notice: notice, p_version: version, p_group_by: groupBy }));
+    setReportData(await rpc<NoticeReport>("eo_admin_notice_report", { p_notice: notice, p_version: version, p_group_by: groupBy, p_segment_by: segmentBy || null, p_segment_values: segmentValues }));
   }), [act]);
   const archiveMessage = useCallback((kind: "notice" | "alert", id: string, archived: boolean) => act(async () => {
     await rpc("eo_admin_archive_message", { p_kind: kind, p_id: id, p_archived: archived });
