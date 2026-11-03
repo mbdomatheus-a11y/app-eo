@@ -1,0 +1,8 @@
+# O portal web não precisa carregar os binários e dependências mobile no deploy.
+node_modules
+/mobile/
+/.tmp-android-upload/
+/outputs/
+/android/
+/ios/
+/dist/
