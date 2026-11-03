@@ -411,11 +411,16 @@ export default function ConnectedApp() {
   }
   function orderedStoreRecords() {
     const q = storeSearch.trim().toLocaleLowerCase("pt-BR");
+    const numeric = (raw: string) => {
+      const value = raw.trim().replace(/[^\d,.-]/g, "");
+      const normalized = value.includes(",") ? value.replaceAll(".", "").replace(",", ".") : /^-?\d{1,3}(\.\d{3})+$/.test(value) ? value.replaceAll(".", "") : value;
+      return normalized && Number.isFinite(Number(normalized)) ? Number(normalized) : null;
+    };
     return storeRecords().filter((row) => !q || Object.entries(row).some(([key, value]) => key !== "__id" && String(value ?? "").toLocaleLowerCase("pt-BR").includes(q)))
       .sort((a, b) => {
         const av = String(a[storeSort.key] ?? ""), bv = String(b[storeSort.key] ?? "");
-        const an = Number(av.replace(/[^\d,.-]/g, "").replace(",", ".")), bn = Number(bv.replace(/[^\d,.-]/g, "").replace(",", "."));
-        const cmp = av && bv && Number.isFinite(an) && Number.isFinite(bn) ? an - bn : av.localeCompare(bv, "pt-BR", { numeric: true, sensitivity: "base" });
+        const an = numeric(av), bn = numeric(bv);
+        const cmp = an !== null && bn !== null ? an - bn : av.localeCompare(bv, "pt-BR", { numeric: true, sensitivity: "base" });
         return storeSort.direction === "asc" ? cmp : -cmp;
       });
   }
