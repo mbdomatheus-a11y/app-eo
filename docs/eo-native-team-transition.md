@@ -33,3 +33,17 @@ Verificação realizada: TypeScript mobile e git diff --check passaram. Recursos
 - Plugin SecureStore recebe descrição Face ID em português, exigindo nova compilação para disponibilizar a integração.
 - O build GitHub 18 falhou no upload por Redundant Binary Upload: número 13 repetido. Workflow passa a calcular número único usando número da execução e tentativa (1000 + execução * 100 + tentativa) antes do prebuild.
 - TypeScript e exportação iOS/Hermes passaram localmente. Face ID, AutoFill, câmera e notificações precisam de validação física. Não afirmar disponibilidade no TestFlight até confirmar o envio Apple.
+
+
+## Redesenho principal e atualização iOS publicada (03/11/2026)
+
+- Referência visual examinada em Desktop/controlall/src/app/mais/index.tsx: menus organizados por área, cartões, ícones de cores por grupo e preferência por navegação de app. O projeto Control ALL foi somente lido.
+- Nova camada mobile/src/design.tsx: títulos grandes, menus agrupados com separadores, ícones com fundos de cores, atalhos em cartões e painel de resumo.
+- Home reescrita com painel de pendências reais, progresso dos itens carregados, atalhos e lista de avisos recentes. Avisos recebeu seletor segmentado; Explorar, Gestão e Perfil foram reorganizados. Minhas lojas ganhou tela própria com busca.
+- Barra inferior usa NativeTabs do Expo Router, com SF Symbols no iOS e Material Symbols no Android. Nenhuma dependência nativa foi adicionada; foram usados os módulos presentes no build 19.
+- TypeScript, diff check e exportações iOS/Android passaram. Validação visual no aparelho ainda depende do teste do usuário; não afirmar equivalência completa ao GM Finanças ou teste físico concluído.
+- GitHub run 41571095755 confirmou sucesso no envio iOS; número Apple esperado 2901. O estado de processamento/atribuição ao grupo no App Store Connect ainda não foi consultado.
+- OTA iOS publicada no canal production: grupo 9c7c4da7-940c-40e6-bf8e-67cf85161b39, runtime 0cc877b16863a197c7138ba44cf1a5e782f5436d, código 301e356. Painel: https://expo.dev/accounts/controlalls-team/projects/eo/updates/9c7c4da7-940c-40e6-bf8e-67cf85161b39.
+- Primeira tentativa com platform all tentou exportar web e falhou por react-native-web ausente. Não instalar dependência web só para OTA mobile. Publicação repetida explicitamente para ios passou. Workflow agora escolhe ios/android para evitar essa falha em futuras atualizações.
+- A configuração pública Supabase foi fornecida por variáveis de ambiente herdadas da configuração local do portal, sem transmitir a chave OIDC. EAS production ainda não tem variáveis próprias cadastradas; persistir configuração para automação futura.
+- Para instalar: atualizar EO no TestFlight para a versão com vínculo controlalls-team/eo, abrir com internet e reabrir para aplicar o OTA, ou Meu aparelho > Buscar atualização. Instalações ligadas ao projeto Expo antigo não recebem a URL nova por OTA.

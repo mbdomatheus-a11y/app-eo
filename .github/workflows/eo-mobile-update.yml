@@ -11,6 +11,14 @@ on:
           - production
         default: preview
         required: true
+      platform:
+        description: Plataforma da atualização
+        type: choice
+        options:
+          - ios
+          - android
+        default: ios
+        required: true
       message:
         description: Resumo da atualização
         type: string
@@ -51,6 +59,7 @@ jobs:
           EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           CHANNEL: ${{ inputs.channel }}
+          UPDATE_PLATFORM: ${{ inputs.platform }}
           UPDATE_MESSAGE: ${{ inputs.message }}
         run: |
           if [ -z "$EXPO_TOKEN" ]; then
@@ -60,6 +69,7 @@ jobs:
 
           ./node_modules/.bin/eas update \
             --channel "$CHANNEL" \
+            --platform "$UPDATE_PLATFORM" \
             --message "$UPDATE_MESSAGE" \
             --environment "$CHANNEL" \
             --non-interactive
