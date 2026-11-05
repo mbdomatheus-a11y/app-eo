@@ -170,11 +170,8 @@ Deno.serve(async (req) => {
     }
     if (!identity.active || !identity.login_chapa)
       return json({ error: "O usuário precisa estar ativo e ter uma chapa vinculada." }, 400);
-    if (!legacy) {
-      const { data: authIdentity, error: authError } = await admin.auth.admin.getUserById(targetId);
-      if (authError || !authIdentity.user?.email_confirmed_at)
-        return json({ error: "A pessoa precisa aceitar o convite antes de receber uma nova senha." }, 409);
-    }
+    // Admin-issued credentials also activate accounts left pending by the old email flow.
+    // The Auth update below confirms the login alias and sets the temporary password.
     const password = generateTemporaryPassword();
     const alias = `app-${identity.login_chapa}@login.app-eo.invalid`;
     const { error: auditError } = await admin.from("eo_audit_events").insert({
