@@ -2,7 +2,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Session } from "@supabase/supabase-js";
 import { AppState, Linking, Platform } from "react-native";
 import * as Crypto from "expo-crypto";
-import * as Clipboard from "expo-clipboard";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import Constants from "expo-constants";
@@ -19,7 +18,7 @@ type ContextValue = {
   passwordMode: boolean; workspace: Workspace | null; notices: LiveNotice[]; more: boolean;
   alerts: LiveAlert[]; checklists: ChecklistRun[]; checklistDetail: ChecklistDetail | null; soundEnabled: boolean;
   pushGranted: boolean;
-  audit: AuditRow[]; members: LivePerson[]; temporaryPassword: string; error: string; message: string;
+  audit: AuditRow[]; members: LivePerson[]; error: string; message: string;
   archivedMessages: ArchivedMessage[]; reportMessages: ReportMessage[]; reportData: NoticeReport | null;
   clearFeedback: () => void; login: (chapa: string, password: string) => Promise<Result>;
   changeTemporaryPassword: (password: string, confirmation: string) => Promise<Result>;
@@ -28,11 +27,11 @@ type ContextValue = {
   loadNoticeReport: (notice: string, version: number, groupBy: string, segmentBy?: string, segmentValues?: string[]) => Promise<Result>;
   archiveMessage: (kind: "notice" | "alert", id: string, archived: boolean) => Promise<Result>;
   addStore: (data: { code: string; name: string; region: string }) => Promise<Result>;
-  inviteMember: (data: { chapa: string; email: string; name: string; role: string; stores: string[] }) => Promise<Result>;
+  inviteMember: (data: { chapa: string; email: string; name: string; role: string; stores: string[] }) => Promise<Result & { password?: string }>;
   toggleMember: (member: LivePerson) => Promise<Result>;
   saveMember: (member: LivePerson, data: { chapa: string; name: string; role: string; stores: string[] }) => Promise<Result>;
   publish: (data: MessagePayload) => Promise<Result>;
-  issueTemporaryPassword: () => Promise<Result>; copyPassword: () => void;
+  issueTemporaryPassword: (userId: string) => Promise<Result & { password?: string }>;
   refreshOperational: () => Promise<void>; markAlert: (alert: LiveAlert, action: "view" | "dismiss") => Promise<Result>;
   moderateAlert: (alert: LiveAlert) => Promise<Result>;
   setSoundEnabled: (enabled: boolean) => Promise<Result>; openChecklist: (id: string) => Promise<Result>;
@@ -61,7 +60,6 @@ export function EOProvider({ children }: { children: ReactNode }) {
   const [more, setMore] = useState(false);
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [members, setMembers] = useState<LivePerson[]>([]);
-  const [temporaryPassword, setTemporaryPassword] = useState("");
   const [archivedMessages, setArchivedMessages] = useState<ArchivedMessage[]>([]);
   const [reportMessages, setReportMessages] = useState<ReportMessage[]>([]);
   const [reportData, setReportData] = useState<NoticeReport | null>(null);
@@ -320,16 +318,29 @@ export function EOProvider({ children }: { children: ReactNode }) {
     await refresh();
   }, "Loja cadastrada."), [act, refresh]);
 
-  const inviteMember = useCallback((data: { chapa: string; email: string; name: string; role: string; stores: string[] }) => act(async () => {
-    const { error: inviteError } = await supabase!.functions.invoke("admin-identity", { body: { action: "invite-person", email: data.email.trim(), chapa: data.chapa.trim(), name: data.name.trim(), role: data.role, stores: data.stores } });
-    if (inviteError) throw new Error("Convite não enviado. Confira o SMTP, a chapa e as lojas selecionadas.");
-    setMembers(await rpc<LivePerson[]>("eo_admin_people"));
-  }, "Convite enviado. A pessoa definirá a senha no primeiro acesso."), [act]);
+  const inviteMember = useCallback(async (data: { chapa: string; email: string; name: string; role: string; stores: string[] }) => {
+    let password: string | undefined;
+    const result = await act(async () => {
+      const { data: created, error: createError } = await supabase!.functions.invoke("admin-identity", { body: { action: "create-person", email: data.email.trim(), chapa: data.chapa.trim(), name: data.name.trim(), role: data.role, stores: data.stores } });
+      if (createError || typeof created?.password !== "string") {
+        const response = createError?.context instanceof Response ? await createError.context.json().catch(() => null) : null;
+        throw new Error(response?.error ?? "Não foi possível cadastrar a pessoa.");
+      }
+      password = created.password;
+      const updated = await rpc<LivePerson[]>("eo_admin_people").catch(() => null);
+      if (updated) setMembers(updated);
+    }, "Usuário cadastrado. Compartilhe os dados de acesso.");
+    return { ...result, password };
+  }, [act]);
 
   const toggleMember = useCallback((person: LivePerson) => act(async () => {
-    await rpc("eo_admin_update_person", { p_user: person.id, p_name: person.display_name, p_role: person.role, p_chapa: person.login_chapa, p_stores: person.stores, p_active: !person.active });
-    setMembers(await rpc<LivePerson[]>("eo_admin_people"));
-  }, person.active ? "Acesso desativado." : "Acesso reativado."), [act]);
+    const { error: statusError } = await supabase!.functions.invoke("admin-identity", { body: { action: "set-person-active", user_id: person.id, active: !person.active } });
+    if (statusError) {
+      const response = statusError.context instanceof Response ? await statusError.context.json().catch(() => null) : null;
+      throw new Error(response?.error ?? "Não foi possível alterar o acesso.");
+    }
+    setMembers((current) => current.map((item) => item.id === person.id ? { ...item, active: !person.active } : item));
+  }, person.active ? "Acesso bloqueado." : "Acesso reativado."), [act]);
 
   const saveMember = useCallback((person: LivePerson, data: { chapa: string; name: string; role: string; stores: string[] }) => act(async () => {
     await rpc("eo_admin_update_person", { p_user: person.id, p_name: data.name.trim(), p_role: data.role, p_chapa: data.chapa.trim(), p_stores: data.stores, p_active: person.active });
@@ -352,24 +363,28 @@ export function EOProvider({ children }: { children: ReactNode }) {
     await refresh();
   }, () => data.scheduledFor ? `Comunicado programado para ${new Date(data.scheduledFor).toLocaleString("pt-BR")}.` : data.sendPush ? "Comunicado publicado e encaminhado também por push." : "Comunicado publicado."), [act, refresh, uploadMessageFiles]);
 
-  const issueTemporaryPassword = useCallback(() => act(async () => {
-    if (!workspace) throw new Error("Perfil não carregado.");
-    const { data, error: invokeError } = await supabase!.functions.invoke("admin-identity", { body: { action: "issue-master-temporary-password", user_id: workspace.person.id } });
-    if (invokeError || typeof data?.password !== "string") throw new Error("Não foi possível gerar uma senha temporária.");
-    setTemporaryPassword(data.password);
-  }, "Senha temporária gerada. Copie e guarde em local seguro."), [act, workspace]);
-
-  const copyPassword = useCallback(() => {
-    if (temporaryPassword) void Clipboard.setStringAsync(temporaryPassword)
-      .then(() => setMessage("Senha copiada. Guarde-a em local seguro."))
-      .catch(() => setError("Não foi possível copiar a senha. Selecione-a e copie manualmente."));
-  }, [temporaryPassword]);
+  const issueTemporaryPassword = useCallback(async (userId: string) => {
+    let password: string | undefined;
+    const result = await act(async () => {
+      const { data, error: invokeError } = await supabase!.functions.invoke("admin-identity", { body: { action: "issue-person-temporary-password", user_id: userId } });
+      if (invokeError || typeof data?.password !== "string") {
+        if (invokeError?.context instanceof Response) {
+          const response = await invokeError.context.json().catch(() => null);
+          if (typeof response?.error === "string") throw new Error(response.error);
+        }
+        throw new Error("Não foi possível gerar uma senha temporária.");
+      }
+      password = data.password;
+      setMembers((current) => current.map((person) => person.id === userId ? { ...person, must_change_password: true } : person));
+    });
+    return { ...result, password };
+  }, [act]);
 
   const value = useMemo<ContextValue>(() => ({
-    configured: backendConfigured, session, initializing, loading, busy, passwordMode, workspace, notices, more, alerts, checklists, checklistDetail, soundEnabled, pushGranted, audit, members, temporaryPassword, error, message, archivedMessages, reportMessages, reportData,
+    configured: backendConfigured, session, initializing, loading, busy, passwordMode, workspace, notices, more, alerts, checklists, checklistDetail, soundEnabled, pushGranted, audit, members, error, message, archivedMessages, reportMessages, reportData,
     clearFeedback, login, changeTemporaryPassword, signout, refresh, acknowledge, loadMore, loadAdmin, loadNoticeReport, archiveMessage, addStore, inviteMember, toggleMember, saveMember, publish, issueTemporaryPassword,
-    copyPassword, refreshOperational, markAlert, moderateAlert, setSoundEnabled, openChecklist, saveChecklistAnswer, publishAlert, openMessageAttachment, publishChecklist, enablePush, captureChecklistPhoto, sendTestPush,
-  }), [session, initializing, loading, busy, passwordMode, workspace, notices, more, alerts, checklists, checklistDetail, soundEnabled, pushGranted, audit, members, temporaryPassword, error, message, archivedMessages, reportMessages, reportData, clearFeedback, login, changeTemporaryPassword, signout, refresh, acknowledge, loadMore, loadAdmin, loadNoticeReport, archiveMessage, addStore, inviteMember, toggleMember, saveMember, publish, issueTemporaryPassword, copyPassword, refreshOperational, markAlert, moderateAlert, setSoundEnabled, openChecklist, saveChecklistAnswer, publishAlert, openMessageAttachment, publishChecklist, enablePush, captureChecklistPhoto, sendTestPush]);
+    refreshOperational, markAlert, moderateAlert, setSoundEnabled, openChecklist, saveChecklistAnswer, publishAlert, openMessageAttachment, publishChecklist, enablePush, captureChecklistPhoto, sendTestPush,
+  }), [session, initializing, loading, busy, passwordMode, workspace, notices, more, alerts, checklists, checklistDetail, soundEnabled, pushGranted, audit, members, error, message, archivedMessages, reportMessages, reportData, clearFeedback, login, changeTemporaryPassword, signout, refresh, acknowledge, loadMore, loadAdmin, loadNoticeReport, archiveMessage, addStore, inviteMember, toggleMember, saveMember, publish, issueTemporaryPassword, refreshOperational, markAlert, moderateAlert, setSoundEnabled, openChecklist, saveChecklistAnswer, publishAlert, openMessageAttachment, publishChecklist, enablePush, captureChecklistPhoto, sendTestPush]);
 
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

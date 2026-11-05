@@ -82,6 +82,20 @@ export default function ConnectedApp() {
   const [registrationOpen, setRegistrationOpen] = useState(false);
   const [registrationRole, setRegistrationRole] = useState("colaborador");
   const [registrationStoreQuery, setRegistrationStoreQuery] = useState("");
+  const [registrationDirty, setRegistrationDirty] = useState(false);
+  const [registrationUf, setRegistrationUf] = useState("");
+  const [registrationRegion, setRegistrationRegion] = useState("");
+  const [registrationStores, setRegistrationStores] = useState<string[]>([]);
+  const [passwordTarget, setPasswordTarget] = useState<Pick<LivePerson, "id" | "display_name" | "login_chapa"> | null>(null);
+  useEffect(() => {
+    if (!registrationOpen || !registrationDirty) return;
+    const confirmUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", confirmUnload);
+    return () => window.removeEventListener("beforeunload", confirmUnload);
+  }, [registrationOpen, registrationDirty]);
   const isNative =
     Capacitor.isNativePlatform() ||
     (import.meta.env.DEV &&
@@ -498,19 +512,24 @@ export default function ConnectedApp() {
   }
   async function inviteMember(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (isNative) {
+      setError("Use o portal app-eo.vercel.app ou atualize o aplicativo EO para cadastrar usuários.");
+      return;
+    }
     const form = e.currentTarget;
     const data = new FormData(form);
     const role = String(data.get("role"));
-    const stores = role === "admin" ? [] : data.getAll("stores").map(String);
+    const selected = registrationOpen ? registrationStores : data.getAll("stores").map(String);
+    const stores = role === "admin" ? [] : selected.length ? selected : workspace?.stores.map((store) => store.id) ?? [];
     await act(async () => {
       if (role !== "admin" && !stores.length)
-        throw new Error("Selecione ao menos uma loja.");
-      const { error: inviteError } = await supabase!.functions.invoke(
+        throw new Error("Cadastre uma loja antes de criar um acesso com vínculo.");
+      const { data: created, error: inviteError } = await supabase!.functions.invoke(
         "admin-identity",
         {
           body: {
-            action: "invite-person",
-            email: String(data.get("email")).trim(),
+            action: "create-person",
+            email: String(data.get("email") ?? "").trim(),
             chapa: String(data.get("chapa")).trim(),
             name: String(data.get("name")).trim(),
             role,
@@ -518,27 +537,30 @@ export default function ConnectedApp() {
           },
         },
       );
-      if (inviteError)
-        throw new Error(
-          "Convite não enviado. Confira o SMTP, a chapa e as lojas selecionadas.",
-        );
+      if (inviteError || typeof created?.password !== "string") {
+        const response = inviteError?.context instanceof Response ? await inviteError.context.json().catch(() => null) : null;
+        throw new Error(response?.error ?? "Não foi possível cadastrar a pessoa.");
+      }
       form.reset();
       setRegistrationOpen(false);
-      setMessage("Convite enviado. A pessoa criará sua senha no primeiro acesso.");
-      setMembers(await rpc<LivePerson[]>("eo_admin_people"));
+      setTemporaryPassword(created.password);
+      setPasswordTarget({ id: "", display_name: String(data.get("name")).trim(), login_chapa: String(data.get("chapa")).trim() });
+      setMessage("Usuário cadastrado. Compartilhe a senha temporária com a pessoa.");
+      const updated = await rpc<LivePerson[]>("eo_admin_people").catch(() => null);
+      if (updated) setMembers(updated);
     });
   }
   async function toggleMember(p: LivePerson) {
     await act(async () => {
-      await rpc("eo_admin_update_person", {
-        p_user: p.id,
-        p_name: p.display_name,
-        p_role: p.role,
-        p_chapa: p.login_chapa,
-        p_stores: p.stores,
-        p_active: !p.active,
+      const { error: statusError } = await supabase!.functions.invoke("admin-identity", {
+        body: { action: "set-person-active", user_id: p.id, active: !p.active },
       });
-      setMembers(await rpc<LivePerson[]>("eo_admin_people"));
+      if (statusError) {
+        const response = statusError.context instanceof Response ? await statusError.context.json().catch(() => null) : null;
+        throw new Error(response?.error ?? "Não foi possível alterar o acesso.");
+      }
+      setMembers((current) => current.map((member) => member.id === p.id ? { ...member, active: !p.active } : member));
+      setEditingMember((current) => current?.id === p.id ? { ...current, active: !p.active } : current);
       setMessage(p.active ? "Acesso desativado." : "Acesso reativado.");
     });
   }
@@ -560,20 +582,28 @@ export default function ConnectedApp() {
       setMessage("Perfil e abrangência atualizados.");
     });
   }
-  async function issueTemporaryPassword() {
+  async function issueTemporaryPassword(person?: Pick<LivePerson, "id">) {
     await act(async () => {
       const { data, error: issueError } = await supabase!.functions.invoke(
         "admin-identity",
         {
           body: {
-            action: "issue-master-temporary-password",
-            user_id: workspace!.person.id,
+            action: person ? "issue-person-temporary-password" : "issue-master-temporary-password",
+            user_id: person?.id ?? workspace!.person.id,
           },
         },
       );
-      if (issueError || typeof data?.password !== "string")
+      if (issueError || typeof data?.password !== "string") {
+        if (issueError?.context instanceof Response) {
+          const response = await issueError.context.json().catch(() => null);
+          if (typeof response?.error === "string") throw new Error(response.error);
+        }
         throw new Error("Não foi possível gerar uma senha temporária.");
+      }
       setTemporaryPassword(data.password);
+      if (person) setMembers((current) => current.map((member) => member.id === person.id
+        ? { ...member, must_change_password: true }
+        : member));
       setMessage(
         "Senha temporária criada. Copie e guarde em local seguro agora.",
       );
@@ -845,6 +875,15 @@ export default function ConnectedApp() {
   const admin = workspace.person.role === "admin",
     leader = admin || workspace.person.role === "diretor";
   const pendingNoticeCount = notices.filter((notice) => !notice.acknowledged).length;
+  const registrationFiltered = workspace.stores.filter((store) =>
+    (!registrationUf || store.segments?.UF?.trim() === registrationUf) &&
+    (!registrationRegion || (store.segments?.REGIONAL || store.region || "").trim() === registrationRegion) &&
+    `${store.code} ${store.name}`.toLocaleLowerCase("pt-BR").includes(registrationStoreQuery.trim().toLocaleLowerCase("pt-BR")),
+  );
+  const registrationRegions = [...new Set(workspace.stores
+    .filter((store) => !registrationUf || store.segments?.UF?.trim() === registrationUf)
+    .map((store) => (store.segments?.REGIONAL || store.region || "").trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }));
   const navigation = [
     { id: "home" as const, label: "Visão geral", icon: Home },
     { id: "notices" as const, label: "Comunicados", icon: Megaphone },
@@ -1289,14 +1328,20 @@ export default function ConnectedApp() {
                       setError("");
                       setRegistrationRole("colaborador");
                       setRegistrationStoreQuery("");
+                      setRegistrationDirty(false);
+                      setRegistrationUf("");
+                      setRegistrationRegion("");
+                      setRegistrationStores([]);
                       setRegistrationOpen(true);
                     }}><Plus size={17} /> Cadastrar usuário</button>
                   </div>
-                  {registrationOpen && <Dialog title="Cadastrar usuário" close={() => { if (!busy) setRegistrationOpen(false); }}>
+                  {registrationOpen && <Dialog title="Cadastrar usuário" close={() => {
+                    if (!busy && (!registrationDirty || window.confirm("Sair sem salvar? Os dados preenchidos serão descartados."))) setRegistrationOpen(false);
+                  }}>
                     <p>
-                      A pessoa recebe um convite por e-mail para definir sua senha.
+                      Após cadastrar, compartilhe a chapa e a senha temporária com a pessoa.
                     </p>
-                    <form className="form" onSubmit={inviteMember}>
+                    <form className="form" onSubmit={inviteMember} onChange={() => setRegistrationDirty(true)}>
                       <label>
                         Chapa
                         <input
@@ -1308,11 +1353,10 @@ export default function ConnectedApp() {
                         />
                       </label>
                       <label>
-                        E-mail
+                        E-mail (opcional)
                         <input
                           name="email"
                           type="email"
-                          required
                           maxLength={254}
                         />
                       </label>
@@ -1343,22 +1387,56 @@ export default function ConnectedApp() {
                       ) : (
                       <fieldset>
                         <legend>Lojas autorizadas</legend>
+                        <button type="button" className="secondary" aria-pressed={!registrationStores.length} onClick={() => {
+                          setRegistrationStores([]);
+                          setRegistrationDirty(true);
+                        }}>{!registrationStores.length && <CheckCheck size={16} />} Todas as lojas ({workspace.stores.length})</button>
+                        <p className="field-hint">{registrationStores.length ? `${registrationStores.length} loja(s) selecionada(s).` : "Sem seleção individual, o acesso inclui todas as lojas atuais."}</p>
+                        <div className="form-grid">
+                          <label>Estado
+                            <select value={registrationUf} onChange={(event) => { setRegistrationUf(event.target.value); setRegistrationRegion(""); }}>
+                              <option value="">Todos os estados</option>
+                              {segmentValuesFor(workspace.stores, "UF").map((uf) => <option key={uf}>{uf}</option>)}
+                            </select>
+                          </label>
+                          <label>Regional
+                            <select value={registrationRegion} onChange={(event) => setRegistrationRegion(event.target.value)}>
+                              <option value="">Todas as regionais</option>
+                              {registrationRegions.map((region) => <option key={region}>{region}</option>)}
+                            </select>
+                          </label>
+                        </div>
                         <label>Buscar loja
                           <input type="search" value={registrationStoreQuery} onChange={(event) => setRegistrationStoreQuery(event.target.value)} placeholder="Código ou nome" />
                         </label>
+                        {!!registrationFiltered.length && registrationFiltered.length < workspace.stores.length && (
+                          <button type="button" className="text-button" onClick={() => {
+                            setRegistrationStores((current) => [...new Set([...current, ...registrationFiltered.map((store) => store.id)])]);
+                            setRegistrationDirty(true);
+                          }}>Selecionar as {registrationFiltered.length} lojas do filtro</button>
+                        )}
+                        <details>
+                        <summary>Mostrar lojas ({registrationFiltered.length})</summary>
                         <div className="registration-store-list">
-                        {workspace.stores.map((s) => (
-                          <label className="checkbox-label" key={s.id} hidden={!`${s.code} ${s.name}`.toLocaleLowerCase("pt-BR").includes(registrationStoreQuery.trim().toLocaleLowerCase("pt-BR"))}>
-                            <input type="checkbox" name="stores" value={s.id} />
+                        {registrationFiltered.map((s) => (
+                          <label className="checkbox-label" key={s.id}>
+                            <input type="checkbox" checked={registrationStores.includes(s.id)} onChange={(event) => {
+                              const checked = event.target.checked;
+                              setRegistrationStores((current) => checked ? [...current, s.id] : current.filter((id) => id !== s.id));
+                            }} />
                             {s.code} · {s.name}
                           </label>
                         ))}
+                        {!registrationFiltered.length && <p>Nenhuma loja encontrada.</p>}
                         </div>
+                        </details>
                       </fieldset>
                       )}
                       {error && <p className="form-error" role="alert">{error}</p>}
                       <button disabled={busy} className="primary">
-                        {busy ? "Enviando…" : "Cadastrar e enviar convite"}
+                        {busy ? "Enviando…" : registrationRole !== "admin" && !registrationStores.length
+                          ? "Cadastrar com acesso a todas as lojas"
+                          : "Cadastrar e gerar senha"}
                       </button>
                     </form>
                   </Dialog>}
@@ -1391,6 +1469,13 @@ export default function ConnectedApp() {
                                     : "Ativo"}
                               </td>
                               <td>
+                                {p.active && p.login_chapa && (workspace.person.master_admin || !["admin", "diretor"].includes(p.role)) && (
+                                  <button className="text-button" disabled={busy} onClick={() => {
+                                    setError("");
+                                    setTemporaryPassword("");
+                                    setPasswordTarget(p);
+                                  }}>Senha temporária</button>
+                                )}
                                 {p.id !== workspace.person.id && (
                                   <>
                                     <button
@@ -1400,7 +1485,13 @@ export default function ConnectedApp() {
                                         (!workspace.person.master_admin &&
                                           ["admin", "diretor"].includes(p.role))
                                       }
-                                      onClick={() => setEditingMember(p)}
+                                      onClick={() => {
+                                        setError("");
+                                        setRegistrationUf("");
+                                        setRegistrationRegion("");
+                                        setRegistrationStoreQuery("");
+                                        setEditingMember(p);
+                                      }}
                                     >
                                       Editar
                                     </button>
@@ -1411,9 +1502,11 @@ export default function ConnectedApp() {
                                         (!workspace.person.master_admin &&
                                           ["admin", "diretor"].includes(p.role))
                                       }
-                                      onClick={() => void toggleMember(p)}
+                                      onClick={() => {
+                                        if (window.confirm(`${p.active ? "Bloquear" : "Reativar"} o acesso de ${p.display_name}?`)) void toggleMember(p);
+                                      }}
                                     >
-                                      {p.active ? "Desativar" : "Reativar"}
+                                      {p.active ? "Bloquear" : "Reativar"}
                                     </button>
                                   </>
                                 )}
@@ -1425,49 +1518,6 @@ export default function ConnectedApp() {
                     </div>
                   </section>
                 </>
-              )}
-              {tab === "people" && workspace.person.master_admin && (
-                <section className="panel">
-                  <h2>Acesso do administrador master</h2>
-                  <p>
-                    Chapa 123456. Gere uma senha temporária para exigir a troca
-                    no próximo acesso.
-                  </p>
-                  {!temporaryPassword ? (
-                    <button
-                      className="primary"
-                      disabled={busy}
-                      onClick={() => void issueTemporaryPassword()}
-                    >
-                      Gerar senha temporária
-                    </button>
-                  ) : (
-                    <>
-                      <label>
-                        Senha temporária
-                        <input readOnly value={temporaryPassword} />
-                      </label>
-                      <button
-                        className="secondary"
-                        onClick={() =>
-                          void navigator.clipboard.writeText(temporaryPassword)
-                        }
-                      >
-                        Copiar senha
-                      </button>
-                      <button
-                        className="text-button"
-                        onClick={() => void signout()}
-                      >
-                        Guardei a senha, sair agora
-                      </button>
-                      <p role="status">
-                        Ela aparece apenas nesta tela. Depois de entrar com ela,
-                        o sistema exigirá uma nova senha.
-                      </p>
-                    </>
-                  )}
-                </section>
               )}
               {tab === "audit" && (
                 <section className="panel">
@@ -1714,6 +1764,29 @@ export default function ConnectedApp() {
           </form>
         </Dialog>
       )}
+      {passwordTarget && (
+        <Dialog title="Senha temporária" close={() => {
+          if (busy) return;
+          setTemporaryPassword("");
+          setPasswordTarget(null);
+          setError("");
+        }}>
+          <div className="form">
+            <p><strong>{passwordTarget.display_name}</strong> · Chapa {passwordTarget.login_chapa}</p>
+            {temporaryPassword ? <>
+              <p>Copie agora. A senha só aparece nesta tela e deverá ser trocada no próximo acesso.</p>
+              <label>Senha temporária<input readOnly value={temporaryPassword} autoComplete="off" /></label>
+              <a className="primary" href={`https://wa.me/?text=${encodeURIComponent(`Seu acesso ao EO\nChapa: ${passwordTarget.login_chapa}\nSenha temporária: ${temporaryPassword}\nTroque a senha no primeiro acesso: https://app-eo.vercel.app/`)}`} target="_blank" rel="noopener noreferrer">Compartilhar no WhatsApp</a>
+              <button className="secondary" onClick={() => void navigator.clipboard.writeText(`Seu acesso ao EO\nChapa: ${passwordTarget.login_chapa}\nSenha temporária: ${temporaryPassword}\nhttps://app-eo.vercel.app/`).catch(() => setError("Selecione e copie a senha manualmente."))}>Copiar dados de acesso</button>
+              {passwordTarget.id === workspace.person.id && <button className="primary" onClick={() => void signout()}>Guardei a senha, sair agora</button>}
+            </> : <>
+              <p>A senha atual será substituída. No próximo acesso, a pessoa terá de definir uma nova senha.</p>
+              <button className="primary" disabled={busy} onClick={() => void issueTemporaryPassword(passwordTarget)}>{busy ? "Gerando…" : "Gerar senha temporária"}</button>
+            </>}
+            {error && <p className="form-error" role="alert">{error}</p>}
+          </div>
+        </Dialog>
+      )}
       {editingMember && (
         <Dialog title="Editar acesso" close={() => setEditingMember(null)}>
           <form className="form" onSubmit={saveMember}>
@@ -1752,8 +1825,22 @@ export default function ConnectedApp() {
             </label>
             <fieldset>
               <legend>Lojas autorizadas</legend>
+              <details>
+              <summary>Mostrar lojas ({editingMember.stores.length} vinculadas)</summary>
+              <div className="form-grid">
+                <label>Estado<select value={registrationUf} onChange={(event) => { setRegistrationUf(event.target.value); setRegistrationRegion(""); }}>
+                  <option value="">Todos os estados</option>
+                  {segmentValuesFor(workspace.stores, "UF").map((uf) => <option key={uf}>{uf}</option>)}
+                </select></label>
+                <label>Regional<select value={registrationRegion} onChange={(event) => setRegistrationRegion(event.target.value)}>
+                  <option value="">Todas as regionais</option>
+                  {registrationRegions.map((region) => <option key={region}>{region}</option>)}
+                </select></label>
+              </div>
+              <label>Buscar loja<input type="search" value={registrationStoreQuery} onChange={(event) => setRegistrationStoreQuery(event.target.value)} placeholder="Código ou nome" /></label>
+              <div className="registration-store-list">
               {workspace.stores.map((s) => (
-                <label className="checkbox-label" key={s.id}>
+                <label className="checkbox-label" key={s.id} hidden={!registrationFiltered.some((store) => store.id === s.id)}>
                   <input
                     type="checkbox"
                     name="stores"
@@ -1763,6 +1850,9 @@ export default function ConnectedApp() {
                   {s.code} · {s.name}
                 </label>
               ))}
+              {!registrationFiltered.length && <p>Nenhuma loja encontrada.</p>}
+              </div>
+              </details>
             </fieldset>
             {error && (
               <p className="form-error" role="alert">
@@ -1773,6 +1863,16 @@ export default function ConnectedApp() {
               Salvar alterações
             </button>
           </form>
+          <div className="form">
+            <button className="secondary" disabled={busy} onClick={() => {
+              if (window.confirm(`${editingMember.active ? "Bloquear" : "Reativar"} o acesso de ${editingMember.display_name}?`)) void toggleMember(editingMember);
+            }}>{editingMember.active ? "Bloquear acesso" : "Reativar acesso"}</button>
+            {editingMember.active && editingMember.login_chapa && <button className="secondary" disabled={busy} onClick={() => {
+              setError("");
+              setTemporaryPassword("");
+              setPasswordTarget(editingMember);
+            }}>Gerar senha temporária</button>}
+          </div>
         </Dialog>
       )}
       {templateChoice && <Dialog title="Como deseja baixar o modelo?" close={() => setTemplateChoice(false)}>

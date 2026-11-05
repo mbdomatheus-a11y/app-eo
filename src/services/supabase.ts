@@ -54,6 +54,7 @@ export interface MessageAttachment {
   object_path: string;
 }
 export interface LivePerson {
+  master_admin?: boolean;
   id: string;
   display_name: string;
   role: string;

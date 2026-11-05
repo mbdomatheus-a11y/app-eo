@@ -26,6 +26,7 @@ export type ReportMessage = { notice_id: string; version: number; title: string;
 export type NoticeReport = { total_stores: number; stores_with_read: number; stores_fully_read: number; stores_pending: number; read_rule: string; groups: { group: string; total_stores: number; stores_with_read: number; stores_fully_read: number; stores_pending: number }[] };
 export type ArchivedMessage = { kind: "notice" | "alert"; id: string; title: string; body: string; archived_at: string; archived_by_name: string | null; attachments: MessageAttachment[] };
 export type LivePerson = {
+  master_admin?: boolean;
   id: string;
   display_name: string;
   role: Role;
