@@ -711,30 +711,21 @@ export default function ConnectedApp() {
     );
   if (!session)
     return (
-      <div className="auth-shell">
+      <div className="auth-shell eo-signin">
         <section className="auth-intro">
           <span className="brand-mark">
             eo<span>•</span>
           </span>
-          <span className="hero-kicker">OPERAÇÃO CONECTADA</span>
-          <h1>
-            Grandes resultados.
-            <br />
-            Uma equipe conectada.
-          </h1>
-          <p>
-            Informação, pessoas e rotinas no mesmo espaço.
-            <br />
-            Entre com sua conta individual para continuar.
-          </p>
+          <span className="hero-kicker">SEU ESPAÇO DE TRABALHO</span>
+          <h1>Excelência Operacional</h1>
+          <p>Acompanhe os comunicados e as rotinas das suas lojas.</p>
           <div className="auth-seal">
             <ShieldCheck size={19} />
             Acesso exclusivo para pessoas autorizadas
           </div>
         </section>
         <section className="auth-card">
-          <span className="eyebrow">BEM-VINDO AO SEU ESPAÇO</span>
-          <h2>Vamos fazer acontecer?</h2>
+          <h2>Entrar no EO</h2>
           <p>Use sua chapa e a senha individual.</p>
           <form className="form" onSubmit={login}>
             <label>
@@ -862,7 +853,7 @@ export default function ConnectedApp() {
     { title: "Diário de vendas", icon: Mic },
   ];
   return (
-    <div className="app-shell">
+    <div className="app-shell eo-portal">
       <a className="skip-link" href="#conteudo">
         Ir para o conteúdo
       </a>
@@ -879,9 +870,9 @@ export default function ConnectedApp() {
             eo<span>•</span>
           </span>
           <span className="brand-copy">
-            OPERAÇÃO
+            EXCELÊNCIA
             <br />
-            <b>CONECTADA</b>
+            <b>OPERACIONAL</b>
           </span>
         </a>
         <div className="workspace">
@@ -892,11 +883,12 @@ export default function ConnectedApp() {
           </div>
         </div>
         <p className="nav-label">SEU ESPAÇO</p>
-        <nav>
+        <nav aria-label="Navegação principal">
           {navigation.map((n) => (
             <button
               className={`nav-item ${page === n.id ? "active" : ""}`}
               key={n.id}
+              aria-current={page === n.id ? "page" : undefined}
               onClick={() =>
                 n.id === "admin" ? void openAdmin(tab) : setPage(n.id)
               }
@@ -953,7 +945,7 @@ export default function ConnectedApp() {
             </div>
           </div>
         </header>
-        <main id="conteudo">
+        <main id="conteudo" className={page === "home" ? "eo-home" : undefined}>
           <div className="page-heading">
             <div>
               <span className="eyebrow">
@@ -963,10 +955,10 @@ export default function ConnectedApp() {
               </span>
               <h1>
                 {page === "home"
-                  ? `Olá, ${workspace.person.name.split(" ")[0]}. Vamos fazer acontecer?`
+                  ? `Olá, ${workspace.person.name.trim().split(/\s+/)[0]}`
                   : navigation.find((n) => n.id === page)?.label}
               </h1>
-              <p>O que importa para o seu dia, em um só lugar.</p>
+              {page === "home" && <p>Veja o que precisa da sua atenção hoje.</p>}
             </div>
             {leader && page === "notices" && (
               <button
@@ -993,72 +985,56 @@ export default function ConnectedApp() {
             <>
               {page === "home" && (
                 <>
-                  <section className="hero">
-                    <div className="hero-copy">
-                      <span className="hero-kicker">
-                        NOSSA OPERAÇÃO, MAIS PERTO
-                      </span>
-                      <h2>
-                        Grandes resultados.
-                        <br />
-                        <span>Uma equipe conectada.</span>
-                      </h2>
-                      <p>
-                        Acompanhe orientações e confirme sua ciência.
-                        <br />
-                        Cada pessoa, cada loja, o mesmo propósito.
-                      </p>
-                      <button
-                        className="dark-button"
-                        onClick={() => setPage("notices")}
-                      >
-                        Ver comunicados
-                        <ArrowRight size={17} />
+                  <section className="eo-overview" aria-labelledby="eo-overview-title">
+                    <div className="eo-attention">
+                      <span className="eo-tile-icon"><Bell size={22} /></span>
+                      <div>
+                        <h2 id="eo-overview-title">Comunicados para confirmar</h2>
+                        <p><strong>{pendingNoticeCount}</strong> {pendingNoticeCount === 1 ? "pendente" : "pendentes"}{more ? " entre os itens carregados" : ""}</p>
+                      </div>
+                      <button className="secondary" onClick={() => setPage("notices")}>
+                        Abrir caixa de entrada <ArrowRight size={16} />
                       </button>
                     </div>
+                    <div className="eo-scope">
+                      <span className="eo-tile-icon"><Building2 size={22} /></span>
+                      <div><strong>{workspace.stores.length}</strong><p>Lojas no seu acesso</p></div>
+                    </div>
                   </section>
-                  <div className="stats">
-                    <button className="stat" onClick={() => setPage("notices")}>
-                      <div className="stat-top">
-                        Na página carregada
-                        <Megaphone size={20} />
-                      </div>
-                      <strong>
-                        {notices.filter((n) => !n.acknowledged).length}
-                      </strong>
-                      <span className="stat-foot">
-                        Comunicados para confirmar
-                      </span>
-                    </button>
-                    <div className="stat">
-                      <div className="stat-top">
-                        Sua abrangência
-                        <Building2 size={20} />
-                      </div>
-                      <strong>{workspace.stores.length}</strong>
-                      <span className="stat-foot">Lojas autorizadas</span>
+                  <section className="eo-shortcuts" aria-labelledby="eo-shortcuts-title">
+                    <h2 id="eo-shortcuts-title">Acesso rápido</h2>
+                    <div className="eo-tile-grid">
+                      <button className="eo-tile" onClick={() => setPage("notices")}>
+                        <span className="eo-tile-icon" data-tone="gold"><Megaphone size={21} /></span>
+                        <strong>Comunicados</strong><small>Orientações e confirmações</small>
+                      </button>
+                      <button className="eo-tile" onClick={() => setPage("modules")}>
+                        <span className="eo-tile-icon" data-tone="green"><Grid2X2 size={21} /></span>
+                        <strong>Aplicativos</strong><small>Ferramentas da operação</small>
+                      </button>
+                      {admin && (
+                        <>
+                          <button className="eo-tile" onClick={() => void openAdmin("stores")}>
+                            <span className="eo-tile-icon" data-tone="blue"><Building2 size={21} /></span>
+                            <strong>Lojas e acessos</strong><small>Gerenciar a operação</small>
+                          </button>
+                          <button className="eo-tile" onClick={() => void openAdmin("reports")}>
+                            <span className="eo-tile-icon" data-tone="purple"><CheckCheck size={21} /></span>
+                            <strong>Relatórios</strong><small>Leitura por loja e regional</small>
+                          </button>
+                        </>
+                      )}
                     </div>
-                    <div className="stat">
-                      <div className="stat-top">
-                        Seu acesso
-                        <ShieldCheck size={20} />
-                      </div>
-                      <strong className="role-stat">
-                        {roleLabels[workspace.person.role]}
-                      </strong>
-                      <span className="stat-foot">
-                        Permissões conferidas no servidor
-                      </span>
-                    </div>
-                  </div>
+                  </section>
                 </>
               )}
               <div className="section-heading">
                 <h2>
                   {page === "home"
-                    ? "Fique por dentro"
+                    ? "Comunicados recentes"
                     : "Orientações para o time"}
                 </h2>
+                {page === "home" && <button className="text-button" onClick={() => setPage("notices")}>Ver todos <ChevronRight size={16} /></button>}
               </div>
               <section className="notice-grid">
                 {(page === "home" ? notices.slice(0, 4) : notices).map((n) => (
@@ -1116,39 +1092,34 @@ export default function ConnectedApp() {
             </>
           )}
           {page === "modules" && (
-            <div className="module-grid all-modules">
-              <button
-                className="module-card"
-                onClick={() => setPage("notices")}
-              >
-                <span className="module-icon yellow-icon">
-                  <Megaphone size={25} />
-                </span>
-                <h3>Comunicados</h3>
-                <p>Orientações e ciência individual.</p>
-                <span className="module-status">
-                  Integrado ao Supabase
-                  <ArrowRight size={17} />
-                </span>
-              </button>
-              {planned.map((m) => (
-                <button
-                  key={m.title}
-                  className="module-card"
-                  onClick={() => setFuture(m.title)}
-                >
-                  <span className="module-icon">
-                    <m.icon size={25} />
-                  </span>
-                  <h3>{m.title}</h3>
-                  <p>Mais possibilidades para a operação.</p>
-                  <span className="module-status">
-                    Próxima integração
-                    <ArrowRight size={17} />
-                  </span>
-                </button>
-              ))}
-            </div>
+            <>
+              <section className="eo-shortcuts" aria-labelledby="eo-available-title">
+                <h2 id="eo-available-title">Disponíveis no portal</h2>
+                <div className="eo-tile-grid">
+                  <button className="eo-tile" onClick={() => setPage("notices")}>
+                    <span className="eo-tile-icon" data-tone="gold"><Megaphone size={21} /></span>
+                    <strong>Comunicados</strong><small>Orientações e confirmações</small>
+                  </button>
+                  {admin && (
+                    <button className="eo-tile" onClick={() => void openAdmin("stores")}>
+                      <span className="eo-tile-icon" data-tone="blue"><Settings2 size={21} /></span>
+                      <strong>Administração</strong><small>Lojas, pessoas e acessos</small>
+                    </button>
+                  )}
+                </div>
+              </section>
+              <section className="eo-shortcuts" aria-labelledby="eo-planned-title">
+                <h2 id="eo-planned-title">Próximas integrações web</h2>
+                <div className="eo-tile-grid">
+                  {planned.map((m) => (
+                    <button className="eo-tile" key={m.title} onClick={() => setFuture(m.title)}>
+                      <span className="eo-tile-icon"><m.icon size={21} /></span>
+                      <strong>{m.title}</strong><small>Em planejamento</small>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            </>
           )}
           {page === "admin" && admin && (
             <>
@@ -1585,17 +1556,18 @@ export default function ConnectedApp() {
           </footer>
         </main>
       </div>
-      <nav className="mobile-nav">
+      <nav className="mobile-nav" aria-label="Navegação principal">
         {navigation.map((n) => (
           <button
             key={n.id}
+            aria-current={page === n.id ? "page" : undefined}
             className={page === n.id ? "active" : ""}
             onClick={() =>
               n.id === "admin" ? void openAdmin(tab) : setPage(n.id)
             }
           >
             <n.icon size={20} />
-            <span>{n.label}</span>
+            <span>{n.id === "home" ? "Início" : n.id === "admin" ? "Gestão" : n.label}</span>
           </button>
         ))}
         <button disabled={busy} onClick={() => void signout()}>
