@@ -290,15 +290,26 @@ function PersonPassword({ person }: { person: LivePerson }) {
 }
 
 export function EditPersonScreen({ id, back }: { id: string; back: () => void }) {
-  const app = useEO(); const workspace = app.workspace!; const person = app.members.find((item) => item.id === id);
-  const [name, setName] = useState(person?.display_name ?? ""); const [chapa, setChapa] = useState(person?.login_chapa ?? ""); const [role, setRole] = useState<Role>(person?.role ?? "colaborador"); const [stores, setStores] = useState<string[]>(person?.stores ?? []);
+  const app = useEO();
+  const workspace = app.workspace!;
+  const person = app.members.find((item) => item.id === id);
+  if (!person) return <Page><Empty title="Carregando dados da pessoa" detail="Se os dados não aparecerem, atualize a lista." /><Button title="Atualizar lista" secondary disabled={app.busy} onPress={() => void app.loadAdmin("people")} /><Button title="Voltar" secondary onPress={back} /></Page>;
+  if (person.id === workspace.person.id || person.master_admin || (!workspace.person.master_admin && ["admin", "diretor"].includes(person.role)))
+    return <Page><Empty title="Acesso protegido" detail="Este perfil não pode ser editado por aqui." /><Button title="Voltar" secondary onPress={back} /></Page>;
+  return <EditPersonForm key={person.id} person={person} back={back} />;
+}
+
+function EditPersonForm({ person, back }: { person: LivePerson; back: () => void }) {
+  const app = useEO();
+  const workspace = app.workspace!;
+  const [name, setName] = useState(person.display_name);
+  const [chapa, setChapa] = useState(person.login_chapa ?? "");
+  const [role, setRole] = useState<Role>(person.role);
+  const [stores, setStores] = useState<string[]>(person.stores);
   const [showStores, setShowStores] = useState(false);
   const [storeQuery, setStoreQuery] = useState("");
   const [uf, setUf] = useState("");
   const [region, setRegion] = useState("");
-  if (!person) return <Page><Empty title="Pessoa não encontrada" detail="Atualize a lista de acessos." /><Button title="Voltar" secondary onPress={back} /></Page>;
-  if (person.id === workspace.person.id || person.master_admin || (!workspace.person.master_admin && ["admin", "diretor"].includes(person.role)))
-    return <Page><Empty title="Acesso protegido" detail="Este perfil não pode ser editado por aqui." /><Button title="Voltar" secondary onPress={back} /></Page>;
   const states = [...new Set(workspace.stores.map((store) => store.segments?.UF?.trim() ?? "").filter(Boolean))].sort();
   const regionOf = (store: (typeof workspace.stores)[number]) => (store.segments?.REGIONAL || store.region || "").trim();
   const storesInState = workspace.stores.filter((store) => !uf || store.segments?.UF?.trim() === uf);
@@ -306,8 +317,11 @@ export function EditPersonScreen({ id, back }: { id: string; back: () => void })
   const filtered = storesInState.filter((store) => (!region || regionOf(store) === region) && `${store.code} ${store.name}`.toLocaleLowerCase("pt-BR").includes(storeQuery.trim().toLocaleLowerCase("pt-BR")));
   return <Page><Card><Heading title="Atualizar acesso" detail={person.display_name} /><Field label="Nome" value={name} onChangeText={setName} maxLength={120} /><Field label="Chapa" value={chapa} onChangeText={setChapa} keyboardType="number-pad" maxLength={20} />
     <Text style={s.label}>Perfil</Text>{(["colaborador", "gerente", ...(workspace.person.master_admin ? ["diretor", "admin"] : [])] as Role[]).map((item) => <Choice key={item} label={roleLabels[item]} selected={role === item} onPress={() => setRole(item)} />)}
-    <Button title={showStores ? "Recolher lojas" : `Lojas autorizadas (${stores.length})`} secondary onPress={() => setShowStores(!showStores)} />
-    {showStores && <>
+    {role === "admin" && <Text style={s.small}>O perfil Administrador tem acesso à gestão de todas as lojas.</Text>}
+    {role !== "admin" && <Button title={showStores ? "Recolher lojas" : `Lojas autorizadas (${stores.length})`} secondary onPress={() => setShowStores(!showStores)} />}
+    {role !== "admin" && !stores.length && <Text style={s.small}>Selecione pelo menos uma loja para este perfil.</Text>}
+    {role !== "admin" && showStores && <>
+      <Choice label={`Todas as lojas (${workspace.stores.length})`} selected={!!workspace.stores.length && workspace.stores.every((store) => stores.includes(store.id))} onPress={() => setStores(workspace.stores.map((store) => store.id))} />
       <Text style={s.label}>Estado</Text>
       <ScrollView horizontal contentContainerStyle={{ gap: 8 }} keyboardShouldPersistTaps="handled">
         {["", ...states].map((item) => <Choice key={item} label={item || "Todos os estados"} selected={uf === item} onPress={() => { setUf(item); setRegion(""); }} />)}
@@ -321,7 +335,10 @@ export function EditPersonScreen({ id, back }: { id: string; back: () => void })
       {filtered.length > 12 && <Text style={s.small}>Mostrando 12 de {filtered.length}. Refine a busca para ver outras lojas.</Text>}
       {!filtered.length && <Text style={s.small}>Nenhuma loja encontrada.</Text>}
     </>}
-    <Button title={app.busy ? "Salvando…" : "Salvar alterações"} disabled={app.busy} onPress={async () => { const result = await app.saveMember(person, { name, chapa, role, stores }); if (result.ok) back(); }} />
+    <Button title={app.busy ? "Salvando…" : "Salvar alterações"} disabled={app.busy || name.trim().length < 2 || !/^\d{1,20}$/.test(chapa.trim()) || (role !== "admin" && !stores.length)} onPress={async () => {
+      const result = await app.saveMember(person, { name, chapa, role, stores: role === "admin" ? [] : stores });
+      if (result.ok) back();
+    }} />
   </Card><Card>
     <Heading title="Segurança do acesso" />
     <Button title={person.active ? "Bloquear acesso" : "Reativar acesso"} danger={person.active} secondary disabled={app.busy} onPress={() => Alert.alert(
