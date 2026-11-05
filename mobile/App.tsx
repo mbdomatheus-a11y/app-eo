@@ -160,18 +160,35 @@ export function StoresScreen() {
   </Page>;
 }
 
-export function PeopleScreen({ edit }: { edit: (id: string) => void }) {
+export function RegisterPersonScreen({ done }: { done: () => void }) {
   const app = useEO(); const workspace = app.workspace!;
   const [chapa, setChapa] = useState(""); const [email, setEmail] = useState(""); const [name, setName] = useState(""); const [role, setRole] = useState<Role>("colaborador"); const [stores, setStores] = useState<string[]>([]);
+  const [storeQuery, setStoreQuery] = useState("");
   const toggleStore = (id: string) => setStores((old) => old.includes(id) ? old.filter((value) => value !== id) : [...old, id]);
-  return <Page><Card><Badge>NOVO ACESSO</Badge><Text style={s.small}>Convite individual. Escolha o perfil e as lojas autorizadas.</Text>
+  const filteredStores = workspace.stores.filter((store) => `${store.code} ${store.name}`.toLocaleLowerCase("pt-BR").includes(storeQuery.trim().toLocaleLowerCase("pt-BR")));
+  const valid = /^\d{1,20}$/.test(chapa.trim()) && /^\S+@\S+\.\S+$/.test(email.trim()) && name.trim().length >= 2 && (role === "admin" || stores.length > 0);
+  return <Page><Card><Heading title="Dados da pessoa" detail="A pessoa recebe um convite por e-mail para definir sua senha." />
     <Field label="Chapa" value={chapa} onChangeText={setChapa} keyboardType="number-pad" placeholder="Número da chapa" maxLength={20} />
     <Field label="E-mail" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" placeholder="nome@exemplo.com" maxLength={254} />
     <Field label="Nome completo" value={name} onChangeText={setName} placeholder="Nome da pessoa" maxLength={120} />
     <Text style={s.label}>Perfil</Text><View style={{ gap: 7 }}>{(["colaborador", "gerente", ...(workspace.person.master_admin ? ["diretor", "admin"] : [])] as Role[]).map((item) => <Choice key={item} label={roleLabels[item]} selected={role === item} onPress={() => setRole(item)} />)}</View>
-    <Text style={s.label}>Lojas autorizadas</Text><View style={{ gap: 7 }}>{workspace.stores.map((store) => <Choice key={store.id} label={`${store.code} · ${store.name}`} selected={stores.includes(store.id)} onPress={() => toggleStore(store.id)} />)}</View>
-    <Button title={app.busy ? "Enviando…" : "Enviar convite"} disabled={app.busy} onPress={async () => { const result = await app.inviteMember({ chapa, email, name, role, stores }); if (result.ok) { setChapa(""); setEmail(""); setName(""); setStores([]); setRole("colaborador"); } }} />
-  </Card>
+    {role === "admin" ? <Text style={s.small}>O perfil Administrador tem acesso à gestão de todas as lojas.</Text> : <>
+      <Field label={`Lojas autorizadas (${stores.length})`} value={storeQuery} onChangeText={setStoreQuery} placeholder="Buscar por código ou nome" />
+      <View style={{ gap: 7 }}>{filteredStores.slice(0, 12).map((store) => <Choice key={store.id} label={`${store.code} · ${store.name}`} selected={stores.includes(store.id)} onPress={() => toggleStore(store.id)} />)}</View>
+      {filteredStores.length > 12 && <Text style={s.small}>Mostrando 12 de {filteredStores.length}. Refine a busca para ver outras lojas.</Text>}
+      {!filteredStores.length && <Text style={s.small}>Nenhuma loja encontrada.</Text>}
+    </>}
+    <Button title={app.busy ? "Enviando…" : "Cadastrar e enviar convite"} disabled={app.busy || !valid} onPress={async () => {
+      const result = await app.inviteMember({ chapa, email, name, role, stores: role === "admin" ? [] : stores });
+      if (result.ok) done();
+    }} />
+  </Card></Page>;
+}
+
+export function PeopleScreen({ edit, register }: { edit: (id: string) => void; register: () => void }) {
+  const app = useEO(); const workspace = app.workspace!;
+  return <Page>
+  <Button title="Cadastrar usuário" icon="＋" onPress={register} />
   <Section title={`Pessoas · ${app.members.length}`} />
   {app.members.map((person) => <PersonCard key={person.id} person={person} ownId={workspace.person.id} edit={() => edit(person.id)} />)}
   {workspace.person.master_admin && <MasterPassword />}

@@ -101,6 +101,8 @@
 .eo-signin .auth-intro p { color: #59606c; }
 .eo-signin .auth-intro .hero-kicker, .eo-signin .auth-seal { color: #555c68; }
 .eo-signin .auth-card { border: 1px solid #e1e3e7; box-shadow: 0 16px 42px #262a320d; }
+.registration-store-list { max-height: 180px; overflow-y: auto; margin-top: 8px; }
+.registration-store-list label[hidden] { display: none; }
 
 @media (max-width: 1050px) {
   .eo-attention { flex-wrap: wrap; }

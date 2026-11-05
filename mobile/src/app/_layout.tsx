@@ -57,6 +57,7 @@ function RootNavigation() {
     <Stack.Screen name="device" options={{ title: "Meu aparelho" }} />
     <Stack.Screen name="stores" options={{ title: "Lojas" }} />
     <Stack.Screen name="people/index" options={{ title: "Pessoas e acessos" }} />
+    <Stack.Screen name="people/new" options={{ title: "Cadastrar usuário" }} />
     <Stack.Screen name="people/[id]" options={{ title: "Editar acesso" }} />
     <Stack.Screen name="audit" options={{ title: "Auditoria" }} />
     <Stack.Screen name="reports" options={{ title: "Relatórios" }} />

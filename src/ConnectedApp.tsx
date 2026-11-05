@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
   type ChangeEvent,
@@ -59,15 +60,16 @@ function Dialog({
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   useEffect(() => {
     const el = ref.current!;
     el.showModal();
     return () => el.close();
   }, []);
   return (
-    <dialog ref={ref} onCancel={close}>
+    <dialog ref={ref} aria-labelledby={titleId} onCancel={(event) => { event.preventDefault(); close(); }}>
       <div className="modal-head">
-        <h2>{title}</h2>
+        <h2 id={titleId}>{title}</h2>
         <button aria-label="Fechar" className="icon-button" onClick={close}>
           <X size={20} />
         </button>
@@ -77,6 +79,9 @@ function Dialog({
   );
 }
 export default function ConnectedApp() {
+  const [registrationOpen, setRegistrationOpen] = useState(false);
+  const [registrationRole, setRegistrationRole] = useState("colaborador");
+  const [registrationStoreQuery, setRegistrationStoreQuery] = useState("");
   const isNative =
     Capacitor.isNativePlatform() ||
     (import.meta.env.DEV &&
@@ -495,7 +500,11 @@ export default function ConnectedApp() {
     e.preventDefault();
     const form = e.currentTarget;
     const data = new FormData(form);
+    const role = String(data.get("role"));
+    const stores = role === "admin" ? [] : data.getAll("stores").map(String);
     await act(async () => {
+      if (role !== "admin" && !stores.length)
+        throw new Error("Selecione ao menos uma loja.");
       const { error: inviteError } = await supabase!.functions.invoke(
         "admin-identity",
         {
@@ -504,8 +513,8 @@ export default function ConnectedApp() {
             email: String(data.get("email")).trim(),
             chapa: String(data.get("chapa")).trim(),
             name: String(data.get("name")).trim(),
-            role: String(data.get("role")),
-            stores: data.getAll("stores").map(String),
+            role,
+            stores,
           },
         },
       );
@@ -514,10 +523,9 @@ export default function ConnectedApp() {
           "Convite não enviado. Confira o SMTP, a chapa e as lojas selecionadas.",
         );
       form.reset();
+      setRegistrationOpen(false);
+      setMessage("Convite enviado. A pessoa criará sua senha no primeiro acesso.");
       setMembers(await rpc<LivePerson[]>("eo_admin_people"));
-      setMessage(
-        "Convite enviado. A pessoa criará sua senha no primeiro acesso.",
-      );
     });
   }
   async function toggleMember(p: LivePerson) {
@@ -1276,11 +1284,17 @@ export default function ConnectedApp() {
               )}
               {tab === "people" && (
                 <>
-                  <section className="panel">
-                    <h2>Convidar pessoa</h2>
+                  <div className="section-heading">
+                    <button className="primary" onClick={() => {
+                      setError("");
+                      setRegistrationRole("colaborador");
+                      setRegistrationStoreQuery("");
+                      setRegistrationOpen(true);
+                    }}><Plus size={17} /> Cadastrar usuário</button>
+                  </div>
+                  {registrationOpen && <Dialog title="Cadastrar usuário" close={() => { if (!busy) setRegistrationOpen(false); }}>
                     <p>
-                      A conta é individual e recebe o perfil e as lojas
-                      selecionadas. A pessoa define sua senha pelo convite.
+                      A pessoa recebe um convite por e-mail para definir sua senha.
                     </p>
                     <form className="form" onSubmit={inviteMember}>
                       <label>
@@ -1294,7 +1308,7 @@ export default function ConnectedApp() {
                         />
                       </label>
                       <label>
-                        E-mail corporativo
+                        E-mail
                         <input
                           name="email"
                           type="email"
@@ -1313,7 +1327,7 @@ export default function ConnectedApp() {
                       </label>
                       <label>
                         Perfil
-                        <select name="role">
+                        <select name="role" value={registrationRole} onChange={(event) => setRegistrationRole(event.target.value)}>
                           <option value="colaborador">Colaborador</option>
                           <option value="gerente">Gerente</option>
                           {workspace.person.master_admin && (
@@ -1324,20 +1338,30 @@ export default function ConnectedApp() {
                           )}
                         </select>
                       </label>
+                      {registrationRole === "admin" ? (
+                        <p className="info-strip">O perfil Administrador tem acesso à gestão de todas as lojas.</p>
+                      ) : (
                       <fieldset>
                         <legend>Lojas autorizadas</legend>
+                        <label>Buscar loja
+                          <input type="search" value={registrationStoreQuery} onChange={(event) => setRegistrationStoreQuery(event.target.value)} placeholder="Código ou nome" />
+                        </label>
+                        <div className="registration-store-list">
                         {workspace.stores.map((s) => (
-                          <label className="checkbox-label" key={s.id}>
+                          <label className="checkbox-label" key={s.id} hidden={!`${s.code} ${s.name}`.toLocaleLowerCase("pt-BR").includes(registrationStoreQuery.trim().toLocaleLowerCase("pt-BR"))}>
                             <input type="checkbox" name="stores" value={s.id} />
                             {s.code} · {s.name}
                           </label>
                         ))}
+                        </div>
                       </fieldset>
+                      )}
+                      {error && <p className="form-error" role="alert">{error}</p>}
                       <button disabled={busy} className="primary">
-                        Enviar convite
+                        {busy ? "Enviando…" : "Cadastrar e enviar convite"}
                       </button>
                     </form>
-                  </section>
+                  </Dialog>}
                   <section className="panel table-panel">
                     <h2>Pessoas cadastradas</h2>
                     <div className="table-wrap">

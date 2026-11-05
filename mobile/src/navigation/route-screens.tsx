@@ -6,6 +6,7 @@ import * as SecureStore from "expo-secure-store";
 import { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEO } from "../providers/eo-provider";
+import { RegisterPersonScreen } from "../../App";
 import { AccessScreen, ArchiveScreen, AuditScreen, ChangePasswordScreen, ComposeScreen, EditPersonScreen, HomeScreen, LoginScreen, ManagementScreen, ModulesScreen, NoticeScreen, NoticesScreen, PeopleScreen, PrivacyScreen, ProfileScreen, ReportsScreen, StoresScreen } from "../../App";
 import type { AdminTab } from "../types";
 import { C, Feedback, s, Page, Card, ActionRow, Section, Badge } from "../ui";
@@ -98,7 +99,12 @@ export function PeopleRoute() {
   const app = useEO();
   useEffect(() => { if (app.workspace?.person.role === "admin") void app.loadAdmin("people"); }, [app.workspace?.person.id]);
   if (app.workspace?.person.role !== "admin") return <Redirect href="/" />;
-  return <RouteFrame><PeopleScreen edit={(id) => router.push({ pathname: "/people/[id]", params: { id } } as never)} /></RouteFrame>;
+  return <RouteFrame><PeopleScreen register={() => router.push("/people/new" as never)} edit={(id) => router.push({ pathname: "/people/[id]", params: { id } } as never)} /></RouteFrame>;
+}
+export function RegisterPersonRoute() {
+  const app = useEO();
+  if (app.workspace?.person.role !== "admin") return <Redirect href="/" />;
+  return <RouteFrame><RegisterPersonScreen done={() => router.back()} /></RouteFrame>;
 }
 export function EditPersonRoute() {
   const app = useEO();
