@@ -216,6 +216,9 @@ jobs:
           chmod 600 "$key_path"
           echo "ASC_API_KEY_PATH=$key_path" >> "$GITHUB_ENV"
 
+      - name: Confirm EO Push capability in Apple Developer
+        run: node ../scripts/ios-ensure-push.mjs
+
       - name: Enable EO Push Notifications capability for automatic signing
         shell: bash
         run: |
@@ -268,6 +271,9 @@ jobs:
           </dict>
           </plist>
           EOF
+          source_entitlements="$(find ios -maxdepth 3 -name '*.entitlements' -not -path '*/Pods/*' -print -quit)"
+          test -n "$source_entitlements"
+          bash ../scripts/ios-signing-preflight.sh "$export_options" "$source_entitlements"
           xcodebuild \
             -workspace "$workspace" \
             -scheme "$app_scheme" \
@@ -283,6 +289,9 @@ jobs:
             CODE_SIGN_STYLE=Automatic \
             CODE_SIGN_IDENTITY="" \
             archive
+          unsigned_app="$(find "$archive_path/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)"
+          test -n "$unsigned_app"
+          bash ../scripts/ios-preserve-entitlements.sh "$unsigned_app" "$source_entitlements" "$RUNNER_TEMP/EO-target-entitlements.plist"
           xcodebuild \
             -exportArchive \
             -archivePath "$archive_path" \
@@ -304,7 +313,7 @@ jobs:
             exit 1
           fi
           signed_entitlements="$RUNNER_TEMP/EO-signed-entitlements.plist"
-          codesign --display --entitlements :- "$archive_app" > "$signed_entitlements"
+          codesign --display --entitlements - --xml "$archive_app" > "$signed_entitlements"
           aps_environment="$(/usr/libexec/PlistBuddy -c 'Print :aps-environment' "$signed_entitlements" 2>/dev/null || true)"
           case "$aps_environment" in
             production) echo "IPA EO com entitlement APNs: $aps_environment" ;;
