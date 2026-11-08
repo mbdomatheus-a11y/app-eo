@@ -105,6 +105,19 @@ jobs:
           CI: '1'
         run: npx expo prebuild --clean --platform ios
 
+      - name: Preserve native build number without changing OTA compatibility
+        shell: bash
+        run: |
+          # O número único já foi escrito no projeto/Info.plist pelo prebuild.
+          # O fingerprint usa o app.json estável do repositório, igual ao EAS Update.
+          node <<'NODE'
+          const fs = require('fs');
+          const { execFileSync } = require('child_process');
+          fs.writeFileSync('app.json', execFileSync('git', ['show', 'HEAD:mobile/app.json']));
+          NODE
+          info_plist="$(find ios -mindepth 2 -maxdepth 2 -name Info.plist -not -path '*/Pods/*' -print -quit)"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$info_plist"
+
       - name: Compile iOS Simulator app
         run: |
           workspace="$(find ios -maxdepth 1 -type d -name '*.xcworkspace' -print -quit)"
@@ -267,7 +280,7 @@ jobs:
             -authenticationKeyID "$ASC_API_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_API_ISSUER_ID" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_STYLE=Automatic \
             archive
           archive_app="$(find "$archive_path/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)"
           if [ -z "$archive_app" ]; then
