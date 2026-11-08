@@ -67,6 +67,11 @@ export function ModulesRoute() {
       <MenuItem title="Venda mês" detail="Resultados do mês" icon="calendar" tint="#EAF4ED" color="#1C985A" onPress={() => router.push("/sales?period=month" as never)} />
       <MenuItem title="Venda ano" detail="Visão anual das lojas" icon="chart.line.uptrend.xyaxis" tint="#EAF4ED" color="#1C985A" last onPress={() => router.push("/sales?period=year" as never)} />
     </Group>
+    <Section title="Comercial e sortimento" />
+    <Group>
+      <MenuItem title="Pedir produto" detail="Relato, texto revisado e categorias" icon="shippingbox.fill" tint="#FFF4D8" color="#A2862F" onPress={() => router.push("/product" as never)} />
+      <MenuItem title="Sortimento por tamanho" detail="Bipe o código e conte por tamanho" icon="barcode.viewfinder" tint="#E7F1F8" color="#0079BF" last onPress={() => router.push("/assortment" as never)} />
+    </Group>
     <Section title="Pessoas e rotina" />
     <Group>
       <MenuItem title="Diário de vendas" detail="Relato, motivos e áudio de até 1 minuto" icon="mic.fill" tint="#FFF0E4" color="#C9772A" onPress={() => router.push("/diary" as never)} />
