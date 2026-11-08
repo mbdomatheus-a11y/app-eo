@@ -44,7 +44,17 @@
           "cameraPermission": "Permita que o EO fotografe evidências dos checklists.",
           "photosPermission": "Permita que o EO escolha evidências para os checklists."
         }
-      ]
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Permita que o EO grave seu relato de vendas por até um minuto.",
+          "enableBackgroundRecording": false,
+          "enableBackgroundPlayback": false
+        }
+      ],
+      "expo-sharing",
+      "expo-asset"
     ],
     "runtimeVersion": {
       "policy": "fingerprint"

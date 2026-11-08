@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import type { Store } from "./types";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from "react-native";
 import { SymbolView, type SymbolViewProps } from "expo-symbols";
 
@@ -50,6 +51,34 @@ export function Field({ label, multiline = false, style, ...props }: TextInputPr
 }
 export function Choice({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   return <Pressable onPress={onPress} style={[s.choice, selected && s.choiceSelected]}><Text style={[s.choiceText, selected && s.choiceTextSelected]}>{selected ? "✓  " : "○  "}{label}</Text></Pressable>;
+}
+export function StorePicker({ stores, selected, onChange }: { stores: Store[]; selected: string[]; onChange: (ids: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [uf, setUf] = useState("");
+  const [region, setRegion] = useState("");
+  const [page, setPage] = useState(0);
+  const [descending, setDescending] = useState(false);
+  const regionOf = (store: Store) => (store.segments?.REGIONAL || store.region || "").trim();
+  const states = [...new Set(stores.map((store) => store.segments?.UF || "").filter(Boolean))].sort();
+  const regions = [...new Set(stores.filter((store) => !uf || store.segments?.UF === uf).map(regionOf).filter(Boolean))].sort((a,b) => a.localeCompare(b,"pt-BR",{numeric:true}));
+  const filtered = stores.filter((store) => (!uf || store.segments?.UF === uf) && (!region || regionOf(store) === region) && `${store.code} ${store.name} ${regionOf(store)}`.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR"))).sort((a,b) => (descending ? -1 : 1) * a.code.localeCompare(b.code,"pt-BR",{numeric:true}));
+  const current = Math.min(page, Math.max(0,Math.ceil(filtered.length/12)-1));
+  const addFiltered = () => onChange([...new Set([...selected,...filtered.map((store) => store.id)])]);
+  return <View style={{ gap: 9 }}><Button title={`${open ? "Recolher" : "Selecionar"} lojas · ${selected.length} selecionadas`} secondary onPress={() => setOpen(!open)} />{open && <>
+    <Text style={s.small}>A seleção é mantida ao mudar a busca e os filtros.</Text>
+    <Field label="Buscar lojas" value={query} onChangeText={(value) => { setQuery(value); setPage(0); }} placeholder="Código, nome ou regional" />
+    <Text style={s.label}>UF</Text><ScrollView horizontal keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 7 }}>{["",...states].map((value) => <Choice key={value} label={value || "Todas"} selected={uf===value} onPress={() => { setUf(value); setRegion(""); setPage(0); }} />)}</ScrollView>
+    <Text style={s.label}>Regional</Text><ScrollView horizontal keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 7 }}>{["",...regions].map((value) => <Choice key={value} label={value || "Todas"} selected={region===value} onPress={() => { setRegion(value); setPage(0); }} />)}</ScrollView>
+    <Button title={`Selecionar todas as lojas (${stores.length})`} secondary onPress={() => onChange([...new Set([...selected,...stores.map((store)=>store.id)])])} />
+    <Button title={`Adicionar lojas do filtro (${filtered.length})`} secondary disabled={!filtered.length} onPress={addFiltered} />
+    <Button title="Remover lojas do filtro" secondary disabled={!filtered.length} onPress={() => { const ids = new Set(filtered.map((store) => store.id)); onChange(selected.filter((id) => !ids.has(id))); }} />
+    <Button title="Limpar seleção" secondary disabled={!selected.length} onPress={() => onChange([])} />
+    <Choice label={descending ? "Código: maior para menor" : "Código: menor para maior"} selected={descending} onPress={() => setDescending(!descending)} />
+    {filtered.slice(current*12,current*12+12).map((store) => <Choice key={store.id} label={`${store.code} · ${store.name}${regionOf(store) ? ` · ${regionOf(store)}` : ""}`} selected={selected.includes(store.id)} onPress={() => onChange(selected.includes(store.id) ? selected.filter((id) => id!==store.id) : [...selected,store.id])} />)}
+    <Text style={s.small}>{filtered.length ? `${current*12+1} a ${Math.min(current*12+12,filtered.length)} de ${filtered.length} lojas` : "Nenhuma loja encontrada."}</Text>
+    <View style={{ flexDirection: "row", gap: 10 }}><View style={{flex:1}}><Button title="Anterior" secondary disabled={current===0} onPress={() => setPage(current-1)} /></View><View style={{flex:1}}><Button title="Próxima" secondary disabled={(current+1)*12>=filtered.length} onPress={() => setPage(current+1)} /></View></View>
+  </>}</View>;
 }
 export function Badge({ children, warning = false, success = false }: { children: ReactNode; warning?: boolean; success?: boolean }) {
   return <View style={[s.badge, warning && s.badgeWarning, success && s.badgeSuccess]}><Text style={[s.badgeText, warning && s.badgeTextWarning, success && s.badgeTextSuccess]}>{children}</Text></View>;

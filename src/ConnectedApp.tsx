@@ -48,8 +48,25 @@ import { roleLabels } from "./core/domain";
 import { readOrgWorkbook } from "./core/xlsx-reader";
 import { createXlsx } from "./core/xlsx-writer";
 import NativeExperience from "./mobile/NativeExperience";
+import { SalesReports } from "./features/sales/SalesReports";
+import { OperationsPanel } from "./features/operations/OperationsPanel";
 
-type Page = "home" | "notices" | "modules" | "admin";
+type Page = "home" | "notices" | "modules" | "admin" | "sales" | "diary" | "mood";
+type AdminStore = Store & { active: boolean };
+function StorePicker({ stores, selected, onChange }: { stores: Store[]; selected: string[]; onChange: (ids: string[]) => void }) {
+  const [search,setSearch] = useState(""); const [uf,setUf] = useState(""); const [region,setRegion] = useState(""); const [page,setPage] = useState(0); const [sort,setSort] = useState("code");
+  const regionOf = (store: Store) => store.segments?.REGIONAL || store.region || "";
+  const filtered = stores.filter((store) => (!uf || store.segments?.UF===uf) && (!region || regionOf(store)===region) && `${store.code} ${store.name} ${regionOf(store)}`.toLocaleLowerCase("pt-BR").includes(search.trim().toLocaleLowerCase("pt-BR"))).sort((a,b)=>(sort==="name" ? a.name.localeCompare(b.name,"pt-BR") : a.code.localeCompare(b.code,"pt-BR",{numeric:true})));
+  const current = Math.min(page,Math.max(0,Math.ceil(filtered.length/20)-1));
+  return <div className="store-picker">{selected.map((id)=><input key={id} type="hidden" name="stores" value={id} />)}<p className="field-hint">{selected.length} lojas selecionadas. A seleção permanece ao mudar os filtros.</p><details><summary>Selecionar lojas</summary><div className="form-grid">
+    <label>Buscar loja<input type="search" value={search} onChange={(e)=>{setSearch(e.target.value);setPage(0);}} placeholder="Código, nome ou regional" /></label>
+    <label>UF<select value={uf} onChange={(e)=>{setUf(e.target.value);setRegion("");setPage(0);}}><option value="">Todas</option>{[...new Set(stores.map((store)=>store.segments?.UF || "").filter(Boolean))].sort().map((value)=><option key={value}>{value}</option>)}</select></label>
+    <label>Regional<select value={region} onChange={(e)=>{setRegion(e.target.value);setPage(0);}}><option value="">Todas</option>{[...new Set(stores.filter((store)=>!uf || store.segments?.UF===uf).map(regionOf).filter(Boolean))].sort().map((value)=><option key={value}>{value}</option>)}</select></label>
+    <label>Ordenação<select value={sort} onChange={(e)=>setSort(e.target.value)}><option value="code">Código</option><option value="name">Nome</option></select></label></div>
+    <div className="selection-actions"><button type="button" className="secondary" onClick={()=>onChange([...new Set([...selected,...stores.map((store)=>store.id)])])}>Todas ({stores.length})</button><button type="button" className="secondary" onClick={()=>onChange([...new Set([...selected,...filtered.map((store)=>store.id)])])}>Adicionar filtro ({filtered.length})</button><button type="button" className="secondary" onClick={()=>{const ids=new Set(filtered.map((store)=>store.id));onChange(selected.filter((id)=>!ids.has(id)));}}>Remover filtro</button><button type="button" className="text-button" onClick={()=>onChange([])}>Limpar seleção</button></div>
+    <div className="registration-store-list">{filtered.slice(current*20,current*20+20).map((store)=><label className="checkbox-label" key={store.id}><input type="checkbox" checked={selected.includes(store.id)} onChange={(e)=>onChange(e.target.checked ? [...selected,store.id] : selected.filter((id)=>id!==store.id))} />{store.code} · {store.name}{regionOf(store) && ` · ${regionOf(store)}`}</label>)}</div>
+    <div className="pagination"><button type="button" className="secondary" disabled={!current} onClick={()=>setPage(current-1)}>Anterior</button><span>{filtered.length ? `${current*20+1} a ${Math.min(current*20+20,filtered.length)} de ${filtered.length}` : "Nenhuma loja encontrada"}</span><button type="button" className="secondary" disabled={(current+1)*20>=filtered.length} onClick={()=>setPage(current+1)}>Próxima</button></div></details></div>;
+}
 function Dialog({
   title,
   close,
@@ -81,10 +98,7 @@ function Dialog({
 export default function ConnectedApp() {
   const [registrationOpen, setRegistrationOpen] = useState(false);
   const [registrationRole, setRegistrationRole] = useState("colaborador");
-  const [registrationStoreQuery, setRegistrationStoreQuery] = useState("");
   const [registrationDirty, setRegistrationDirty] = useState(false);
-  const [registrationUf, setRegistrationUf] = useState("");
-  const [registrationRegion, setRegistrationRegion] = useState("");
   const [registrationStores, setRegistrationStores] = useState<string[]>([]);
   const [passwordTarget, setPasswordTarget] = useState<Pick<LivePerson, "id" | "display_name" | "login_chapa"> | null>(null);
   useEffect(() => {
@@ -142,13 +156,33 @@ export default function ConnectedApp() {
   const [editingStore, setEditingStore] = useState<Record<string, unknown> | null>(null);
   const [templateChoice, setTemplateChoice] = useState(false);
   const [storeSearch, setStoreSearch] = useState("");
+  const [importPage,setImportPage] = useState(0);
+  const [adminStores,setAdminStores] = useState<AdminStore[]>([]);
+  const [managedStore,setManagedStore] = useState<AdminStore | null>(null);
+  const [storeUf,setStoreUf] = useState(""); const [storeRegion,setStoreRegion] = useState(""); const [storeState,setStoreState] = useState("active"); const [storePage,setStorePage] = useState(0);
+  const [peopleSearch,setPeopleSearch] = useState(""); const [peopleRole,setPeopleRole] = useState(""); const [peopleState,setPeopleState] = useState(""); const [peopleRegion,setPeopleRegion] = useState(""); const [peopleUf,setPeopleUf] = useState(""); const [peopleSort,setPeopleSort] = useState("name"); const [peoplePage,setPeoplePage] = useState(0); const [peopleTotal,setPeopleTotal] = useState(0);
+  const [editStores,setEditStores] = useState<string[]>([]); const [composeStores,setComposeStores] = useState<string[]>([]);
+  const peopleRequest = useRef(0);
+  const searchPeople = useCallback(async () => {
+    const request = ++peopleRequest.current;
+    const result = await rpc<{items: LivePerson[];total:number}>("eo_admin_people_page", {p_search:peopleSearch,p_role:peopleRole,p_state:peopleState,p_region:peopleRegion,p_uf:peopleUf,p_sort:peopleSort,p_limit:30,p_offset:peoplePage*30});
+    if(request===peopleRequest.current){setMembers(result.items);setPeopleTotal(result.total);}
+  },[peopleSearch,peopleRole,peopleState,peopleRegion,peopleUf,peopleSort,peoplePage]);
+  useEffect(()=>{
+    if(page!=="admin" || tab!=="people" || workspace?.person.role!=="admin")return;
+    const timer=setTimeout(()=>void searchPeople().catch((cause)=>setError(cause instanceof Error ? cause.message : "Não foi possível buscar pessoas.")),250);
+    return()=>clearTimeout(timer);
+  },[page,tab,workspace?.person.role,searchPeople]);
   const epoch = useRef(0),
     requestId = useRef(crypto.randomUUID());
   const clear = useCallback(() => {
     epoch.current++;
     setWorkspace(null);
     setNotices([]);
+    peopleRequest.current++;
     setMembers([]);
+    setPeopleTotal(0);
+    setAdminStores([]);
     setAudit([]);
     setOpened(null);
     setImportData(null);
@@ -480,8 +514,8 @@ export default function ConnectedApp() {
           setReportData(await rpc("eo_admin_notice_report", { p_notice: messages[0].notice_id, p_version: messages[0].version, p_group_by: reportGroup, p_segment_by: reportSegmentBy || null, p_segment_values: reportSegmentValues }));
         } else setReportData(null);
       }
-      if (which === "people")
-        setMembers(await rpc<LivePerson[]>("eo_admin_people"));
+      if (which === "people") await searchPeople();
+      if (which === "stores") setAdminStores(await rpc<AdminStore[]>("eo_admin_stores"));
       if (which === "import") {
         try {
           const latest = await rpc<{ id?: string; created_at?: string; source_name?: string; store_count?: number; manager_count?: number; regional_count?: number; people_count?: number; assignment_count?: number }>("eo_admin_import_status");
@@ -507,7 +541,15 @@ export default function ConnectedApp() {
       });
       form.reset();
       await refresh();
+      setAdminStores(await rpc<AdminStore[]>("eo_admin_stores"));
       setMessage("Loja cadastrada.");
+    });
+  }
+  async function saveManagedStore(store: AdminStore) {
+    await act(async()=>{
+      await rpc("eo_admin_manage_store",{p_store:store.id,p_code:store.code,p_name:store.name,p_region:store.region,p_active:store.active});
+      setAdminStores(await rpc<AdminStore[]>("eo_admin_stores")); await refresh(); setStorePage(0); setManagedStore(null);
+      setMessage("Loja atualizada. Histórico e vínculos preservados.");
     });
   }
   async function inviteMember(e: FormEvent<HTMLFormElement>) {
@@ -546,8 +588,7 @@ export default function ConnectedApp() {
       setTemporaryPassword(created.password);
       setPasswordTarget({ id: "", display_name: String(data.get("name")).trim(), login_chapa: String(data.get("chapa")).trim() });
       setMessage("Usuário cadastrado. Compartilhe a senha temporária com a pessoa.");
-      const updated = await rpc<LivePerson[]>("eo_admin_people").catch(() => null);
-      if (updated) setMembers(updated);
+      await searchPeople();
     });
   }
   async function toggleMember(p: LivePerson) {
@@ -574,10 +615,10 @@ export default function ConnectedApp() {
         p_name: String(data.get("name")).trim(),
         p_role: String(data.get("role")),
         p_chapa: String(data.get("chapa")).trim(),
-        p_stores: data.getAll("stores").map(String),
+        p_stores: editStores,
         p_active: editingMember.active,
       });
-      setMembers(await rpc<LivePerson[]>("eo_admin_people"));
+      await searchPeople();
       setEditingMember(null);
       setMessage("Perfil e abrangência atualizados.");
     });
@@ -875,19 +916,17 @@ export default function ConnectedApp() {
   const admin = workspace.person.role === "admin",
     leader = admin || workspace.person.role === "diretor";
   const pendingNoticeCount = notices.filter((notice) => !notice.acknowledged).length;
-  const registrationFiltered = workspace.stores.filter((store) =>
-    (!registrationUf || store.segments?.UF?.trim() === registrationUf) &&
-    (!registrationRegion || (store.segments?.REGIONAL || store.region || "").trim() === registrationRegion) &&
-    `${store.code} ${store.name}`.toLocaleLowerCase("pt-BR").includes(registrationStoreQuery.trim().toLocaleLowerCase("pt-BR")),
-  );
-  const registrationRegions = [...new Set(workspace.stores
-    .filter((store) => !registrationUf || store.segments?.UF?.trim() === registrationUf)
-    .map((store) => (store.segments?.REGIONAL || store.region || "").trim()).filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }));
+  const filteredAdminStores = adminStores.filter((store)=>(!storeUf || store.segments?.UF===storeUf) && (!storeRegion || (store.segments?.REGIONAL || store.region)===storeRegion) && (!storeState || store.active===(storeState==="active")) && `${store.code} ${store.name} ${store.region}`.toLocaleLowerCase("pt-BR").includes(storeSearch.trim().toLocaleLowerCase("pt-BR"))).sort((a,b)=>{
+    const key=storeSort.key==="name" ? "name" : storeSort.key==="region" ? "region" : "code";
+    return (storeSort.direction==="asc" ? 1 : -1)*a[key].localeCompare(b[key],"pt-BR",{numeric:true});
+  });
   const navigation = [
     { id: "home" as const, label: "Visão geral", icon: Home },
     { id: "notices" as const, label: "Comunicados", icon: Megaphone },
     { id: "modules" as const, label: "Aplicativos", icon: Grid2X2 },
+    { id: "sales" as const, label: "Vendas", icon: Building2 },
+    { id: "diary" as const, label: "Diário de vendas", icon: Mic },
+    { id: "mood" as const, label: "Como está seu dia?", icon: Users },
     ...(admin
       ? [{ id: "admin" as const, label: "Administração", icon: Settings2 }]
       : []),
@@ -897,7 +936,6 @@ export default function ConnectedApp() {
     { title: "Cartazeamento", icon: FileImage },
     { title: "Escala da equipe", icon: CalendarDays },
     { title: "Fotos e evidências", icon: Upload },
-    { title: "Diário de vendas", icon: Mic },
   ];
   return (
     <div className="app-shell eo-portal">
@@ -1138,11 +1176,17 @@ export default function ConnectedApp() {
               )}
             </>
           )}
+          {page === "sales" && <SalesReports workspace={workspace} />}
+          {page === "diary" && <OperationsPanel workspace={workspace} />}
+          {page === "mood" && <OperationsPanel workspace={workspace} initialTab="mood" />}
           {page === "modules" && (
             <>
               <section className="eo-shortcuts" aria-labelledby="eo-available-title">
                 <h2 id="eo-available-title">Disponíveis no portal</h2>
                 <div className="eo-tile-grid">
+                  <button className="eo-tile" onClick={() => setPage("sales")}><span className="eo-tile-icon" data-tone="blue"><Building2 size={21} /></span><strong>Vendas</strong><small>Semana, mês e ano</small></button>
+                  <button className="eo-tile" onClick={() => setPage("diary")}><span className="eo-tile-icon" data-tone="green"><Mic size={21} /></span><strong>Diário de vendas</strong><small>Relatos, motivos e áudio</small></button>
+                  <button className="eo-tile" onClick={() => setPage("mood")}><span className="eo-tile-icon" data-tone="purple"><Users size={21} /></span><strong>Como está seu dia?</strong><small>Sentimento e acompanhamento</small></button>
                   <button className="eo-tile" onClick={() => setPage("notices")}>
                     <span className="eo-tile-icon" data-tone="gold"><Megaphone size={21} /></span>
                     <strong>Comunicados</strong><small>Orientações e confirmações</small>
@@ -1218,28 +1262,15 @@ export default function ConnectedApp() {
                       </button>
                     </form>
                   </section>
-                  <section className="panel">
-                    <h2>Lojas cadastradas</h2>
-                    <div className="table-wrap">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Código</th>
-                            <th>Loja</th>
-                            <th>Regional</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {workspace.stores.map((s) => (
-                            <tr key={s.id}>
-                              <td>{s.code}</td>
-                              <td>{s.name}</td>
-                              <td>{s.region}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                  <section className="panel"><h2>Lojas cadastradas</h2>
+                    <div className="form-grid"><label>Buscar<input type="search" value={storeSearch} onChange={(e)=>{setStoreSearch(e.target.value);setStorePage(0);}} placeholder="Código, nome ou regional" /></label>
+                    <label>UF<select value={storeUf} onChange={(e)=>{setStoreUf(e.target.value);setStoreRegion("");setStorePage(0);}}><option value="">Todas</option>{[...new Set(adminStores.map((store)=>store.segments?.UF || "").filter(Boolean))].sort().map((value)=><option key={value}>{value}</option>)}</select></label>
+                    <label>Regional<select value={storeRegion} onChange={(e)=>{setStoreRegion(e.target.value);setStorePage(0);}}><option value="">Todas</option>{[...new Set(adminStores.filter((store)=>!storeUf || store.segments?.UF===storeUf).map((store)=>store.segments?.REGIONAL || store.region).filter(Boolean))].sort().map((value)=><option key={value}>{value}</option>)}</select></label>
+                    <label>Situação<select value={storeState} onChange={(e)=>{setStoreState(e.target.value);setStorePage(0);}}><option value="active">Ativas</option><option value="archived">Arquivadas</option><option value="">Todas</option></select></label>
+                    <label>Ordenar<select value={storeSort.key} onChange={(e)=>setStoreSort({...storeSort,key:e.target.value})}><option value="code">Código</option><option value="name">Nome</option><option value="region">Regional</option></select></label>
+                    <label>Ordem<select value={storeSort.direction} onChange={(e)=>setStoreSort({...storeSort,direction:e.target.value as "asc"|"desc"})}><option value="asc">Crescente</option><option value="desc">Decrescente</option></select></label></div>
+                    <div className="table-wrap"><table><thead><tr><th>Código</th><th>Loja</th><th>UF</th><th>Regional</th><th>Situação</th><th>Ação</th></tr></thead><tbody>{filteredAdminStores.slice(storePage*30,storePage*30+30).map((store)=><tr key={store.id}><td>{store.code}</td><td>{store.name}</td><td>{store.segments?.UF || ""}</td><td>{store.segments?.REGIONAL || store.region}</td><td>{store.active ? "Ativa" : "Arquivada"}</td><td><button className="text-button" onClick={()=>setManagedStore({...store})}>Editar</button></td></tr>)}</tbody></table></div>
+                    <div className="pagination"><button className="secondary" disabled={!storePage} onClick={()=>setStorePage(storePage-1)}>Anterior</button><span>{filteredAdminStores.length} lojas · página {storePage+1}</span><button className="secondary" disabled={(storePage+1)*30>=filteredAdminStores.length} onClick={()=>setStorePage(storePage+1)}>Próxima</button></div>
                   </section>
                 </div>
               )}
@@ -1258,13 +1289,13 @@ export default function ConnectedApp() {
                   <div className="panel" style={{ marginTop: 20 }}>
                     <h3>Análise da base carregada</h3>
                     <p>Consulte os registros atuais, ordene as colunas e edite os dados da loja. As alterações ficam na auditoria.</p>
-                    <div className="form-grid"><label>Buscar em todas as colunas<input value={storeSearch} onChange={(event) => setStoreSearch(event.currentTarget.value)} placeholder="COD, loja, cidade, gerente…" /></label>
+                    <div className="form-grid"><label>Buscar em todas as colunas<input value={storeSearch} onChange={(event) => {setStoreSearch(event.currentTarget.value);setImportPage(0);}} placeholder="COD, loja, cidade, gerente…" /></label>
                       <label>Ordenar coluna<select value={storeSort.key} onChange={(event) => setStoreSort((current) => ({ ...current, key: event.currentTarget.value }))}>{Object.keys(storeRecords()[0] ?? {}).filter((key) => key !== "__id").map((key) => <option key={key}>{key}</option>)}</select></label>
                       <label>Ordem<select value={storeSort.direction} onChange={(event) => setStoreSort((current) => ({ ...current, direction: event.currentTarget.value as "asc" | "desc" }))}><option value="asc">A a Z · menor para maior</option><option value="desc">Z a A · maior para menor</option></select></label>
                     </div>
                     <div className="info-strip" style={{ margin: "10px 0" }}>{orderedStoreRecords().length.toLocaleString("pt-BR")} lojas visíveis · {Object.keys(storeRecords()[0] ?? {}).filter((key) => key !== "__id").length} colunas carregadas</div>
-                    <div className="table-wrap"><table><thead><tr>{Object.keys(storeRecords()[0] ?? {}).filter((key) => key !== "__id").map((key) => <th key={key}><button className="text-button" type="button" onClick={() => setStoreSort((current) => ({ key, direction: current.key === key && current.direction === "asc" ? "desc" : "asc" }))}>{key}{storeSort.key === key ? storeSort.direction === "asc" ? " ↑" : " ↓" : ""}</button></th>)}<th>Ação</th></tr></thead><tbody>{orderedStoreRecords().slice(0, 500).map((row) => <tr key={String(row.__id)}>{Object.keys(row).filter((key) => key !== "__id").map((key) => <td key={key}>{String(row[key] ?? "")}</td>)}<td><button type="button" className="secondary" onClick={() => setEditingStore(row)}>Editar</button></td></tr>)}</tbody></table></div>
-                    {orderedStoreRecords().length > 500 && <p className="field-hint">A tabela mostra as primeiras 500 linhas filtradas para manter a navegação rápida. Use a busca para localizar as demais.</p>}
+                    <div className="table-wrap"><table><thead><tr>{Object.keys(storeRecords()[0] ?? {}).filter((key) => key !== "__id").map((key) => <th key={key}><button className="text-button" type="button" onClick={() => { setImportPage(0); setStoreSort((current) => ({ key, direction: current.key === key && current.direction === "asc" ? "desc" : "asc" })); }}>{key}{storeSort.key === key ? storeSort.direction === "asc" ? " ↑" : " ↓" : ""}</button></th>)}<th>Ação</th></tr></thead><tbody>{orderedStoreRecords().slice(importPage*30, importPage*30+30).map((row) => <tr key={String(row.__id)}>{Object.keys(row).filter((key) => key !== "__id").map((key) => <td key={key}>{String(row[key] ?? "")}</td>)}<td><button type="button" className="secondary" onClick={() => setEditingStore(row)}>Editar</button></td></tr>)}</tbody></table></div>
+                    <div className="pagination"><button className="secondary" type="button" disabled={!importPage} onClick={()=>setImportPage(importPage-1)}>Anterior</button><span>Página {importPage+1} · até 30 lojas por página</span><button className="secondary" type="button" disabled={(importPage+1)*30>=orderedStoreRecords().length} onClick={()=>setImportPage(importPage+1)}>Próxima</button></div>
                     {!importedStores.length && <p className="field-hint">Aplique a migration 007 para habilitar a consulta e edição da base ativa.</p>}
                   </div>
                   {activeImport ? (
@@ -1327,10 +1358,10 @@ export default function ConnectedApp() {
                     <button className="primary" onClick={() => {
                       setError("");
                       setRegistrationRole("colaborador");
-                      setRegistrationStoreQuery("");
+
                       setRegistrationDirty(false);
-                      setRegistrationUf("");
-                      setRegistrationRegion("");
+
+
                       setRegistrationStores([]);
                       setRegistrationOpen(true);
                     }}><Plus size={17} /> Cadastrar usuário</button>
@@ -1374,62 +1405,16 @@ export default function ConnectedApp() {
                         <select name="role" value={registrationRole} onChange={(event) => setRegistrationRole(event.target.value)}>
                           <option value="colaborador">Colaborador</option>
                           <option value="gerente">Gerente</option>
-                          {workspace.person.master_admin && (
-                            <option value="diretor">Diretor</option>
-                          )}
-                          {workspace.person.master_admin && (
-                            <option value="admin">Administrador</option>
-                          )}
+                          <option value="diretor">Diretor</option>
+                          <option value="admin">Administrador</option>
                         </select>
                       </label>
                       {registrationRole === "admin" ? (
                         <p className="info-strip">O perfil Administrador tem acesso à gestão de todas as lojas.</p>
                       ) : (
-                      <fieldset>
-                        <legend>Lojas autorizadas</legend>
-                        <button type="button" className="secondary" aria-pressed={!registrationStores.length} onClick={() => {
-                          setRegistrationStores([]);
-                          setRegistrationDirty(true);
-                        }}>{!registrationStores.length && <CheckCheck size={16} />} Todas as lojas ({workspace.stores.length})</button>
-                        <p className="field-hint">{registrationStores.length ? `${registrationStores.length} loja(s) selecionada(s).` : "Sem seleção individual, o acesso inclui todas as lojas atuais."}</p>
-                        <div className="form-grid">
-                          <label>Estado
-                            <select value={registrationUf} onChange={(event) => { setRegistrationUf(event.target.value); setRegistrationRegion(""); }}>
-                              <option value="">Todos os estados</option>
-                              {segmentValuesFor(workspace.stores, "UF").map((uf) => <option key={uf}>{uf}</option>)}
-                            </select>
-                          </label>
-                          <label>Regional
-                            <select value={registrationRegion} onChange={(event) => setRegistrationRegion(event.target.value)}>
-                              <option value="">Todas as regionais</option>
-                              {registrationRegions.map((region) => <option key={region}>{region}</option>)}
-                            </select>
-                          </label>
-                        </div>
-                        <label>Buscar loja
-                          <input type="search" value={registrationStoreQuery} onChange={(event) => setRegistrationStoreQuery(event.target.value)} placeholder="Código ou nome" />
-                        </label>
-                        {!!registrationFiltered.length && registrationFiltered.length < workspace.stores.length && (
-                          <button type="button" className="text-button" onClick={() => {
-                            setRegistrationStores((current) => [...new Set([...current, ...registrationFiltered.map((store) => store.id)])]);
-                            setRegistrationDirty(true);
-                          }}>Selecionar as {registrationFiltered.length} lojas do filtro</button>
-                        )}
-                        <details>
-                        <summary>Mostrar lojas ({registrationFiltered.length})</summary>
-                        <div className="registration-store-list">
-                        {registrationFiltered.map((s) => (
-                          <label className="checkbox-label" key={s.id}>
-                            <input type="checkbox" checked={registrationStores.includes(s.id)} onChange={(event) => {
-                              const checked = event.target.checked;
-                              setRegistrationStores((current) => checked ? [...current, s.id] : current.filter((id) => id !== s.id));
-                            }} />
-                            {s.code} · {s.name}
-                          </label>
-                        ))}
-                        {!registrationFiltered.length && <p>Nenhuma loja encontrada.</p>}
-                        </div>
-                        </details>
+                      <fieldset><legend>Lojas autorizadas</legend>
+                        <p className="field-hint">Sem seleção individual, o cadastro inclui todas as lojas atuais.</p>
+                        <StorePicker stores={workspace.stores} selected={registrationStores} onChange={(ids)=>{setRegistrationStores(ids);setRegistrationDirty(true);}} />
                       </fieldset>
                       )}
                       {error && <p className="form-error" role="alert">{error}</p>}
@@ -1442,6 +1427,14 @@ export default function ConnectedApp() {
                   </Dialog>}
                   <section className="panel table-panel">
                     <h2>Pessoas cadastradas</h2>
+                    <div className="form-grid"><label>Buscar pessoas<input type="search" value={peopleSearch} onChange={(e)=>{setPeopleSearch(e.target.value);setPeoplePage(0);}} placeholder="Nome, chapa ou e-mail" /></label>
+                    <label>Perfil<select value={peopleRole} onChange={(e)=>{setPeopleRole(e.target.value);setPeoplePage(0);}}><option value="">Todos</option><option value="colaborador">Colaborador</option><option value="gerente">Gerente</option><option value="diretor">Diretor</option><option value="admin">Administrador</option></select></label>
+                    <label>Situação<select value={peopleState} onChange={(e)=>{setPeopleState(e.target.value);setPeoplePage(0);}}><option value="">Todas</option><option value="active">Ativos</option><option value="archived">Arquivados</option><option value="pending">Primeiro acesso</option></select></label>
+                    <label>UF<select value={peopleUf} onChange={(e)=>{setPeopleUf(e.target.value);setPeopleRegion("");setPeoplePage(0);}}><option value="">Todas</option>{segmentValuesFor(workspace.stores,"UF").map((value)=><option key={value}>{value}</option>)}</select></label>
+                    <label>Regional<select value={peopleRegion} onChange={(e)=>{setPeopleRegion(e.target.value);setPeoplePage(0);}}><option value="">Todas</option>{[...new Set(workspace.stores.filter((store)=>!peopleUf || store.segments?.UF===peopleUf).map((store)=>store.segments?.REGIONAL || store.region).filter(Boolean))].sort().map((value)=><option key={value}>{value}</option>)}</select></label>
+                    <label>Ordenar<select value={peopleSort} onChange={(e)=>{setPeopleSort(e.target.value);setPeoplePage(0);}}><option value="name">Nome</option><option value="chapa">Chapa</option><option value="role">Perfil</option></select></label></div>
+                    <p className="field-hint">{peopleTotal} pessoas encontradas · até 30 por página</p>
+
                     <div className="table-wrap">
                       <table>
                         <thead>
@@ -1469,7 +1462,7 @@ export default function ConnectedApp() {
                                     : "Ativo"}
                               </td>
                               <td>
-                                {p.active && p.login_chapa && (workspace.person.master_admin || !["admin", "diretor"].includes(p.role)) && (
+                                {p.active && p.login_chapa && (
                                   <button className="text-button" disabled={busy} onClick={() => {
                                     setError("");
                                     setTemporaryPassword("");
@@ -1481,15 +1474,14 @@ export default function ConnectedApp() {
                                     <button
                                       className="text-button"
                                       disabled={
-                                        busy ||
-                                        (!workspace.person.master_admin &&
-                                          ["admin", "diretor"].includes(p.role))
+                                        busy
                                       }
                                       onClick={() => {
                                         setError("");
-                                        setRegistrationUf("");
-                                        setRegistrationRegion("");
-                                        setRegistrationStoreQuery("");
+
+
+
+                                        setEditStores(p.stores);
                                         setEditingMember(p);
                                       }}
                                     >
@@ -1498,15 +1490,13 @@ export default function ConnectedApp() {
                                     <button
                                       className="text-button"
                                       disabled={
-                                        busy ||
-                                        (!workspace.person.master_admin &&
-                                          ["admin", "diretor"].includes(p.role))
+                                        busy
                                       }
                                       onClick={() => {
-                                        if (window.confirm(`${p.active ? "Bloquear" : "Reativar"} o acesso de ${p.display_name}?`)) void toggleMember(p);
+                                        if (window.confirm(`${p.active ? "Arquivar" : "Reativar"} o acesso de ${p.display_name}?`)) void toggleMember(p);
                                       }}
                                     >
-                                      {p.active ? "Bloquear" : "Reativar"}
+                                      {p.active ? "Arquivar" : "Reativar"}
                                     </button>
                                   </>
                                 )}
@@ -1516,6 +1506,7 @@ export default function ConnectedApp() {
                         </tbody>
                       </table>
                     </div>
+                    <div className="pagination"><button className="secondary" disabled={!peoplePage || busy} onClick={()=>setPeoplePage(peoplePage-1)}>Anterior</button><span>Página {peoplePage+1}</span><button className="secondary" disabled={(peoplePage+1)*30>=peopleTotal || busy} onClick={()=>setPeoplePage(peoplePage+1)}>Próxima</button></div>
                   </section>
                 </>
               )}
@@ -1631,7 +1622,7 @@ export default function ConnectedApp() {
         </main>
       </div>
       <nav className="mobile-nav" aria-label="Navegação principal">
-        {navigation.map((n) => (
+        {navigation.filter((item) => ["home", "notices", "modules", "admin"].includes(item.id)).map((n) => (
           <button
             key={n.id}
             aria-current={page === n.id ? "page" : undefined}
@@ -1734,14 +1725,7 @@ export default function ConnectedApp() {
                   {availableRegions.map((region) => <option key={region} value={region}>{region}</option>)}
                 </select>
               </label>
-              <div className="store-target-list">
-                {filterStores(workspace.stores, composeSegmentBy, composeSegmentValues).map((store) => (
-                  <label className="checkbox-label" key={store.id}>
-                    <input type="checkbox" name="stores" value={store.id} />
-                    {store.code} · {store.name}{store.region ? ` · ${store.region}` : ""}
-                  </label>
-                ))}
-              </div>
+              <StorePicker stores={filterStores(workspace.stores, composeSegmentBy, composeSegmentValues)} selected={composeStores} onChange={setComposeStores} />
               <p className="field-hint">A seleção respeita sua abrangência de acesso. Marque lojas apenas ao escolher “Selecionar lojas”.</p>
             </fieldset>
             <label className="checkbox-label">
@@ -1808,52 +1792,20 @@ export default function ConnectedApp() {
                 inputMode="numeric"
                 pattern="[0-9]{1,20}"
                 defaultValue={editingMember.login_chapa ?? ""}
+                readOnly
               />
             </label>
+            <p className="field-hint">A chapa identifica o login e não pode ser alterada.</p>
             <label>
               Perfil
               <select name="role" defaultValue={editingMember.role}>
                 <option value="colaborador">Colaborador</option>
                 <option value="gerente">Gerente</option>
-                {workspace.person.master_admin && (
-                  <option value="diretor">Diretor</option>
-                )}
-                {workspace.person.master_admin && (
-                  <option value="admin">Administrador</option>
-                )}
+                <option value="diretor">Diretor</option>
+                <option value="admin">Administrador</option>
               </select>
             </label>
-            <fieldset>
-              <legend>Lojas autorizadas</legend>
-              <details>
-              <summary>Mostrar lojas ({editingMember.stores.length} vinculadas)</summary>
-              <div className="form-grid">
-                <label>Estado<select value={registrationUf} onChange={(event) => { setRegistrationUf(event.target.value); setRegistrationRegion(""); }}>
-                  <option value="">Todos os estados</option>
-                  {segmentValuesFor(workspace.stores, "UF").map((uf) => <option key={uf}>{uf}</option>)}
-                </select></label>
-                <label>Regional<select value={registrationRegion} onChange={(event) => setRegistrationRegion(event.target.value)}>
-                  <option value="">Todas as regionais</option>
-                  {registrationRegions.map((region) => <option key={region}>{region}</option>)}
-                </select></label>
-              </div>
-              <label>Buscar loja<input type="search" value={registrationStoreQuery} onChange={(event) => setRegistrationStoreQuery(event.target.value)} placeholder="Código ou nome" /></label>
-              <div className="registration-store-list">
-              {workspace.stores.map((s) => (
-                <label className="checkbox-label" key={s.id} hidden={!registrationFiltered.some((store) => store.id === s.id)}>
-                  <input
-                    type="checkbox"
-                    name="stores"
-                    value={s.id}
-                    defaultChecked={editingMember.stores.includes(s.id)}
-                  />
-                  {s.code} · {s.name}
-                </label>
-              ))}
-              {!registrationFiltered.length && <p>Nenhuma loja encontrada.</p>}
-              </div>
-              </details>
-            </fieldset>
+            <fieldset><legend>Lojas autorizadas</legend><p className="field-hint">A seleção substitui os vínculos desta pessoa, inclusive os importados. Sem lojas, o perfil comum fica sem abrangência operacional. Administradores têm todas as lojas.</p><StorePicker stores={workspace.stores} selected={editStores} onChange={setEditStores} /></fieldset>
             {error && (
               <p className="form-error" role="alert">
                 {error}
@@ -1865,8 +1817,8 @@ export default function ConnectedApp() {
           </form>
           <div className="form">
             <button className="secondary" disabled={busy} onClick={() => {
-              if (window.confirm(`${editingMember.active ? "Bloquear" : "Reativar"} o acesso de ${editingMember.display_name}?`)) void toggleMember(editingMember);
-            }}>{editingMember.active ? "Bloquear acesso" : "Reativar acesso"}</button>
+              if (window.confirm(`${editingMember.active ? "Arquivar" : "Reativar"} o acesso de ${editingMember.display_name}?`)) void toggleMember(editingMember);
+            }}>{editingMember.active ? "Arquivar usuário" : "Reativar usuário"}</button>
             {editingMember.active && editingMember.login_chapa && <button className="secondary" disabled={busy} onClick={() => {
               setError("");
               setTemporaryPassword("");
@@ -1882,6 +1834,15 @@ export default function ConnectedApp() {
           <button className="secondary" type="button" disabled={busy} onClick={() => { setTemplateChoice(false); downloadCurrentModel(); }}>Baixar com dados atuais</button>
         </div>
       </Dialog>}
+      {managedStore && <Dialog title={`Gerenciar loja ${managedStore.code}`} close={()=>setManagedStore(null)}><form className="form" onSubmit={(e)=>{e.preventDefault();void saveManagedStore(managedStore);}}>
+        <label>Código<input value={managedStore.code} required maxLength={20} onChange={(e)=>setManagedStore({...managedStore,code:e.target.value})} /></label>
+        <label>Nome<input value={managedStore.name} required minLength={2} maxLength={120} onChange={(e)=>setManagedStore({...managedStore,name:e.target.value})} /></label>
+        <label>Regional<input value={managedStore.region} maxLength={120} onChange={(e)=>setManagedStore({...managedStore,region:e.target.value})} /></label>
+        <p className="field-hint">Arquivar preserva o histórico e os vínculos, e remove a loja da operação ativa. Reativar restaura sua disponibilidade.</p>
+        <button className="primary" disabled={busy}>Salvar alterações</button>
+        <button className="secondary" type="button" disabled={busy} onClick={()=>{if(window.confirm(`${managedStore.active ? "Arquivar" : "Reativar"} esta loja? O histórico será preservado.`))void saveManagedStore({...managedStore,active:!managedStore.active});}}>{managedStore.active ? "Arquivar loja" : "Reativar loja"}</button>
+        {error && <p className="form-error" role="alert">{error}</p>}
+      </form></Dialog>}
       {editingStore && <Dialog title={`Editar loja ${String(editingStore.COD ?? "")}`} close={() => setEditingStore(null)}>
         <form className="form" onSubmit={(event) => void saveStoreEdits(event)}>
           {Object.entries(editingStore).filter(([key]) => key !== "__id").map(([key, value]) => <label key={key}>{key}<input name={key} defaultValue={String(value ?? "")} maxLength={500} /></label>)}

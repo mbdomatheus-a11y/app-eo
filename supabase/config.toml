@@ -8,3 +8,6 @@ verify_jwt = true
 
 [functions.send-test-push]
 verify_jwt = true
+
+[functions.summarize-operations]
+verify_jwt = true

@@ -142,30 +142,19 @@ Deno.serve(async (req) => {
   if (action === "set-person-active" || action === "issue-person-temporary-password" || action === "issue-master-temporary-password") {
     const targetId = String(input.user_id ?? "");
     const legacy = action === "issue-master-temporary-password";
-    if (legacy && (!profile.master_admin || targetId !== callerId))
-      return json({ error: "Ação restrita ao administrador master." }, 403);
+    if (legacy && targetId !== callerId)
+      return json({ error: "Selecione a pessoa para emitir a senha." }, 403);
     if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(targetId))
       return json({ error: "Usuário inválido." }, 400);
     const { data: identity } = await admin.from("eo_profiles")
       .select("login_chapa, role, active, master_admin, must_change_password")
       .eq("id", targetId).maybeSingle();
     if (!identity) return json({ error: "Usuário não encontrado." }, 404);
-    if (!profile.master_admin && (identity.master_admin || ["admin", "diretor"].includes(identity.role)))
-      return json({ error: "Somente o administrador master pode gerenciar esse acesso." }, 403);
     if (action === "set-person-active") {
-      if (targetId === callerId || identity.master_admin || typeof input.active !== "boolean")
+      if (targetId === callerId || typeof input.active !== "boolean")
         return json({ error: "Este acesso não pode ser bloqueado ou reativado por aqui." }, 403);
-      const { error: statusAuditError } = await admin.from("eo_audit_events").insert({
-        actor: callerId, action: "member.status_change_requested", entity_id: targetId,
-        detail: { active: input.active },
-      });
-      if (statusAuditError) return json({ error: "Não foi possível registrar a solicitação." }, 503);
-      const { error: statusError } = await admin.from("eo_profiles").update({ active: input.active }).eq("id", targetId);
-      if (statusError) return json({ error: "Não foi possível alterar o acesso." }, 503);
-      await admin.from("eo_audit_events").insert({
-        actor: callerId, action: "member.status_changed", entity_id: targetId,
-        detail: { active: input.active },
-      });
+      const { error: statusError } = await caller.rpc("eo_admin_set_person_active", { p_user: targetId, p_active: input.active });
+      if (statusError) return json({ error: statusError.message || "Não foi possível alterar o acesso." }, 400);
       return json({ ok: true });
     }
     if (!identity.active || !identity.login_chapa)
@@ -229,11 +218,6 @@ Deno.serve(async (req) => {
     }
     if (!["colaborador", "gerente", "diretor", "admin"].includes(role))
       return json({ error: "Perfil inválido." }, 400);
-    if (["diretor", "admin"].includes(role) && !profile.master_admin)
-      return json(
-        { error: "Somente o administrador master pode conceder esse perfil." },
-        403,
-      );
     if (role !== "admin" && !stores.length)
       return json({ error: "Selecione ao menos uma loja." }, 400);
     if (stores.some((store) => !/^[0-9a-f-]{36}$/i.test(store)))

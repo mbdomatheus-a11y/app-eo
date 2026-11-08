@@ -125,3 +125,9 @@
   .eo-attention .secondary { width: 100%; margin: 0; }
   .eo-signin .auth-intro h1 { font-size: 32px; max-width: none; }
 }
+.store-picker { display: grid; gap: 10px; min-width: 0; }
+.store-picker details > summary { cursor: pointer; padding: 10px 0; font-weight: 700; }
+.store-picker details[open] > summary { margin-bottom: 12px; }
+.selection-actions, .pagination { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 14px 0; }
+.pagination { justify-content: space-between; font-size: 13px; }
+.store-picker .registration-store-list { max-height: 360px; overflow: auto; }

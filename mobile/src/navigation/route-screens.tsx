@@ -6,6 +6,8 @@ import * as SecureStore from "expo-secure-store";
 import { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEO } from "../providers/eo-provider";
+import { SalesReportsScreen } from "../features/SalesReportsScreen";
+import { OperationsScreen } from "../features/OperationsScreen";
 import { RegisterPersonScreen } from "../../App";
 import { AccessScreen, ArchiveScreen, AuditScreen, ChangePasswordScreen, ComposeScreen, EditPersonScreen, HomeScreen, LoginScreen, ManagementScreen, ModulesScreen, NoticeScreen, NoticesScreen, PeopleScreen, PrivacyScreen, ProfileScreen, ReportsScreen, StoresScreen } from "../../App";
 import type { AdminTab } from "../types";
@@ -28,7 +30,7 @@ export function RouteFrame({ children, home = false, noHeader = false, tabs = fa
     <StatusBar barStyle="dark-content" backgroundColor={C.canvas} />
     <Feedback error={app.error} message={app.message} onClose={app.clearFeedback} />
     {app.session && !app.pushGranted && pushConsent === "deferred" && <View style={{ marginHorizontal: 14, marginTop: 8, padding: 12, borderRadius: 14, backgroundColor: C.yellow, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={{ color: C.dark, fontSize: 12, fontWeight: "700", flex: 1 }}>Avisos do EO estão desligados neste aparelho.</Text><Pressable accessibilityRole="button" onPress={() => setPushConsent("unknown")}><Text style={{ color: C.dark, fontWeight: "900", fontSize: 12 }}>Rever</Text></Pressable></View>}
-    {banner && <View style={{ marginHorizontal: 14, marginTop: 8, padding: 13, borderRadius: 16, backgroundColor: banner.urgent ? "#FFF3D6" : C.paper, borderWidth: 1, borderColor: C.line, gap: 7 }}><Text style={{ color: C.dark, fontSize: 14, fontWeight: "800" }}>{banner.urgent ? "Alerta prioritário" : "Novo alerta"} · {banner.title}</Text><Text numberOfLines={2} style={{ color: C.muted, fontSize: 12 }}>{banner.body}</Text><View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 18 }}><Pressable accessibilityRole="button" onPress={() => void app.markAlert(banner, "dismiss")}><Text style={{ color: C.muted, fontWeight: "700", fontSize: 12 }}>Descartar</Text></Pressable><Pressable accessibilityRole="button" onPress={() => { void app.markAlert(banner, "view"); router.navigate("/modules" as never); }}><Text style={{ color: C.dark, fontWeight: "800", fontSize: 12 }}>Visualizar</Text></Pressable></View></View>}
+    {banner && <View style={{ marginHorizontal: 14, marginTop: 8, padding: 13, borderRadius: 16, backgroundColor: banner.urgent ? "#FFF3D6" : C.paper, borderWidth: 1, borderColor: C.line, gap: 7 }}><Text style={{ color: C.dark, fontSize: 14, fontWeight: "800" }}>{banner.urgent ? "Alerta prioritário" : "Novo alerta"} · {banner.title}</Text><Text numberOfLines={2} style={{ color: C.muted, fontSize: 12 }}>{banner.body}</Text><View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 18 }}><Pressable accessibilityRole="button" onPress={() => void app.markAlert(banner, "dismiss")}><Text style={{ color: C.muted, fontWeight: "700", fontSize: 12 }}>Descartar</Text></Pressable><Pressable accessibilityRole="button" onPress={() => { void app.markAlert(banner, "view"); router.navigate((banner.data?.type === "mood" ? "/mood" : "/alerts") as never); }}><Text style={{ color: C.dark, fontWeight: "800", fontSize: 12 }}>Visualizar</Text></Pressable></View></View>}
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={8}>{children}</KeyboardAvoidingView>
     <Modal visible={Boolean(app.session && !app.pushGranted && pushConsent === "unknown")} transparent animationType="fade" onRequestClose={() => { setPushConsent("deferred"); void SecureStore.setItemAsync("eo.push-consent-v1", "deferred"); }}>
       <View style={{ flex: 1, backgroundColor: "rgba(20,24,31,0.62)", justifyContent: "center", padding: 22 }}>
@@ -57,7 +59,46 @@ export function NoticesRoute() {
   return <RouteFrame tabs><NoticesScreen openNotice={goNotice} openCompose={goCompose} /></RouteFrame>;
 }
 export function ModulesRoute() {
-  return <RouteFrame tabs><Page><ScreenTitle title="Explorar" subtitle="Tudo o que sua equipe precisa." /><View style={{ flexDirection: "row", gap: 12 }}><Tile title="Checklists" detail="Rotinas e evidências" icon="checklist" tint="#EDF3FF" color="#4372BC" onPress={() => router.push("/checklists" as never)} /><Tile title="Alertas" detail="Atenção ao que importa" icon="bell.fill" tint="#FFF0E8" color="#BF7148" onPress={() => router.push("/alerts" as never)} /></View><Section title="Na sua operação" /><Group><MenuItem title="Comunicados" detail="Orientações e confirmações de leitura" icon="doc.text.fill" tint="#F4F0D7" color="#8C7D35" onPress={() => goTab("notices")} /><MenuItem title="Minhas lojas" detail="Unidades e regionais do seu acesso" icon="building.2.fill" tint="#EAF3ED" color="#4B8061" last onPress={() => router.push("/scope" as never)} /></Group><Section title="No seu aparelho" /><Group><MenuItem title="Câmera, agenda e telefone" detail="Recursos conectados à sua rotina" icon="camera.fill" tint="#EEEFF8" color="#7067A0" onPress={() => router.push("/device" as never)} /><MenuItem title="Segurança e preferências" detail="Biometria, sessão e privacidade" icon="lock.fill" tint="#EDF0F5" color="#65758C" last onPress={() => goTab("profile")} /></Group></Page></RouteFrame>;
+  return <RouteFrame tabs><Page>
+    <ScreenTitle title="Mais" subtitle="Vendas, equipe e ferramentas da operação." />
+    <Section title="Vendas" />
+    <Group>
+      <MenuItem title="Venda semana" detail="Relatórios e acompanhamento semanal" icon="chart.bar.fill" tint="#EAF4ED" color="#1C985A" onPress={() => router.push("/sales?period=week" as never)} />
+      <MenuItem title="Venda mês" detail="Resultados do mês" icon="calendar" tint="#EAF4ED" color="#1C985A" onPress={() => router.push("/sales?period=month" as never)} />
+      <MenuItem title="Venda ano" detail="Visão anual das lojas" icon="chart.line.uptrend.xyaxis" tint="#EAF4ED" color="#1C985A" last onPress={() => router.push("/sales?period=year" as never)} />
+    </Group>
+    <Section title="Pessoas e rotina" />
+    <Group>
+      <MenuItem title="Diário de vendas" detail="Relato, motivos e áudio de até 1 minuto" icon="mic.fill" tint="#FFF0E4" color="#C9772A" onPress={() => router.push("/diary" as never)} />
+      <MenuItem title="Como está seu dia?" detail="Compartilhe como você se sente" icon="face.smiling" tint="#FFF4D8" color="#A2862F" onPress={() => router.push("/mood" as never)} />
+      <MenuItem title="Resumo da equipe" detail="Registros por loja e regional" icon="person.2.fill" tint="#EEE8F9" color="#7B5BD6" last onPress={() => router.push("/diary?tab=summary" as never)} />
+    </Group>
+    <Section title="Comunicação e execução" />
+    <Group>
+      <MenuItem title="Comunicados" detail="Orientações e confirmações de leitura" icon="doc.text.fill" tint="#E7F1F8" color="#0079BF" onPress={() => goTab("notices")} />
+      <MenuItem title="Checklists" detail="Rotinas e evidências" icon="checklist" tint="#E7F1F8" color="#0079BF" onPress={() => router.push("/checklists" as never)} />
+      <MenuItem title="Alertas" detail="Avisos e pendências" icon="bell.fill" tint="#E7F1F8" color="#0079BF" onPress={() => router.push("/alerts" as never)} />
+      <MenuItem title="Minhas lojas" detail="Unidades do seu acesso" icon="building.2.fill" tint="#E7F1F8" color="#0079BF" last onPress={() => router.push("/scope" as never)} />
+    </Group>
+    <Section title="Geral" />
+    <Group>
+      <MenuItem title="Meu aparelho" detail="Notificações, câmera, agenda e telefone" icon="iphone" onPress={() => router.push("/device" as never)} />
+      <MenuItem title="Configurações" detail="Conta, segurança e privacidade" icon="gearshape.fill" last onPress={() => goTab("profile")} />
+    </Group>
+  </Page></RouteFrame>;
+}
+export function SalesRoute() {
+  const { period } = useLocalSearchParams<{ period?: string }>();
+  const selected = period === "month" || period === "year" ? period : "week";
+  return <RouteFrame><SalesReportsScreen key={selected} initialPeriod={selected} /></RouteFrame>;
+}
+export function DiaryRoute() {
+  const { tab } = useLocalSearchParams<{ tab?: string }>();
+  const selected = tab === "summary" ? "summary" : "diary";
+  return <RouteFrame><OperationsScreen key={selected} initialTab={selected} /></RouteFrame>;
+}
+export function MoodRoute() {
+  return <RouteFrame><OperationsScreen initialTab="mood" /></RouteFrame>;
 }
 export function ManagementRoute() {
   const app = useEO();
@@ -109,7 +150,7 @@ export function RegisterPersonRoute() {
 export function EditPersonRoute() {
   const app = useEO();
   const { id } = useLocalSearchParams<{ id: string }>();
-  useEffect(() => { if (app.workspace?.person.role === "admin") void app.loadAdmin("people"); }, [app.workspace?.person.id]);
+  useEffect(() => { if (id && app.workspace?.person.role === "admin") void app.loadPerson(id); }, [id, app.workspace?.person.id]);
   if (app.workspace?.person.role !== "admin") return <Redirect href="/" />;
   return <RouteFrame><EditPersonScreen id={id ?? ""} back={() => router.back()} /></RouteFrame>;
 }

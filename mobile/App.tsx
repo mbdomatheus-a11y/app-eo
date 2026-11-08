@@ -9,8 +9,8 @@ import { useEffect, useRef, useState } from "react";
 import { Alert, Linking, Pressable, ScrollView, Share, Text, View } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { useEO } from "./src/providers/eo-provider";
-import { ActionRow, AppIcon, Badge, Brand, Button, C, Card, Choice, Field, Heading, Page, Section, s } from "./src/ui";
-import type { AdminTab, AuditRow, LiveNotice, LivePerson, Role } from "./src/types";
+import { ActionRow, AppIcon, Badge, Brand, Button, C, Card, Choice, Field, Heading, Page, Section, StorePicker, s } from "./src/ui";
+import type { AdminTab, AuditRow, LiveNotice, LivePerson, Role, Store } from "./src/types";
 export function LoginScreen({ openPrivacy }: { openPrivacy: () => void }) {
   const app = useEO();
   const [chapa, setChapa] = useState(""); const [password, setPassword] = useState("");
@@ -64,6 +64,12 @@ export function HomeScreen({ openTab, openNotice, openCompose }: { openTab: (tab
   return <Page>
     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Brand compact /><View style={{ flexDirection: "row", gap: 10 }}><IconButton icon="bell.fill" label="Abrir avisos pendentes" badge={pending} onPress={() => openTab("notices")} /><IconButton icon="person.crop.circle.fill" label="Abrir perfil" onPress={() => openTab("profile")} /></View></View>
     <View style={{ gap: 5, paddingBottom: 3 }}><Text style={{ color: C.muted, fontSize: 13 }}>{date}</Text><Text style={{ color: C.ink, fontSize: 32, fontWeight: "800", letterSpacing: -1 }}>Olá, {name}.</Text><Text style={s.detail}>Vamos cuidar da sua operação.</Text></View>
+    <Section title="Vendas e equipe" />
+    <Group>
+      <MenuItem title="Acompanhar vendas" detail="Semana, mês e ano" icon="chart.bar.fill" tint="#E8F4ED" color="#1C985A" onPress={() => router.push("/sales" as never)} />
+      <MenuItem title="Registrar meu dia" detail="Motivos, relato e áudio" icon="mic.fill" tint="#FFF0E4" color="#C9772A" onPress={() => router.push("/diary" as never)} />
+      <MenuItem title="Como está seu dia?" detail="Compartilhe seu momento" icon="face.smiling" tint="#FFF4D8" color="#A2862F" last onPress={() => router.push("/mood" as never)} />
+    </Group>
     <Pressable accessibilityRole="button" accessibilityLabel="Abrir minhas pendências" onPress={() => routines ? router.push("/checklists" as never) : openTab("notices")} style={({ pressed }) => [d.summary, pressed && d.pressed]}>
       <View style={d.summaryTop}><Text style={d.summaryEyebrow}>Seu dia em foco</Text><View style={d.summaryBadge}><Text style={d.summaryBadgeText}>{progress}% em dia</Text></View></View>
       <View><Text style={d.summaryValue}>{String(pending + routines).padStart(2, "0")}</Text><Text style={d.summaryCaption}>pendências entre os itens carregados</Text></View>
@@ -139,11 +145,11 @@ export function ModulesScreen({ openTab, mode = "checklists" }: { openTab: (tab:
     <Section title="Alertas" />
     {!app.alerts.filter((item) => !item.dismissed_at).length && <Text style={s.small}>Nenhum alerta ativo para você.</Text>}
     {app.alerts.filter((item) => !item.dismissed_at).slice(0, 5).map((alert) => <Card key={alert.id}><View style={{ flexDirection: "row", justifyContent: "space-between" }}><Badge warning={alert.urgent}>{alert.urgent ? "Prioritário" : "Alerta"}</Badge><Text style={s.small}>{new Date(alert.created_at).toLocaleDateString("pt-BR")}</Text></View>{alert.hidden_from_users && app.workspace!.person.role === "admin" && <Badge>Oculto das equipes</Badge>}<Text style={s.strong}>{alert.title}</Text><Text style={s.body}>{alert.body}</Text><View style={{ flexDirection: "row", gap: 8 }}><View style={{ flex: 1 }}><Button title="Visualizar" secondary onPress={() => void app.markAlert(alert, "view")} /></View><View style={{ flex: 1 }}><Button title="Descartar" secondary onPress={() => void app.markAlert(alert, "dismiss")} /></View></View>{app.workspace!.person.role === "admin" && <Button title={alert.hidden_from_users ? "Restaurar para equipes" : "Ocultar das equipes"} danger={!alert.hidden_from_users} secondary onPress={() => Alert.alert(alert.hidden_from_users ? "Restaurar alerta?" : "Ocultar alerta para as equipes?", "O registro e o conteúdo continuarão visíveis para administradores e na auditoria.", [{ text: "Cancelar", style: "cancel" }, { text: alert.hidden_from_users ? "Restaurar" : "Ocultar", onPress: () => void app.moderateAlert(alert) }])} />}</Card>)}
-    {canPublish && <Card><Badge>ALERTA PARA AS EQUIPES</Badge><Field label="Título do alerta" value={alertTitle} onChangeText={setAlertTitle} placeholder="Ex.: Atenção à abertura" maxLength={120} /><Field label="Mensagem" value={alertBody} onChangeText={setAlertBody} multiline placeholder="Escreva o que a equipe precisa saber" maxLength={3000} /><Text style={s.label}>Destinatários</Text><Choice label={`Todas as lojas da minha abrangência · ${app.workspace!.stores.length}`} selected={alertTarget === "all"} onPress={() => setAlertTarget("all")} /><Choice label="Uma regional" selected={alertTarget === "region"} onPress={() => setAlertTarget("region")} /><Choice label="Selecionar lojas" selected={alertTarget === "stores"} onPress={() => setAlertTarget("stores")} />{alertTarget === "region" && availableRegions.map((item) => <Choice key={item} label={item} selected={alertRegion === item} onPress={() => setAlertRegion(item)} />)}{alertTarget === "stores" && app.workspace!.stores.map((store) => <Choice key={store.id} label={`${store.code} · ${store.name}${store.region ? ` · ${store.region}` : ""}`} selected={alertStores.includes(store.id)} onPress={() => setAlertStores((old) => old.includes(store.id) ? old.filter((id) => id !== store.id) : [...old, store.id])} />)}<Text style={s.small}>{alertRecipientStores.length} {alertRecipientStores.length === 1 ? "loja selecionada" : "lojas selecionadas"}</Text><Field label="Programar envio (opcional) · AAAA-MM-DD HH:MM" value={alertSchedule} onChangeText={setAlertSchedule} placeholder="2026-11-02 15:30" maxLength={16} /><Button title={app.busy ? "Salvando…" : alertSchedule ? "Programar alerta" : "Enviar alerta"} disabled={app.busy || !alertRecipientStores.length || !alertTitle.trim() || !alertBody.trim()} onPress={async () => { let scheduledFor: string | undefined; if (alertSchedule.trim()) { const match = alertSchedule.trim().match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/); if (!match) { Alert.alert("Data incompleta", "Use o formato AAAA-MM-DD HH:MM."); return; } const [, year, month, day, hour, minute] = match; const date = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute)); if (date.getFullYear() !== Number(year) || date.getMonth() !== Number(month) - 1 || date.getDate() !== Number(day) || date.getHours() !== Number(hour) || date.getMinutes() !== Number(minute) || date.getTime() < Date.now() + 120_000) { Alert.alert("Horário inválido", "Confira a data e escolha um horário pelo menos dois minutos à frente."); return; } scheduledFor = date.toISOString(); } const result = await app.publishAlert({ title: alertTitle, body: alertBody, stores: alertRecipientStores, urgent: false, scheduledFor }); if (result.ok) { setAlertTitle(""); setAlertBody(""); setAlertStores([]); setAlertSchedule(""); setAlertRegion(""); setAlertTarget("all"); } }} /></Card>}
+    {canPublish && <Card><Badge>ALERTA PARA AS EQUIPES</Badge><Field label="Título do alerta" value={alertTitle} onChangeText={setAlertTitle} placeholder="Ex.: Atenção à abertura" maxLength={120} /><Field label="Mensagem" value={alertBody} onChangeText={setAlertBody} multiline placeholder="Escreva o que a equipe precisa saber" maxLength={3000} /><Text style={s.label}>Destinatários</Text><Choice label={`Todas as lojas da minha abrangência · ${app.workspace!.stores.length}`} selected={alertTarget === "all"} onPress={() => setAlertTarget("all")} /><Choice label="Uma regional" selected={alertTarget === "region"} onPress={() => setAlertTarget("region")} /><Choice label="Selecionar lojas" selected={alertTarget === "stores"} onPress={() => setAlertTarget("stores")} />{alertTarget === "region" && availableRegions.map((item) => <Choice key={item} label={item} selected={alertRegion === item} onPress={() => setAlertRegion(item)} />)}{alertTarget === "stores" && <StorePicker stores={app.workspace!.stores} selected={alertStores} onChange={setAlertStores} />}<Text style={s.small}>{alertRecipientStores.length} {alertRecipientStores.length === 1 ? "loja selecionada" : "lojas selecionadas"}</Text><Field label="Programar envio (opcional) · AAAA-MM-DD HH:MM" value={alertSchedule} onChangeText={setAlertSchedule} placeholder="2026-11-02 15:30" maxLength={16} /><Button title={app.busy ? "Salvando…" : alertSchedule ? "Programar alerta" : "Enviar alerta"} disabled={app.busy || !alertRecipientStores.length || !alertTitle.trim() || !alertBody.trim()} onPress={async () => { let scheduledFor: string | undefined; if (alertSchedule.trim()) { const match = alertSchedule.trim().match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/); if (!match) { Alert.alert("Data incompleta", "Use o formato AAAA-MM-DD HH:MM."); return; } const [, year, month, day, hour, minute] = match; const date = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute)); if (date.getFullYear() !== Number(year) || date.getMonth() !== Number(month) - 1 || date.getDate() !== Number(day) || date.getHours() !== Number(hour) || date.getMinutes() !== Number(minute) || date.getTime() < Date.now() + 120_000) { Alert.alert("Horário inválido", "Confira a data e escolha um horário pelo menos dois minutos à frente."); return; } scheduledFor = date.toISOString(); } const result = await app.publishAlert({ title: alertTitle, body: alertBody, stores: alertRecipientStores, urgent: false, scheduledFor }); if (result.ok) { setAlertTitle(""); setAlertBody(""); setAlertStores([]); setAlertSchedule(""); setAlertRegion(""); setAlertTarget("all"); } }} /></Card>}
     </>}
     {mode === "checklists" && <>
     <Section title={`Checklists · ${app.checklists.filter((item) => item.status !== "completed").length} pendentes`} />
-    {canPublish && <Card><Badge>NOVO CHECKLIST</Badge><Text style={s.strong}>Monte uma rotina para sua equipe</Text><Field label="Nome da rotina" value={templateTitle} onChangeText={setTemplateTitle} placeholder="Ex.: Abertura da loja" maxLength={120} /><Field label="Orientação" value={templateDescription} onChangeText={setTemplateDescription} placeholder="Objetivo ou instruções" multiline maxLength={1000} /><Field label="Pergunta ou etapa" value={question} onChangeText={setQuestion} placeholder="Ex.: A área está organizada?" maxLength={500} /><Text style={s.label}>Formato</Text>{([ ["acceptance", "Aceite"], ["photo", "Foto"], ["text", "Resposta aberta"], ["yes_no", "Sim ou não"] ] as const).map(([type, label]) => <Choice key={type} label={label} selected={questionType === type} onPress={() => setQuestionType(type)} />)}<Button title="Adicionar pergunta" secondary disabled={!question.trim()} onPress={() => { setQuestions((old) => [...old, { prompt: question.trim(), type: questionType, required: true }]); setQuestion(""); }} />{questions.map((item, index) => <View key={`${item.prompt}-${index}`} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Text style={[s.small, { flex: 1 }]}>{index + 1}. {item.prompt}</Text><Pressable accessibilityRole="button" onPress={() => setQuestions((old) => old.filter((_, i) => i !== index))}><Text style={{ color: C.red, fontWeight: "800", padding: 8 }}>Remover</Text></Pressable></View>)}<Text style={s.label}>Lojas que receberão a rotina</Text>{app.workspace!.stores.map((store) => <Choice key={store.id} label={`${store.code} · ${store.name}`} selected={checklistStores.includes(store.id)} onPress={() => setChecklistStores((old) => old.includes(store.id) ? old.filter((id) => id !== store.id) : [...old, store.id])} />)}<Button title="Salvar e atribuir" disabled={app.busy || !questions.length || !checklistStores.length} onPress={async () => { const result = await app.publishChecklist({ title: templateTitle, description: templateDescription, items: questions, stores: checklistStores }); if (result.ok) { setTemplateTitle(""); setTemplateDescription(""); setQuestions([]); setChecklistStores([]); } }} /></Card>}
+    {canPublish && <Card><Badge>NOVO CHECKLIST</Badge><Text style={s.strong}>Monte uma rotina para sua equipe</Text><Field label="Nome da rotina" value={templateTitle} onChangeText={setTemplateTitle} placeholder="Ex.: Abertura da loja" maxLength={120} /><Field label="Orientação" value={templateDescription} onChangeText={setTemplateDescription} placeholder="Objetivo ou instruções" multiline maxLength={1000} /><Field label="Pergunta ou etapa" value={question} onChangeText={setQuestion} placeholder="Ex.: A área está organizada?" maxLength={500} /><Text style={s.label}>Formato</Text>{([ ["acceptance", "Aceite"], ["photo", "Foto"], ["text", "Resposta aberta"], ["yes_no", "Sim ou não"] ] as const).map(([type, label]) => <Choice key={type} label={label} selected={questionType === type} onPress={() => setQuestionType(type)} />)}<Button title="Adicionar pergunta" secondary disabled={!question.trim()} onPress={() => { setQuestions((old) => [...old, { prompt: question.trim(), type: questionType, required: true }]); setQuestion(""); }} />{questions.map((item, index) => <View key={`${item.prompt}-${index}`} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Text style={[s.small, { flex: 1 }]}>{index + 1}. {item.prompt}</Text><Pressable accessibilityRole="button" onPress={() => setQuestions((old) => old.filter((_, i) => i !== index))}><Text style={{ color: C.red, fontWeight: "800", padding: 8 }}>Remover</Text></Pressable></View>)}<Text style={s.label}>Lojas que receberão a rotina</Text><StorePicker stores={app.workspace!.stores} selected={checklistStores} onChange={setChecklistStores} /><Button title="Salvar e atribuir" disabled={app.busy || !questions.length || !checklistStores.length} onPress={async () => { const result = await app.publishChecklist({ title: templateTitle, description: templateDescription, items: questions, stores: checklistStores }); if (result.ok) { setTemplateTitle(""); setTemplateDescription(""); setQuestions([]); setChecklistStores([]); } }} /></Card>}
     {app.checklists.map((run) => <Pressable key={run.run_id} accessibilityRole="button" onPress={() => setChecklistId(run.run_id)} style={({ pressed }) => [s.card, pressed && s.pressed]}><View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Badge warning={run.status !== "completed"}>{run.status === "completed" ? "Concluído" : run.status === "in_progress" ? "Em andamento" : "Pendente"}</Badge><Text style={s.small}>{run.answered_count}/{run.item_count}</Text></View><Text style={s.strong}>{run.title}</Text><Text style={s.small}>{run.store_name} · Atualizado {new Date(run.updated_at).toLocaleDateString("pt-BR")}</Text><Text style={{ color: C.dark, fontSize: 12, fontWeight: "800" }}>Abrir rotina  ›</Text></Pressable>)}
     {!app.checklists.length && <Card><Text style={s.strong}>Sua lista de rotinas está vazia</Text><Text style={s.small}>Quando um checklist for atribuído à sua loja, ele aparecerá aqui com o estágio de andamento.</Text></Card>}
     </>}
@@ -156,20 +162,28 @@ export function ManagementScreen({ open }: { open: (tab: AdminTab) => void }) {
 
 export function StoresScreen() {
   const app = useEO(); const [code, setCode] = useState(""); const [name, setName] = useState(""); const [region, setRegion] = useState("");
-  return <Page><Card><Badge>NOVA UNIDADE</Badge><Field label="Código" value={code} onChangeText={setCode} placeholder="Ex.: 001" maxLength={20} /><Field label="Nome da loja" value={name} onChangeText={setName} placeholder="Nome da unidade" maxLength={120} /><Field label="Regional" value={region} onChangeText={setRegion} placeholder="Opcional" maxLength={120} /><Button title={app.busy ? "Salvando…" : "Cadastrar loja"} icon="＋" disabled={app.busy} onPress={async () => { const result = await app.addStore({ code, name, region }); if (result.ok) { setCode(""); setName(""); setRegion(""); } }} /></Card>
-    <Section title={`Lojas cadastradas · ${app.workspace!.stores.length}`} />
-    {app.workspace!.stores.map((store) => <ActionRow key={store.id} title={store.name} detail={`${store.code}${store.region ? ` · ${store.region}` : ""}`} icon="house.fill" onPress={() => undefined} />)}
+  const [query,setQuery] = useState(""); const [uf,setUf] = useState(""); const [filterRegion,setFilterRegion] = useState(""); const [state,setState] = useState("active"); const [page,setPage] = useState(0);
+  const [editing,setEditing] = useState<(Store & {active:boolean}) | null>(null); const [creating,setCreating] = useState(false); const [sort,setSort] = useState<"code"|"name">("code");
+  const stores = app.adminStores;
+  const filtered = stores.filter((store) => (state==="" || store.active===(state==="active")) && (!uf || store.segments?.UF===uf) && (!filterRegion || (store.segments?.REGIONAL || store.region)===filterRegion) && `${store.code} ${store.name} ${store.region}`.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR"))).sort((a,b) => a[sort].localeCompare(b[sort],"pt-BR",{numeric:true}));
+  const current = Math.min(page,Math.max(0,Math.ceil(filtered.length/20)-1));
+  return <Page><ScreenTitle title="Lojas" subtitle="Busque, organize e mantenha o histórico das unidades." /><Button title={creating ? "Fechar cadastro" : "Cadastrar loja"} secondary onPress={() => setCreating(!creating)} />{creating && <Card><Badge>NOVA UNIDADE</Badge><Field label="Código" value={code} onChangeText={setCode} placeholder="Ex.: 001" maxLength={20} /><Field label="Nome da loja" value={name} onChangeText={setName} placeholder="Nome da unidade" maxLength={120} /><Field label="Regional" value={region} onChangeText={setRegion} placeholder="Opcional" maxLength={120} /><Button title={app.busy ? "Salvando…" : "Cadastrar loja"} icon="＋" disabled={app.busy || !code.trim() || name.trim().length<2} onPress={async () => { const result = await app.addStore({ code, name, region }); if (result.ok) { setCode(""); setName(""); setRegion(""); setCreating(false); } }} /></Card>}
+    {editing && <Card><Heading title="Editar loja" /><Field label="Código" value={editing.code} onChangeText={(value)=>setEditing({...editing,code:value})} maxLength={20} /><Field label="Nome" value={editing.name} onChangeText={(value)=>setEditing({...editing,name:value})} maxLength={120} /><Field label="Regional" value={editing.region} onChangeText={(value)=>setEditing({...editing,region:value})} maxLength={120} /><Button title="Salvar alterações" disabled={app.busy} onPress={async()=>{if((await app.saveStore(editing)).ok)setEditing(null);}} /><Button title={editing.active ? "Arquivar loja" : "Reativar loja"} secondary danger={editing.active} disabled={app.busy} onPress={()=>Alert.alert(editing.active ? "Arquivar loja?" : "Reativar loja?","O histórico e os vínculos serão preservados.",[{text:"Cancelar",style:"cancel"},{text:"Confirmar",onPress:async()=>{if((await app.saveStore({...editing,active:!editing.active})).ok)setEditing(null);}}])} /><Button title="Fechar edição" secondary onPress={()=>setEditing(null)} /></Card>}
+    <Field label="Buscar lojas" value={query} onChangeText={(value)=>{setQuery(value);setPage(0);}} placeholder="Código ou nome" />
+    <ScrollView horizontal contentContainerStyle={{gap:7}}>{[["active","Ativas"],["archived","Arquivadas"],["","Todas"]].map(([value,label])=><Choice key={value} label={label} selected={state===value} onPress={()=>{setState(value);setPage(0);}} />)}</ScrollView>
+    <Text style={s.label}>UF</Text><ScrollView horizontal contentContainerStyle={{gap:7}}>{["",...new Set(stores.map((store)=>store.segments?.UF || "").filter(Boolean))].map((value)=><Choice key={value} label={value || "Todas"} selected={uf===value} onPress={()=>{setUf(value);setFilterRegion("");setPage(0);}} />)}</ScrollView>
+    <Text style={s.label}>Regional</Text><ScrollView horizontal contentContainerStyle={{gap:7}}>{["",...new Set(stores.filter((store)=>!uf || store.segments?.UF===uf).map((store)=>store.segments?.REGIONAL || store.region).filter(Boolean))].map((value)=><Choice key={value} label={value || "Todas"} selected={filterRegion===value} onPress={()=>{setFilterRegion(value);setPage(0);}} />)}</ScrollView>
+    <Choice label={sort==="code" ? "Ordenação por código" : "Ordenação por nome"} selected={sort==="name"} onPress={()=>setSort(sort==="code" ? "name" : "code")} />
+    <Section title={`${filtered.length} lojas encontradas`} />
+    <Group>{filtered.slice(current*20,current*20+20).map((store,index,visible) => <MenuItem key={store.id} title={`${store.code} · ${store.name}`} detail={`${store.region || "Sem regional"} · ${store.active ? "Ativa" : "Arquivada"}`} icon="building.2.fill" color="#508267" tint="#EAF4ED" last={index===visible.length-1} onPress={()=>setEditing({...store})} />)}</Group>
+    <Text style={s.small}>{filtered.length ? `${current*20+1} a ${Math.min(current*20+20,filtered.length)} de ${filtered.length}` : "Nenhuma loja encontrada."}</Text><View style={{flexDirection:"row",gap:10}}><Button title="Anterior" secondary disabled={current===0} onPress={()=>setPage(current-1)} /><Button title="Próxima" secondary disabled={(current+1)*20>=filtered.length} onPress={()=>setPage(current+1)} /></View>
   </Page>;
 }
 
 export function RegisterPersonScreen({ done }: { done: () => void }) {
   const app = useEO(); const workspace = app.workspace!;
   const [chapa, setChapa] = useState(""); const [email, setEmail] = useState(""); const [name, setName] = useState(""); const [role, setRole] = useState<Role>("colaborador"); const [stores, setStores] = useState<string[]>([]);
-  const [storeQuery, setStoreQuery] = useState("");
-  const [uf, setUf] = useState("");
-  const [region, setRegion] = useState("");
   const [password, setPassword] = useState("");
-  const [showStores, setShowStores] = useState(false);
   const navigation = useNavigation();
   const confirming = useRef(false);
   const dirty = !!(chapa || email || name || role !== "colaborador" || stores.length);
@@ -184,12 +198,6 @@ export function RegisterPersonScreen({ done }: { done: () => void }) {
       } },
     ], { cancelable: false });
   });
-  const toggleStore = (id: string) => setStores((old) => old.includes(id) ? old.filter((value) => value !== id) : [...old, id]);
-  const states = [...new Set(workspace.stores.map((store) => store.segments?.UF?.trim() ?? "").filter(Boolean))].sort();
-  const storesInState = workspace.stores.filter((store) => !uf || store.segments?.UF?.trim() === uf);
-  const regionOf = (store: (typeof workspace.stores)[number]) => (store.segments?.REGIONAL || store.region || "").trim();
-  const regions = [...new Set(storesInState.map(regionOf).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }));
-  const filteredStores = storesInState.filter((store) => (!region || regionOf(store) === region) && `${store.code} ${store.name}`.toLocaleLowerCase("pt-BR").includes(storeQuery.trim().toLocaleLowerCase("pt-BR")));
   const valid = /^\d{1,20}$/.test(chapa.trim()) && (!email.trim() || /^\S+@\S+\.\S+$/.test(email.trim())) && name.trim().length >= 2 && (role === "admin" || workspace.stores.length > 0);
   if (password) return <Page><Card>
     <Heading title="Usuário cadastrado" detail={`${name.trim()} · Chapa ${chapa.trim()}`} />
@@ -202,29 +210,11 @@ export function RegisterPersonScreen({ done }: { done: () => void }) {
     <Field label="Chapa" value={chapa} onChangeText={setChapa} keyboardType="number-pad" placeholder="Número da chapa" maxLength={20} />
     <Field label="E-mail (opcional)" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" placeholder="nome@exemplo.com" maxLength={254} />
     <Field label="Nome completo" value={name} onChangeText={setName} placeholder="Nome da pessoa" maxLength={120} />
-    <Text style={s.label}>Perfil</Text><View style={{ gap: 7 }}>{(["colaborador", "gerente", ...(workspace.person.master_admin ? ["diretor", "admin"] : [])] as Role[]).map((item) => <Choice key={item} label={roleLabels[item]} selected={role === item} onPress={() => setRole(item)} />)}</View>
+    <Text style={s.label}>Perfil</Text><View style={{ gap: 7 }}>{(["colaborador", "gerente", ...(["diretor", "admin"])] as Role[]).map((item) => <Choice key={item} label={roleLabels[item]} selected={role === item} onPress={() => setRole(item)} />)}</View>
     {role === "admin" ? <Text style={s.small}>O perfil Administrador tem acesso à gestão de todas as lojas.</Text> : <>
       <Text style={s.label}>Lojas autorizadas</Text>
-      <Choice label={`Todas as lojas (${workspace.stores.length})`} selected={!stores.length} onPress={() => setStores([])} />
-      <Text style={s.small}>{stores.length ? `${stores.length} loja(s) selecionada(s).` : "Sem seleção individual, o acesso inclui todas as lojas atuais."}</Text>
-      <Text style={s.label}>Estado</Text>
-      <ScrollView horizontal contentContainerStyle={{ gap: 8 }} keyboardShouldPersistTaps="handled">
-        {["", ...states].map((item) => <Choice key={item} label={item || "Todos os estados"} selected={uf === item} onPress={() => { setUf(item); setRegion(""); }} />)}
-      </ScrollView>
-      <Text style={s.label}>Regional</Text>
-      <ScrollView horizontal contentContainerStyle={{ gap: 8 }} keyboardShouldPersistTaps="handled">
-        {["", ...regions].map((item) => <Choice key={item} label={item || "Todas as regionais"} selected={region === item} onPress={() => setRegion(item)} />)}
-      </ScrollView>
-      <Field label="Buscar loja" value={storeQuery} onChangeText={setStoreQuery} placeholder="Código ou nome" />
-      {filteredStores.length > 0 && filteredStores.length < workspace.stores.length && (
-        <Button title={`Selecionar as ${filteredStores.length} lojas do filtro`} secondary onPress={() => setStores((current) => [...new Set([...current, ...filteredStores.map((store) => store.id)])])} />
-      )}
-      <Button title={showStores ? "Recolher lojas" : `Mostrar lojas (${filteredStores.length})`} secondary onPress={() => setShowStores(!showStores)} />
-      {showStores && <>
-        <View style={{ gap: 7 }}>{filteredStores.slice(0, 12).map((store) => <Choice key={store.id} label={`${store.code} · ${store.name}`} selected={stores.includes(store.id)} onPress={() => toggleStore(store.id)} />)}</View>
-        {filteredStores.length > 12 && <Text style={s.small}>Mostrando 12 de {filteredStores.length}. Refine a busca para ver outras lojas.</Text>}
-        {!filteredStores.length && <Text style={s.small}>Nenhuma loja encontrada.</Text>}
-      </>}
+      <Text style={s.small}>{stores.length ? `${stores.length} lojas selecionadas.` : "Sem seleção individual, o cadastro inclui todas as lojas atuais."}</Text>
+      <StorePicker stores={workspace.stores} selected={stores} onChange={setStores} />
     </>}
     <Button title={app.busy ? "Cadastrando…" : role !== "admin" && !stores.length
       ? "Cadastrar com acesso a todas as lojas"
@@ -248,17 +238,26 @@ async function shareAccess(chapa: string, password: string) {
 
 export function PeopleScreen({ edit, register }: { edit: (id: string) => void; register: () => void }) {
   const app = useEO(); const workspace = app.workspace!;
-  return <Page>
+  const [search,setSearch] = useState(""); const [role,setRole] = useState(""); const [state,setState] = useState(""); const [uf,setUf] = useState(""); const [region,setRegion] = useState(""); const [page,setPage] = useState(0); const [sort,setSort] = useState("name");
+  useEffect(()=>{const timer=setTimeout(()=>void app.searchPeople({search,role,state,uf,region,page,sort}),250);return()=>clearTimeout(timer);},[search,role,state,uf,region,page,sort,app.searchPeople]);
+  return <Page><ScreenTitle title="Pessoas e acessos" subtitle="Filtros e páginas para encontrar cada pessoa." />
   <Button title="Cadastrar usuário" icon="＋" onPress={register} />
-  <Section title={`Pessoas · ${app.members.length}`} />
+  <Field label="Buscar pessoas" value={search} onChangeText={(value)=>{setSearch(value);setPage(0);}} placeholder="Nome, chapa ou e-mail" />
+  <Text style={s.label}>Perfil</Text><ScrollView horizontal contentContainerStyle={{gap:7}}>{["","colaborador","gerente","diretor","admin"].map((value)=><Choice key={value} label={value ? roleLabels[value as Role] : "Todos"} selected={role===value} onPress={()=>{setRole(value);setPage(0);}} />)}</ScrollView>
+  <Text style={s.label}>Situação</Text><ScrollView horizontal contentContainerStyle={{gap:7}}>{[["","Todas"],["active","Ativos"],["archived","Arquivados"],["pending","Primeiro acesso"]].map(([value,label])=><Choice key={value} label={label} selected={state===value} onPress={()=>{setState(value);setPage(0);}} />)}</ScrollView>
+  <Text style={s.label}>UF</Text><ScrollView horizontal contentContainerStyle={{gap:7}}>{["",...new Set(workspace.stores.map((store)=>store.segments?.UF || "").filter(Boolean))].map((value)=><Choice key={value} label={value || "Todas"} selected={uf===value} onPress={()=>{setUf(value);setRegion("");setPage(0);}} />)}</ScrollView>
+  <Text style={s.label}>Regional</Text><ScrollView horizontal contentContainerStyle={{gap:7}}>{["",...new Set(workspace.stores.filter((store)=>!uf || store.segments?.UF===uf).map((store)=>store.segments?.REGIONAL || store.region).filter(Boolean))].map((value)=><Choice key={value} label={value || "Todas"} selected={region===value} onPress={()=>{setRegion(value);setPage(0);}} />)}</ScrollView>
+  <ScrollView horizontal contentContainerStyle={{gap:7}}>{[["name","Nome"],["chapa","Chapa"],["role","Perfil"]].map(([value,label])=><Choice key={value} label={`Ordenar: ${label}`} selected={sort===value} onPress={()=>{setSort(value);setPage(0);}} />)}</ScrollView>
+  <Section title={`Pessoas · ${app.peopleTotal}`} />
   {app.members.map((person) => <PersonCard key={person.id} person={person} ownId={workspace.person.id} edit={() => edit(person.id)} />)}
+  {!app.members.length && <Text style={s.small}>Nenhuma pessoa encontrada.</Text>}
+  <Text style={s.small}>Página {page+1} · até 30 pessoas por página</Text><View style={{flexDirection:"row",gap:10}}><Button title="Anterior" secondary disabled={!page} onPress={()=>setPage(page-1)} /><Button title="Próxima" secondary disabled={(page+1)*30>=app.peopleTotal} onPress={()=>setPage(page+1)} /></View>
   </Page>;
 }
 
 function PersonCard({ person, ownId, edit }: { person: LivePerson; ownId: string; edit: () => void }) {
   const app = useEO();
-  const canEdit = person.id !== ownId && !person.master_admin &&
-    (app.workspace?.person.master_admin || !["admin", "diretor"].includes(person.role));
+  const canEdit = person.id !== ownId;
   return <Card><View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}><View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: C.yellow, alignItems: "center", justifyContent: "center" }}><Text style={{ color: C.dark, fontWeight: "800" }}>{person.display_name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</Text></View><View style={{ flex: 1 }}><Text style={s.strong}>{person.display_name}</Text><Text style={s.small}>{roleLabels[person.role] || person.role} · {person.login_chapa || "Sem chapa"}</Text></View><Badge success={person.active}>{person.active ? "Ativo" : "Inativo"}</Badge></View>
     <Text style={s.small}>{!person.active ? "Acesso inativo" : person.must_change_password ? "Aguardando primeiro acesso" : "Acesso ativo"}</Text>
     {canEdit && <Button title="Editar acesso" secondary disabled={app.busy} onPress={edit} />}
@@ -270,7 +269,7 @@ function PersonPassword({ person }: { person: LivePerson }) {
   const app = useEO();
   const ownId = app.workspace?.person.id;
   const [password, setPassword] = useState("");
-  if (!person.active || !person.login_chapa || (!app.workspace?.person.master_admin && ["admin", "diretor"].includes(person.role))) return null;
+  if (!person.active || !person.login_chapa) return null;
   return password ? <>
       <Text style={s.small}>Copie agora. A senha será trocada no próximo acesso.</Text>
       <Field label="Senha temporária" value={password} editable={false} selectTextOnFocus />
@@ -294,7 +293,7 @@ export function EditPersonScreen({ id, back }: { id: string; back: () => void })
   const workspace = app.workspace!;
   const person = app.members.find((item) => item.id === id);
   if (!person) return <Page><Empty title="Carregando dados da pessoa" detail="Se os dados não aparecerem, atualize a lista." /><Button title="Atualizar lista" secondary disabled={app.busy} onPress={() => void app.loadAdmin("people")} /><Button title="Voltar" secondary onPress={back} /></Page>;
-  if (person.id === workspace.person.id || person.master_admin || (!workspace.person.master_admin && ["admin", "diretor"].includes(person.role)))
+  if (person.id === workspace.person.id)
     return <Page><Empty title="Acesso protegido" detail="Este perfil não pode ser editado por aqui." /><Button title="Voltar" secondary onPress={back} /></Page>;
   return <EditPersonForm key={person.id} person={person} back={back} />;
 }
@@ -303,46 +302,21 @@ function EditPersonForm({ person, back }: { person: LivePerson; back: () => void
   const app = useEO();
   const workspace = app.workspace!;
   const [name, setName] = useState(person.display_name);
-  const [chapa, setChapa] = useState(person.login_chapa ?? "");
+  const chapa = person.login_chapa ?? "";
   const [role, setRole] = useState<Role>(person.role);
   const [stores, setStores] = useState<string[]>(person.stores);
-  const [showStores, setShowStores] = useState(false);
-  const [storeQuery, setStoreQuery] = useState("");
-  const [uf, setUf] = useState("");
-  const [region, setRegion] = useState("");
-  const states = [...new Set(workspace.stores.map((store) => store.segments?.UF?.trim() ?? "").filter(Boolean))].sort();
-  const regionOf = (store: (typeof workspace.stores)[number]) => (store.segments?.REGIONAL || store.region || "").trim();
-  const storesInState = workspace.stores.filter((store) => !uf || store.segments?.UF?.trim() === uf);
-  const regions = [...new Set(storesInState.map(regionOf).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }));
-  const filtered = storesInState.filter((store) => (!region || regionOf(store) === region) && `${store.code} ${store.name}`.toLocaleLowerCase("pt-BR").includes(storeQuery.trim().toLocaleLowerCase("pt-BR")));
-  return <Page><Card><Heading title="Atualizar acesso" detail={person.display_name} /><Field label="Nome" value={name} onChangeText={setName} maxLength={120} /><Field label="Chapa" value={chapa} onChangeText={setChapa} keyboardType="number-pad" maxLength={20} />
-    <Text style={s.label}>Perfil</Text>{(["colaborador", "gerente", ...(workspace.person.master_admin ? ["diretor", "admin"] : [])] as Role[]).map((item) => <Choice key={item} label={roleLabels[item]} selected={role === item} onPress={() => setRole(item)} />)}
+  return <Page><Card><Heading title="Atualizar acesso" detail={person.display_name} /><Field label="Nome" value={name} onChangeText={setName} maxLength={120} /><Field label="Chapa de login (não editável)" value={chapa} editable={false} /><Text style={s.small}>A chapa identifica o login e permanece fixa para preservar o acesso.</Text>
+    <Text style={s.label}>Perfil</Text>{(["colaborador", "gerente", ...(["diretor", "admin"])] as Role[]).map((item) => <Choice key={item} label={roleLabels[item]} selected={role === item} onPress={() => setRole(item)} />)}
     {role === "admin" && <Text style={s.small}>O perfil Administrador tem acesso à gestão de todas as lojas.</Text>}
-    {role !== "admin" && <Button title={showStores ? "Recolher lojas" : `Lojas autorizadas (${stores.length})`} secondary onPress={() => setShowStores(!showStores)} />}
-    {role !== "admin" && !stores.length && <Text style={s.small}>Selecione pelo menos uma loja para este perfil.</Text>}
-    {role !== "admin" && showStores && <>
-      <Choice label={`Todas as lojas (${workspace.stores.length})`} selected={!!workspace.stores.length && workspace.stores.every((store) => stores.includes(store.id))} onPress={() => setStores(workspace.stores.map((store) => store.id))} />
-      <Text style={s.label}>Estado</Text>
-      <ScrollView horizontal contentContainerStyle={{ gap: 8 }} keyboardShouldPersistTaps="handled">
-        {["", ...states].map((item) => <Choice key={item} label={item || "Todos os estados"} selected={uf === item} onPress={() => { setUf(item); setRegion(""); }} />)}
-      </ScrollView>
-      <Text style={s.label}>Regional</Text>
-      <ScrollView horizontal contentContainerStyle={{ gap: 8 }} keyboardShouldPersistTaps="handled">
-        {["", ...regions].map((item) => <Choice key={item} label={item || "Todas as regionais"} selected={region === item} onPress={() => setRegion(item)} />)}
-      </ScrollView>
-      <Field label="Buscar loja" value={storeQuery} onChangeText={setStoreQuery} placeholder="Código ou nome" />
-      {filtered.slice(0, 12).map((store) => <Choice key={store.id} label={`${store.code} · ${store.name}`} selected={stores.includes(store.id)} onPress={() => setStores((old) => old.includes(store.id) ? old.filter((value) => value !== store.id) : [...old, store.id])} />)}
-      {filtered.length > 12 && <Text style={s.small}>Mostrando 12 de {filtered.length}. Refine a busca para ver outras lojas.</Text>}
-      {!filtered.length && <Text style={s.small}>Nenhuma loja encontrada.</Text>}
-    </>}
-    <Button title={app.busy ? "Salvando…" : "Salvar alterações"} disabled={app.busy || name.trim().length < 2 || !/^\d{1,20}$/.test(chapa.trim()) || (role !== "admin" && !stores.length)} onPress={async () => {
+    {role !== "admin" && <><Text style={s.small}>Sem lojas, a pessoa fica sem abrangência operacional. Salvar substitui também os vínculos importados desta pessoa.</Text><StorePicker stores={workspace.stores} selected={stores} onChange={setStores} /></>}
+    <Button title={app.busy ? "Salvando…" : "Salvar alterações"} disabled={app.busy || name.trim().length < 2 || !/^\d{1,20}$/.test(chapa.trim())} onPress={async () => {
       const result = await app.saveMember(person, { name, chapa, role, stores: role === "admin" ? [] : stores });
       if (result.ok) back();
     }} />
   </Card><Card>
     <Heading title="Segurança do acesso" />
-    <Button title={person.active ? "Bloquear acesso" : "Reativar acesso"} danger={person.active} secondary disabled={app.busy} onPress={() => Alert.alert(
-      person.active ? "Bloquear acesso?" : "Reativar acesso?", person.display_name, [
+    <Button title={person.active ? "Arquivar usuário" : "Reativar usuário"} danger={person.active} secondary disabled={app.busy} onPress={() => Alert.alert(
+      person.active ? "Arquivar usuário?" : "Reativar usuário?", person.display_name, [
         { text: "Cancelar", style: "cancel" },
         { text: "Confirmar", style: person.active ? "destructive" : "default", onPress: () => void app.toggleMember(person) },
       ],
@@ -428,7 +402,7 @@ export function ComposeScreen() {
     {segmentBy && <View style={{gap:7}}><Text style={s.label}>Valores de {segmentOptions.find(([key])=>key===segmentBy)?.[1]}</Text>{values.map((value)=><Choice key={value} label={value} selected={segmentValues.includes(value)} onPress={()=>setSegmentValues((old)=>old.includes(value)?old.filter((x)=>x!==value):[...old,value])} />)}</View>}
     <Text style={s.small}>{eligibleStores.length} lojas elegíveis · {eligibleStores.reduce((sum, store) => sum + (store.team_count ?? 0), 0)} pessoas elegíveis</Text><Choice label="Todas as lojas elegíveis" selected={target === "all"} onPress={() => setTarget("all")} /><Choice label="Uma regional" selected={target === "region"} onPress={() => setTarget("region")} /><Choice label="Selecionar lojas elegíveis" selected={target === "stores"} onPress={() => setTarget("stores")} />
     {target === "region" && <>{regions.map((item) => <Choice key={item} label={item} selected={region === item} onPress={() => setRegion(item)} />)}</>}
-    {target === "stores" && eligibleStores.map((store) => <Choice key={store.id} label={`${store.code} · ${store.name}${store.region ? ` · ${store.region}` : ""}`} selected={selectedStores.includes(store.id)} onPress={() => setSelectedStores((old) => old.includes(store.id) ? old.filter((value) => value !== store.id) : [...old, store.id])} />)}
+    {target === "stores" && <StorePicker stores={eligibleStores} selected={selectedStores} onChange={setSelectedStores} />}
     <Text style={s.small}>{stores.length} {stores.length === 1 ? "loja selecionada" : "lojas selecionadas"}</Text>
     <Choice label="Destacar como prioritário" selected={urgent} onPress={() => setUrgent((value) => !value)} />
     <Field label="Programar envio (opcional) · AAAA-MM-DD HH:MM" value={scheduleAt} onChangeText={setScheduleAt} placeholder="2026-11-02 15:30" maxLength={16} />
@@ -451,12 +425,13 @@ export function ProfileScreen({ openPrivacy }: { openPrivacy: () => void }) {
 }
 
 export function PrivacyScreen({ back }: { back: () => void }) {
-  return <Page><Brand compact /><Heading title="Política de Privacidade" detail="Última atualização: 30 de outubro de 2026" />
+  return <Page><Brand compact /><Heading title="Política de Privacidade" detail="Última atualização: 7 de novembro de 2026" />
     <Text style={s.body}>Esta política explica como o aplicativo Excelência Operacional (EO), desenvolvido como projeto independente, trata dados pessoais. O app oferece comunicados e recursos de administração para equipes de loja. O acesso é liberado individualmente por um administrador.</Text>
     <Section title="Dados tratados" /><Text style={s.body}>Para autenticar e operar uma conta, o app trata chapa, nome e e-mail de contato, identificador da conta, perfil e lojas associadas. Também registra comunicados, confirmações de leitura e eventos de administração e segurança. A senha é gerenciada pelo Supabase e não é armazenada pelo app em texto aberto.</Text>
     <Text style={s.body}>A câmera é usada com sua permissão para evidências dos checklists. A agenda abre o formulário do sistema para você confirmar eventos. As notificações usam Expo, Apple e Google para entregar avisos. A biometria é validada pelo sistema do aparelho; o EO não recebe dados faciais ou impressões digitais. Não inclui publicidade.</Text>
+    <Text style={s.body}>O microfone grava relatos de vendas de até um minuto quando você inicia a gravação. Diário e respostas à pergunta “Como está seu dia?” ficam associados à pessoa, à loja e à data. Diretores acessam registros de sua abrangência e administradores acessam a operação completa. Áudios ficam no armazenamento privado do Supabase.</Text>
     <Section title="Finalidades e segurança" /><Text style={s.body}>Os dados são usados para autenticação, aplicação de permissões, apresentação de comunicados, registro de ciência e administração do acesso. São usadas conexões protegidas e controles por perfil e loja. Nenhuma medida técnica elimina todos os riscos inerentes à transmissão e ao armazenamento de informações.</Text>
-    <Section title="Serviços utilizados" /><Text style={s.body}>O serviço utiliza Supabase para autenticação e dados operacionais e Vercel para hospedagem do portal e das páginas públicas. Os dados não são vendidos nem compartilhados para publicidade.</Text>
+    <Section title="Serviços utilizados" /><Text style={s.body}>O serviço utiliza Supabase para autenticação e dados operacionais e Vercel para hospedagem do portal. Quando você solicita um resumo por IA, os totais e uma amostra limitada dos relatos em texto são enviados à Anthropic. O resumo fica salvo no Supabase. Os dados não são vendidos nem compartilhados para publicidade.</Text>
     <Section title="Direitos e solicitações" /><Text style={s.body}>Para solicitar acesso, correção ou esclarecimentos sobre seus dados, escreva para mbdo.matheus@gmail.com. Poderemos confirmar sua identidade antes de atender ao pedido.</Text>
     <Button title="Falar com suporte" secondary onPress={() => void Linking.openURL("mailto:mbdo.matheus@gmail.com")} /><Button title="Voltar ao aplicativo" icon="←" onPress={back} />
   </Page>;

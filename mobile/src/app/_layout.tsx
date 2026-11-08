@@ -17,7 +17,8 @@ function RootNavigation() {
     if (!app.workspace || app.passwordMode) return;
     const open = (response: Notifications.NotificationResponse | null) => {
       if (!response) return;
-      router.navigate("/notices" as never);
+      const type = response.notification.request.content.data?.type;
+      router.navigate((type === "mood" ? "/mood" : "/notices") as never);
       void Notifications.clearLastNotificationResponseAsync();
     };
     void Notifications.getLastNotificationResponseAsync().then(open);
@@ -55,6 +56,9 @@ function RootNavigation() {
     <Stack.Screen name="checklists" options={{ title: "Checklists" }} />
     <Stack.Screen name="alerts" options={{ title: "Alertas" }} />
     <Stack.Screen name="device" options={{ title: "Meu aparelho" }} />
+    <Stack.Screen name="sales" options={{ title: "Vendas" }} />
+    <Stack.Screen name="diary" options={{ title: "Diário de vendas" }} />
+    <Stack.Screen name="mood" options={{ title: "Como está seu dia?" }} />
     <Stack.Screen name="stores" options={{ title: "Lojas" }} />
     <Stack.Screen name="people/index" options={{ title: "Pessoas e acessos" }} />
     <Stack.Screen name="people/new" options={{ title: "Cadastrar usuário" }} />

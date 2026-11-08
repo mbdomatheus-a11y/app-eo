@@ -12,6 +12,8 @@ import type { AdminTab, ArchivedMessage, AuditRow, ChecklistDetail, ChecklistRun
 Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true }) });
 
 type Result = { ok: boolean };
+type PeopleQuery = { search?: string; role?: string; state?: string; region?: string; uf?: string; page?: number; sort?: string };
+type AdminStore = Store & { active: boolean };
 type MessagePayload = { title: string; body: string; stores: string[]; urgent: boolean; scheduledFor?: string; sendPush?: boolean; attachments?: MessageFile[] };
 type ContextValue = {
   configured: boolean; session: Session | null; initializing: boolean; loading: boolean; busy: boolean;
@@ -19,6 +21,9 @@ type ContextValue = {
   alerts: LiveAlert[]; checklists: ChecklistRun[]; checklistDetail: ChecklistDetail | null; soundEnabled: boolean;
   pushGranted: boolean;
   audit: AuditRow[]; members: LivePerson[]; error: string; message: string;
+  peopleTotal: number; adminStores: AdminStore[];
+  searchPeople: (query?: PeopleQuery) => Promise<void>; loadPerson: (id: string) => Promise<void>;
+  saveStore: (store: AdminStore) => Promise<Result>;
   archivedMessages: ArchivedMessage[]; reportMessages: ReportMessage[]; reportData: NoticeReport | null;
   clearFeedback: () => void; login: (chapa: string, password: string) => Promise<Result>;
   changeTemporaryPassword: (password: string, confirmation: string) => Promise<Result>;
@@ -60,6 +65,9 @@ export function EOProvider({ children }: { children: ReactNode }) {
   const [more, setMore] = useState(false);
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [members, setMembers] = useState<LivePerson[]>([]);
+  const [peopleTotal, setPeopleTotal] = useState(0);
+  const [adminStores, setAdminStores] = useState<AdminStore[]>([]);
+  const peopleRequest = useRef(0);
   const [archivedMessages, setArchivedMessages] = useState<ArchivedMessage[]>([]);
   const [reportMessages, setReportMessages] = useState<ReportMessage[]>([]);
   const [reportData, setReportData] = useState<NoticeReport | null>(null);
@@ -256,7 +264,7 @@ export function EOProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (session?.user.id) void refresh();
-    else { epoch.current++; setWorkspace(null); setNotices([]); setAlerts([]); setChecklists([]); setChecklistDetail(null); setMembers([]); setAudit([]); setPasswordMode(false); }
+    else { epoch.current++; peopleRequest.current++; setAdminStores([]); setPeopleTotal(0); setWorkspace(null); setNotices([]); setAlerts([]); setChecklists([]); setChecklistDetail(null); setMembers([]); setAudit([]); setPasswordMode(false); }
   }, [session?.user.id, refresh]);
 
   const login = useCallback((chapa: string, password: string) => act(async () => {
@@ -292,16 +300,30 @@ export function EOProvider({ children }: { children: ReactNode }) {
     setNotices((current) => [...current, ...feed]); setMore(feed.length === 20);
   }), [act, notices]);
 
+  const searchPeople = useCallback(async (query: PeopleQuery = {}) => {
+    const request = ++peopleRequest.current;
+    try {
+      const result = await rpc<{items: LivePerson[];total: number}>("eo_admin_people_page", { p_search: query.search || "", p_role: query.role || "", p_state: query.state || "", p_region: query.region || "", p_uf: query.uf || "", p_limit: 30, p_offset: (query.page || 0)*30, p_sort: query.sort || "name" });
+      if (request === peopleRequest.current) { setMembers(result.items); setPeopleTotal(result.total); }
+    } catch (cause) { if (request === peopleRequest.current) setError(cause instanceof Error ? cause.message : "Não foi possível buscar as pessoas."); }
+  }, []);
+  const loadPerson = useCallback(async (id: string) => {
+    try {
+      const result = await rpc<{items: LivePerson[]}>("eo_admin_people_page", { p_user: id });
+      if (result.items[0]) setMembers((old) => [...old.filter((person) => person.id!==id),result.items[0]]);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível carregar a pessoa."); }
+  }, []);
   const loadAdmin = useCallback((tab: AdminTab) => act(async () => {
     if (tab === "audit") setAudit(await rpc<AuditRow[]>("eo_admin_audit"));
-    if (tab === "people") setMembers(await rpc<LivePerson[]>("eo_admin_people"));
+    if (tab === "people") await searchPeople();
+    if (tab === "stores") setAdminStores(await rpc<AdminStore[]>("eo_admin_stores"));
     if (tab === "archive") setArchivedMessages(await rpc<ArchivedMessage[]>("eo_admin_archived_messages"));
     if (tab === "reports") {
       const messages = await rpc<ReportMessage[]>("eo_admin_report_messages"); setReportMessages(messages);
       if (messages[0]) setReportData(await rpc<NoticeReport>("eo_admin_notice_report", { p_notice: messages[0].notice_id, p_version: messages[0].version, p_group_by: "regional" }));
       else setReportData(null);
     }
-  }), [act]);
+  }), [act, searchPeople]);
 
   const loadNoticeReport = useCallback((notice: string, version: number, groupBy: string, segmentBy = "", segmentValues: string[] = []) => act(async () => {
     if (!notice) throw new Error("Selecione um comunicado.");
@@ -316,7 +338,12 @@ export function EOProvider({ children }: { children: ReactNode }) {
   const addStore = useCallback((data: { code: string; name: string; region: string }) => act(async () => {
     await rpc("eo_admin_store", { p_code: data.code, p_name: data.name, p_region: data.region });
     await refresh();
+    setAdminStores(await rpc<AdminStore[]>("eo_admin_stores"));
   }, "Loja cadastrada."), [act, refresh]);
+  const saveStore = useCallback((store: AdminStore) => act(async () => {
+    await rpc("eo_admin_manage_store", { p_store: store.id, p_code: store.code, p_name: store.name, p_region: store.region, p_active: store.active });
+    setAdminStores(await rpc<AdminStore[]>("eo_admin_stores")); await refresh();
+  }, "Loja atualizada. Histórico e vínculos preservados."), [act, refresh]);
 
   const inviteMember = useCallback(async (data: { chapa: string; email: string; name: string; role: string; stores: string[] }) => {
     let password: string | undefined;
@@ -327,11 +354,10 @@ export function EOProvider({ children }: { children: ReactNode }) {
         throw new Error(response?.error ?? "Não foi possível cadastrar a pessoa.");
       }
       password = created.password;
-      const updated = await rpc<LivePerson[]>("eo_admin_people").catch(() => null);
-      if (updated) setMembers(updated);
+      await searchPeople();
     }, "Usuário cadastrado. Compartilhe os dados de acesso.");
     return { ...result, password };
-  }, [act]);
+  }, [act, searchPeople]);
 
   const toggleMember = useCallback((person: LivePerson) => act(async () => {
     const { error: statusError } = await supabase!.functions.invoke("admin-identity", { body: { action: "set-person-active", user_id: person.id, active: !person.active } });
@@ -340,12 +366,12 @@ export function EOProvider({ children }: { children: ReactNode }) {
       throw new Error(response?.error ?? "Não foi possível alterar o acesso.");
     }
     setMembers((current) => current.map((item) => item.id === person.id ? { ...item, active: !person.active } : item));
-  }, person.active ? "Acesso bloqueado." : "Acesso reativado."), [act]);
+  }, person.active ? "Usuário arquivado. Histórico preservado." : "Acesso reativado."), [act]);
 
   const saveMember = useCallback((person: LivePerson, data: { chapa: string; name: string; role: string; stores: string[] }) => act(async () => {
     await rpc("eo_admin_update_person", { p_user: person.id, p_name: data.name.trim(), p_role: data.role, p_chapa: data.chapa.trim(), p_stores: data.stores, p_active: person.active });
-    setMembers(await rpc<LivePerson[]>("eo_admin_people"));
-  }, "Perfil e lojas atualizados."), [act]);
+    await loadPerson(person.id);
+  }, "Perfil e lojas atualizados."), [act, loadPerson]);
 
   const publish = useCallback((data: MessagePayload) => act(async () => {
     if (!data.stores.length) throw new Error("Selecione pelo menos uma loja.");
@@ -381,10 +407,10 @@ export function EOProvider({ children }: { children: ReactNode }) {
   }, [act]);
 
   const value = useMemo<ContextValue>(() => ({
-    configured: backendConfigured, session, initializing, loading, busy, passwordMode, workspace, notices, more, alerts, checklists, checklistDetail, soundEnabled, pushGranted, audit, members, error, message, archivedMessages, reportMessages, reportData,
+    configured: backendConfigured, session, initializing, loading, busy, passwordMode, workspace, notices, more, alerts, checklists, checklistDetail, soundEnabled, pushGranted, audit, members, error, message, archivedMessages, reportMessages, reportData, peopleTotal, adminStores, searchPeople, loadPerson, saveStore,
     clearFeedback, login, changeTemporaryPassword, signout, refresh, acknowledge, loadMore, loadAdmin, loadNoticeReport, archiveMessage, addStore, inviteMember, toggleMember, saveMember, publish, issueTemporaryPassword,
     refreshOperational, markAlert, moderateAlert, setSoundEnabled, openChecklist, saveChecklistAnswer, publishAlert, openMessageAttachment, publishChecklist, enablePush, captureChecklistPhoto, sendTestPush,
-  }), [session, initializing, loading, busy, passwordMode, workspace, notices, more, alerts, checklists, checklistDetail, soundEnabled, pushGranted, audit, members, error, message, archivedMessages, reportMessages, reportData, clearFeedback, login, changeTemporaryPassword, signout, refresh, acknowledge, loadMore, loadAdmin, loadNoticeReport, archiveMessage, addStore, inviteMember, toggleMember, saveMember, publish, issueTemporaryPassword, refreshOperational, markAlert, moderateAlert, setSoundEnabled, openChecklist, saveChecklistAnswer, publishAlert, openMessageAttachment, publishChecklist, enablePush, captureChecklistPhoto, sendTestPush]);
+  }), [session, initializing, loading, busy, passwordMode, workspace, notices, more, alerts, checklists, checklistDetail, soundEnabled, pushGranted, audit, members, error, message, archivedMessages, reportMessages, reportData, peopleTotal, adminStores, searchPeople, loadPerson, saveStore, clearFeedback, login, changeTemporaryPassword, signout, refresh, acknowledge, loadMore, loadAdmin, loadNoticeReport, archiveMessage, addStore, inviteMember, toggleMember, saveMember, publish, issueTemporaryPassword, refreshOperational, markAlert, moderateAlert, setSoundEnabled, openChecklist, saveChecklistAnswer, publishAlert, openMessageAttachment, publishChecklist, enablePush, captureChecklistPhoto, sendTestPush]);
 
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
