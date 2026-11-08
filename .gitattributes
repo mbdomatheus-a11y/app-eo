@@ -1,0 +1,2 @@
+# Expo Fingerprint deve produzir o mesmo hash no Windows e no GitHub.
+/mobile/.gitignore text eol=lf
