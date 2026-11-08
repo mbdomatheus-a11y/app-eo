@@ -4,6 +4,7 @@ import App from "./App";
 import ConnectedApp from "./ConnectedApp";
 import "./styles.css";
 import "./portal.css";
+import "./visual-system.css";
 
 const demo =
   import.meta.env.DEV &&

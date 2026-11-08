@@ -1,3 +1,5 @@
+import { AccountMenu } from "./features/account/AccountMenu";
+import { TableViewport } from "./components/TableViewport";
 import {
   useCallback,
   useEffect,
@@ -96,6 +98,15 @@ function Dialog({
   );
 }
 export default function ConnectedApp() {
+  const [newStoreOpen, setNewStoreOpen] = useState(false);
+  const [newStoreDirty, setNewStoreDirty] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  useEffect(() => {
+    if (!newStoreOpen || !newStoreDirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [newStoreOpen, newStoreDirty]);
   const [registrationOpen, setRegistrationOpen] = useState(false);
   const [registrationRole, setRegistrationRole] = useState("colaborador");
   const [registrationDirty, setRegistrationDirty] = useState(false);
@@ -543,6 +554,7 @@ export default function ConnectedApp() {
       await refresh();
       setAdminStores(await rpc<AdminStore[]>("eo_admin_stores"));
       setMessage("Loja cadastrada.");
+      setNewStoreDirty(false); setNewStoreOpen(false);
     });
   }
   async function saveManagedStore(store: AdminStore) {
@@ -792,9 +804,7 @@ export default function ConnectedApp() {
     return (
       <div className="auth-shell eo-signin">
         <section className="auth-intro">
-          <span className="brand-mark">
-            eo<span>•</span>
-          </span>
+          <img className="eo-brand-icon" src="/eo-icon.svg" alt="EO" width="42" height="42" />
           <span className="hero-kicker">SEU ESPAÇO DE TRABALHO</span>
           <h1>Excelência Operacional</h1>
           <p>Acompanhe os comunicados e as rotinas das suas lojas.</p>
@@ -951,9 +961,7 @@ export default function ConnectedApp() {
             setPage("home");
           }}
         >
-          <span className="brand-mark">
-            eo<span>•</span>
-          </span>
+          <img className="eo-brand-icon" src="/eo-icon.svg" alt="EO" width="42" height="42" />
           <span className="brand-copy">
             EXCELÊNCIA
             <br />
@@ -1021,13 +1029,7 @@ export default function ConnectedApp() {
             >
               <RefreshCw size={18} />
             </button>
-            <span className="avatar">
-              {workspace.person.name.slice(0, 2).toUpperCase()}
-            </span>
-            <div className="top-person">
-              <b>{workspace.person.name}</b>
-              <span>{roleLabels[workspace.person.role]}</span>
-            </div>
+            <AccountMenu person={workspace.person} onSignOut={() => void signout()} disabled={busy} />
           </div>
         </header>
         <main id="conteudo" className={page === "home" ? "eo-home" : undefined}>
@@ -1236,40 +1238,16 @@ export default function ConnectedApp() {
                 ))}
               </div>
               {tab === "stores" && (
-                <div className="admin-grid">
-                  <section className="panel">
-                    <h2>Nova loja</h2>
-                    <form className="form" onSubmit={addStore}>
-                      <label>
-                        Código
-                        <input name="code" required maxLength={20} />
-                      </label>
-                      <label>
-                        Nome
-                        <input
-                          name="name"
-                          required
-                          minLength={2}
-                          maxLength={120}
-                        />
-                      </label>
-                      <label>
-                        Regional
-                        <input name="region" maxLength={120} />
-                      </label>
-                      <button className="primary" disabled={busy}>
-                        Cadastrar loja
-                      </button>
-                    </form>
-                  </section>
-                  <section className="panel"><h2>Lojas cadastradas</h2>
+                <div className="admin-stores-layout">
+                  <div className="admin-section-heading"><div><span className="eyebrow">ESTRUTURA DA OPERAÇÃO</span><h2>Suas lojas</h2><p>Encontre unidades, refine a seleção e gerencie os cadastros.</p></div><button type="button" className="primary" onClick={() => { setNewStoreOpen(true); setNewStoreDirty(false); }}><Plus size={18} /> Nova loja</button></div>
+                  <section className="panel store-directory"><h2>Lojas cadastradas</h2>
                     <div className="form-grid"><label>Buscar<input type="search" value={storeSearch} onChange={(e)=>{setStoreSearch(e.target.value);setStorePage(0);}} placeholder="Código, nome ou regional" /></label>
                     <label>UF<select value={storeUf} onChange={(e)=>{setStoreUf(e.target.value);setStoreRegion("");setStorePage(0);}}><option value="">Todas</option>{[...new Set(adminStores.map((store)=>store.segments?.UF || "").filter(Boolean))].sort().map((value)=><option key={value}>{value}</option>)}</select></label>
                     <label>Regional<select value={storeRegion} onChange={(e)=>{setStoreRegion(e.target.value);setStorePage(0);}}><option value="">Todas</option>{[...new Set(adminStores.filter((store)=>!storeUf || store.segments?.UF===storeUf).map((store)=>store.segments?.REGIONAL || store.region).filter(Boolean))].sort().map((value)=><option key={value}>{value}</option>)}</select></label>
                     <label>Situação<select value={storeState} onChange={(e)=>{setStoreState(e.target.value);setStorePage(0);}}><option value="active">Ativas</option><option value="archived">Arquivadas</option><option value="">Todas</option></select></label>
                     <label>Ordenar<select value={storeSort.key} onChange={(e)=>setStoreSort({...storeSort,key:e.target.value})}><option value="code">Código</option><option value="name">Nome</option><option value="region">Regional</option></select></label>
                     <label>Ordem<select value={storeSort.direction} onChange={(e)=>setStoreSort({...storeSort,direction:e.target.value as "asc"|"desc"})}><option value="asc">Crescente</option><option value="desc">Decrescente</option></select></label></div>
-                    <div className="table-wrap"><table><thead><tr><th>Código</th><th>Loja</th><th>UF</th><th>Regional</th><th>Situação</th><th>Ação</th></tr></thead><tbody>{filteredAdminStores.slice(storePage*30,storePage*30+30).map((store)=><tr key={store.id}><td>{store.code}</td><td>{store.name}</td><td>{store.segments?.UF || ""}</td><td>{store.segments?.REGIONAL || store.region}</td><td>{store.active ? "Ativa" : "Arquivada"}</td><td><button className="text-button" onClick={()=>setManagedStore({...store})}>Editar</button></td></tr>)}</tbody></table></div>
+                    <TableViewport><table><thead><tr><th>Código</th><th>Loja</th><th>UF</th><th>Regional</th><th>Situação</th><th>Ação</th></tr></thead><tbody>{filteredAdminStores.slice(storePage*30,storePage*30+30).map((store)=><tr key={store.id}><td>{store.code}</td><td>{store.name}</td><td>{store.segments?.UF || ""}</td><td>{store.segments?.REGIONAL || store.region}</td><td>{store.active ? "Ativa" : "Arquivada"}</td><td><button className="text-button" onClick={()=>setManagedStore({...store})}>Editar</button></td></tr>)}</tbody></table></TableViewport>
                     <div className="pagination"><button className="secondary" disabled={!storePage} onClick={()=>setStorePage(storePage-1)}>Anterior</button><span>{filteredAdminStores.length} lojas · página {storePage+1}</span><button className="secondary" disabled={(storePage+1)*30>=filteredAdminStores.length} onClick={()=>setStorePage(storePage+1)}>Próxima</button></div>
                   </section>
                 </div>
@@ -1294,7 +1272,7 @@ export default function ConnectedApp() {
                       <label>Ordem<select value={storeSort.direction} onChange={(event) => setStoreSort((current) => ({ ...current, direction: event.currentTarget.value as "asc" | "desc" }))}><option value="asc">A a Z · menor para maior</option><option value="desc">Z a A · maior para menor</option></select></label>
                     </div>
                     <div className="info-strip" style={{ margin: "10px 0" }}>{orderedStoreRecords().length.toLocaleString("pt-BR")} lojas visíveis · {Object.keys(storeRecords()[0] ?? {}).filter((key) => key !== "__id").length} colunas carregadas</div>
-                    <div className="table-wrap"><table><thead><tr>{Object.keys(storeRecords()[0] ?? {}).filter((key) => key !== "__id").map((key) => <th key={key}><button className="text-button" type="button" onClick={() => { setImportPage(0); setStoreSort((current) => ({ key, direction: current.key === key && current.direction === "asc" ? "desc" : "asc" })); }}>{key}{storeSort.key === key ? storeSort.direction === "asc" ? " ↑" : " ↓" : ""}</button></th>)}<th>Ação</th></tr></thead><tbody>{orderedStoreRecords().slice(importPage*30, importPage*30+30).map((row) => <tr key={String(row.__id)}>{Object.keys(row).filter((key) => key !== "__id").map((key) => <td key={key}>{String(row[key] ?? "")}</td>)}<td><button type="button" className="secondary" onClick={() => setEditingStore(row)}>Editar</button></td></tr>)}</tbody></table></div>
+                    <TableViewport><table><thead><tr>{Object.keys(storeRecords()[0] ?? {}).filter((key) => key !== "__id").map((key) => <th key={key}><button className="text-button" type="button" onClick={() => { setImportPage(0); setStoreSort((current) => ({ key, direction: current.key === key && current.direction === "asc" ? "desc" : "asc" })); }}>{key}{storeSort.key === key ? storeSort.direction === "asc" ? " ↑" : " ↓" : ""}</button></th>)}<th>Ação</th></tr></thead><tbody>{orderedStoreRecords().slice(importPage*30, importPage*30+30).map((row) => <tr key={String(row.__id)}>{Object.keys(row).filter((key) => key !== "__id").map((key) => <td key={key}>{String(row[key] ?? "")}</td>)}<td><button type="button" className="secondary" onClick={() => setEditingStore(row)}>Editar</button></td></tr>)}</tbody></table></TableViewport>
                     <div className="pagination"><button className="secondary" type="button" disabled={!importPage} onClick={()=>setImportPage(importPage-1)}>Anterior</button><span>Página {importPage+1} · até 30 lojas por página</span><button className="secondary" type="button" disabled={(importPage+1)*30>=orderedStoreRecords().length} onClick={()=>setImportPage(importPage+1)}>Próxima</button></div>
                     {!importedStores.length && <p className="field-hint">Aplique a migration 007 para habilitar a consulta e edição da base ativa.</p>}
                   </div>
@@ -1328,7 +1306,7 @@ export default function ConnectedApp() {
                     <div className="panel" aria-live="polite">
                       <h3>Revisar antes de importar</h3>
                       <p><strong>{importFileName}</strong></p>
-                      <div className="table-wrap">
+                      <TableViewport>
                         <table>
                           <thead><tr><th>Aba</th><th>Linhas</th></tr></thead>
                           <tbody>
@@ -1336,8 +1314,7 @@ export default function ConnectedApp() {
                               <tr key={name}><td>{name}</td><td>{count.toLocaleString("pt-BR")}</td></tr>
                             ))}
                           </tbody>
-                        </table>
-                      </div>
+                        </table></TableViewport>
                       <p className="muted">A importação substitui a base organizacional ativa em uma transação. Se a validação falhar, a última base válida continua ativa. Contas, senhas e acessos individuais não são criados por esta planilha.</p>
                       <button className="primary" type="button" onClick={() => void importOrgBase()} disabled={busy || !importReady}>
                         <Upload size={18} />
@@ -1435,7 +1412,7 @@ export default function ConnectedApp() {
                     <label>Ordenar<select value={peopleSort} onChange={(e)=>{setPeopleSort(e.target.value);setPeoplePage(0);}}><option value="name">Nome</option><option value="chapa">Chapa</option><option value="role">Perfil</option></select></label></div>
                     <p className="field-hint">{peopleTotal} pessoas encontradas · até 30 por página</p>
 
-                    <div className="table-wrap">
+                    <TableViewport>
                       <table>
                         <thead>
                           <tr>
@@ -1504,8 +1481,7 @@ export default function ConnectedApp() {
                             </tr>
                           ))}
                         </tbody>
-                      </table>
-                    </div>
+                      </table></TableViewport>
                     <div className="pagination"><button className="secondary" disabled={!peoplePage || busy} onClick={()=>setPeoplePage(peoplePage-1)}>Anterior</button><span>Página {peoplePage+1}</span><button className="secondary" disabled={(peoplePage+1)*30>=peopleTotal || busy} onClick={()=>setPeoplePage(peoplePage+1)}>Próxima</button></div>
                   </section>
                 </>
@@ -1514,7 +1490,7 @@ export default function ConnectedApp() {
                 <section className="panel">
                   <h2>Atividade do sistema</h2>
                   <p>Últimos 50 eventos registrados pelo servidor.</p>
-                  <div className="table-wrap">
+                  <TableViewport>
                     <table>
                       <thead>
                         <tr>
@@ -1548,8 +1524,7 @@ export default function ConnectedApp() {
                           </tr>
                         ))}
                       </tbody>
-                    </table>
-                  </div>
+                    </table></TableViewport>
                 </section>
               )}
               {tab === "archive" && workspace.person.role === "admin" && (
@@ -1607,9 +1582,9 @@ export default function ConnectedApp() {
                       <div className="stat"><div className="stat-top">Lojas pendentes</div><strong>{reportData.stores_pending}</strong></div>
                     </div>
                     <p className="field-hint">{reportData.read_rule} “Leitura completa” indica que todas as pessoas destinatárias daquela loja confirmaram.</p>
-                    <div className="table-wrap"><table><thead><tr><th>Agrupamento</th><th>Total de lojas</th><th>Com ciência</th><th>Leitura completa</th><th>Pendentes</th></tr></thead>
+                    <TableViewport><table><thead><tr><th>Agrupamento</th><th>Total de lojas</th><th>Com ciência</th><th>Leitura completa</th><th>Pendentes</th></tr></thead>
                       <tbody>{reportData.groups.map((group) => <tr key={group.group}><td>{group.group}</td><td>{group.total_stores}</td><td>{group.stores_with_read}</td><td>{group.stores_fully_read}</td><td>{group.stores_pending}</td></tr>)}</tbody>
-                    </table></div>
+                    </table></TableViewport>
                   </> : <p>{reportMessages.length ? "Carregando relatório…" : "Ainda não há comunicados publicados para exibir."}</p>}
                 </section>
               )}
@@ -1621,25 +1596,33 @@ export default function ConnectedApp() {
           </footer>
         </main>
       </div>
-      <nav className="mobile-nav" aria-label="Navegação principal">
-        {navigation.filter((item) => ["home", "notices", "modules", "admin"].includes(item.id)).map((n) => (
-          <button
-            key={n.id}
-            aria-current={page === n.id ? "page" : undefined}
-            className={page === n.id ? "active" : ""}
-            onClick={() =>
-              n.id === "admin" ? void openAdmin(tab) : setPage(n.id)
-            }
-          >
-            <n.icon size={20} />
-            <span>{n.id === "home" ? "Início" : n.id === "admin" ? "Gestão" : n.label}</span>
-          </button>
-        ))}
-        <button disabled={busy} onClick={() => void signout()}>
-          <LogOut size={20} />
-          <span>Sair</span>
-        </button>
+      <nav className="mobile-nav" aria-label="Navegação no celular">
+        {navigation.filter((item) => ["home", "notices", "sales"].includes(item.id)).map((n) => <button key={n.id} aria-current={page === n.id ? "page" : undefined} className={page === n.id ? "active" : ""} onClick={() => { setPage(n.id); setMoreOpen(false); }}><n.icon size={21} /><span>{n.id === "home" ? "Início" : n.label}</span></button>)}
+        <button className={moreOpen || ["modules", "diary", "mood", "admin"].includes(page) ? "active" : ""} aria-expanded={moreOpen} onClick={() => setMoreOpen(true)}><Grid2X2 size={21} /><span>Mais</span></button>
       </nav>
+      {moreOpen && <Dialog title="Seu espaço" close={() => setMoreOpen(false)}><nav className="eo-more-menu" aria-label="Todos os módulos">{navigation.map((n) => <button type="button" key={n.id} aria-current={page === n.id ? "page" : undefined} onClick={() => { setMoreOpen(false); n.id === "admin" ? void openAdmin(tab) : setPage(n.id); }}><n.icon size={22} /><span>{n.label}</span><ChevronRight size={18} /></button>)}</nav></Dialog>}
+      {newStoreOpen && <Dialog title="Nova loja" close={() => { if (!busy && (!newStoreDirty || window.confirm("Descartar as alterações desta loja?"))) { setNewStoreOpen(false); setNewStoreDirty(false); } }}><p className="field-hint">Cadastre uma unidade para associar pessoas, comunicados e resultados.</p><form className="form" onSubmit={addStore} onChange={() => setNewStoreDirty(true)}>
+                      <label>
+                        Código
+                        <input name="code" required maxLength={20} />
+                      </label>
+                      <label>
+                        Nome
+                        <input
+                          name="name"
+                          required
+                          minLength={2}
+                          maxLength={120}
+                        />
+                      </label>
+                      <label>
+                        Regional
+                        <input name="region" maxLength={120} />
+                      </label>
+                      <button className="primary" disabled={busy}>
+                        Cadastrar loja
+                      </button>
+                    </form></Dialog>}
       {opened && (
         <Dialog title="Comunicado" close={() => setOpened(null)}>
           <span className="badge">Versão {opened.version}</span>
