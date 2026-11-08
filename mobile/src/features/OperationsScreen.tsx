@@ -69,6 +69,8 @@ export function OperationsScreen({ initialTab = "diary" }: { initialTab?: Tab })
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [transcript, setTranscript] = useState("");
+  const [transcriptReviewed, setTranscriptReviewed] = useState(false);
   const [reportPage, setReportPage] = useState(0);
   const [groupBy, setGroupBy] = useState<"region" | "store">("region");
   const [recordPage, setRecordPage] = useState(0);
@@ -128,6 +130,7 @@ export function OperationsScreen({ initialTab = "diary" }: { initialTab?: Tab })
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { setRecordPage(0); }, [from, to, storeIds]);
 
+  useEffect(() => { setTranscript(""); setTranscriptReviewed(false); }, [audioUri]);
   async function recordAudio() {
     setError("");
     try {
@@ -182,12 +185,31 @@ export function OperationsScreen({ initialTab = "diary" }: { initialTab?: Tab })
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
+  useEffect(() => {
+    if (!audioUri || !store) return;
+    const timer = setTimeout(() => { void transcribeDay(); }, 0);
+    return () => clearTimeout(timer);
+  }, [audioUri]);
+  async function transcribeDay() {
+    setBusy(true); setError("");
+    try {
+      if (!store) throw new Error("Selecione a loja antes de transcrever.");
+      const path = await uploadAudio();
+      if (!path) throw new Error("Grave um áudio primeiro.");
+      const { data, error } = await supabase!.functions.invoke("transcribe-audio", { body: { bucket: "eo-day-audio", path, store, seconds: Math.max(1, seconds) } });
+      if (error) { let message = "Não foi possível transcrever o áudio."; try { message = (await error.context.json()).error || message; } catch {} throw new Error(message); }
+      if (!data?.text) throw new Error(data?.error || "A transcrição ficou vazia. Regrave o relato.");
+      setTranscript(data.text); setTranscriptReviewed(false); setMessage("Texto transcrito. Revise antes de salvar o registro.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Falha na transcrição."); }
+    finally { setBusy(false); }
+  }
   async function saveDay() {
     setBusy(true); setError(""); setMessage("");
     try {
       if (!store) throw new Error("Escolha uma única loja para este registro.");
+      if (audioUri && (!transcript.trim() || !transcriptReviewed)) throw new Error("Transcreva e revise o áudio antes de salvar.");
       const path = await uploadAudio();
-      await rpc("eo_save_day_entry", { p_store: store, p_date: today(), p_outcome: outcome, p_reasons: reasons, p_note: note.trim(), p_audio_path: path, p_audio_seconds: path ? Math.max(1, seconds) : null, p_transcript: null, p_request_id: dayRequest.current });
+      await rpc("eo_save_day_entry", { p_store: store, p_date: today(), p_outcome: outcome, p_reasons: reasons, p_note: note.trim(), p_audio_path: path, p_audio_seconds: path ? Math.max(1, seconds) : null, p_transcript: path ? transcript.trim() : null, p_request_id: dayRequest.current });
       dayRequest.current = Crypto.randomUUID();
       setNote(""); setReasons([]); setAudioUri(""); setAudioPath(null); 
       setMessage("Registro salvo no diário da loja.");
@@ -252,7 +274,8 @@ export function OperationsScreen({ initialTab = "diary" }: { initialTab?: Tab })
       <Button title={recording.isRecording ? `Parar · ${seconds}s / 60s` : audioUri ? `Gravar novamente · ${seconds}s` : "Gravar áudio de até 1 minuto"} secondary disabled={busy} onPress={() => void recordAudio()} />
       {!!audioUri && <Text style={s.small}>O áudio será guardado com o registro. Transcrição automática pendente de integração compatível.</Text>}
       {!!audioUri && <Button title="Ouvir gravação" secondary disabled={recording.isRecording} onPress={() => { void player.seekTo(0).then(() => player.play()); }} />}
-      <Button title={busy ? "Salvando…" : "Salvar registro"} disabled={busy || recording.isRecording || !store || (!reasons.length && !note.trim() && !audioUri)} onPress={() => void saveDay()} />
+      {!!audioUri && <><Button title="Transcrever áudio" secondary disabled={busy || recording.isRecording} onPress={() => void transcribeDay()} /><Field label="Texto transcrito, revise e edite" value={transcript} multiline maxLength={4000} onChangeText={(value) => { setTranscript(value); setTranscriptReviewed(false); }} /><Choice label="Revisei a transcrição antes de salvar" selected={transcriptReviewed} onPress={() => { if (transcript.trim()) setTranscriptReviewed(!transcriptReviewed); }} /></>}
+      <Button title={busy ? "Salvando…" : "Salvar registro"} disabled={busy || recording.isRecording || !!audioUri && (!transcript.trim() || !transcriptReviewed) || !store || (!reasons.length && !note.trim() && !audioUri)} onPress={() => void saveDay()} />
     </Card>}
     {tab === "mood" && <>
       <Card>

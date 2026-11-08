@@ -59,6 +59,8 @@ export function OperationsPanel({ workspace, initialTab = "diary" }: { workspace
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [transcript, setTranscript] = useState("");
+  const [transcriptReviewed, setTranscriptReviewed] = useState(false);
   const [from, setFrom] = useState(today().slice(0, 8) + "01");
   const [to, setTo] = useState(today());
   const [entries, setEntries] = useState<DayEntry[]>([]);
@@ -128,6 +130,7 @@ export function OperationsPanel({ workspace, initialTab = "diary" }: { workspace
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { setRecordPage(0); }, [from, to, store]);
 
+  useEffect(() => { setTranscript(""); setTranscriptReviewed(false); }, [audio]);
   async function startRecording() {
     setError("");
     if (!navigator.mediaDevices || typeof MediaRecorder === "undefined") {
@@ -204,14 +207,33 @@ export function OperationsPanel({ workspace, initialTab = "diary" }: { workspace
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
+  useEffect(() => {
+    if (!audio || !store) return;
+    const timer = setTimeout(() => { void transcribeDay(); }, 0);
+    return () => clearTimeout(timer);
+  }, [audio]);
+  async function transcribeDay() {
+    setBusy(true); setError("");
+    try {
+      if (!store) throw new Error("Selecione a loja antes de transcrever.");
+      const path = await uploadAudio();
+      if (!path) throw new Error("Grave um áudio primeiro.");
+      const { data, error } = await supabase!.functions.invoke("transcribe-audio", { body: { bucket: "eo-day-audio", path, store, seconds: Math.max(1, seconds) } });
+      if (error) { let message = "Não foi possível transcrever o áudio."; try { message = (await error.context.json()).error || message; } catch {} throw new Error(message); }
+      if (!data?.text) throw new Error(data?.error || "A transcrição ficou vazia. Regrave o relato.");
+      setTranscript(data.text); setTranscriptReviewed(false); setMessage("Texto transcrito. Revise antes de salvar o registro.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Falha na transcrição."); }
+    finally { setBusy(false); }
+  }
   async function saveDay() {
     setBusy(true); setError(""); setMessage("");
     try {
       if (!store) throw new Error("Selecione a loja deste registro.");
+      if (audio && (!transcript.trim() || !transcriptReviewed)) throw new Error("Transcreva e revise o áudio antes de salvar.");
       const path = await uploadAudio();
       await rpc("eo_save_day_entry", {
         p_store: store, p_date: today(), p_outcome: outcome, p_reasons: selectedReasons,
-        p_note: note.trim(), p_audio_path: path, p_audio_seconds: path ? seconds : null, p_transcript: null, p_request_id: dayRequest.current,
+        p_note: note.trim(), p_audio_path: path, p_audio_seconds: path ? seconds : null, p_transcript: path ? transcript.trim() : null, p_request_id: dayRequest.current,
       });
       dayRequest.current = crypto.randomUUID();
       setNote(""); setSelectedReasons([]); setAudio(null); setAudioPath(null); 
@@ -282,7 +304,8 @@ export function OperationsPanel({ workspace, initialTab = "diary" }: { workspace
         {audioUrl && <audio controls src={audioUrl} />}
         {audio && <p className="field-hint">O áudio será guardado com o registro. Transcrição automática pendente de integração compatível.</p>}
       </div>
-      <button className="primary" disabled={busy || recording || !store || (!selectedReasons.length && !note.trim() && !audio)} onClick={() => void saveDay()}>{busy ? "Salvando…" : "Salvar registro"}</button>
+      {audio && <><button className="secondary" disabled={busy || recording} onClick={() => void transcribeDay()}>Transcrever áudio</button><label className="eo-field">Texto transcrito, revise e edite<textarea value={transcript} maxLength={4000} onChange={(event) => { setTranscript(event.target.value); setTranscriptReviewed(false); }} /></label><label className="checkbox-label"><input type="checkbox" checked={transcriptReviewed} disabled={!transcript.trim()} onChange={(event) => setTranscriptReviewed(event.target.checked)} />Revisei a transcrição antes de salvar</label></>}
+      <button className="primary" disabled={busy || recording || !!audio && (!transcript.trim() || !transcriptReviewed) || !store || (!selectedReasons.length && !note.trim() && !audio)} onClick={() => void saveDay()}>{busy ? "Salvando…" : "Salvar registro"}</button>
     </div>}
     {tab === "mood" && <>
       <div className="panel form">

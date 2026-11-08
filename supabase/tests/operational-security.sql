@@ -49,11 +49,11 @@ begin
       exception when raise_exception then rejected:=true; end;
     if not rejected then raise exception 'FAIL: não venda sem motivo'; end if;
     rejected:=false;
-    begin perform public.eo_save_day_entry(sa,current_date,'sold','{}','',path_audio,61);
+    begin perform public.eo_save_day_entry(sa,current_date,'sold','{}','',path_audio,61,'Transcrição revisada no teste');
       exception when raise_exception then rejected:=true; end;
     if not rejected then raise exception 'FAIL: duração maior que 60 segundos'; end if;
-    entry_id:=public.eo_save_day_entry(sa,current_date,'no_sale',array['Sem estoque'],'Observação privada',path_audio,10,null,day_request);
-    if public.eo_save_day_entry(sa,current_date,'no_sale',array['Sem estoque'],'Observação privada',path_audio,10,null,day_request)<>entry_id then
+    entry_id:=public.eo_save_day_entry(sa,current_date,'no_sale',array['Sem estoque'],'Observação privada',path_audio,10,'Transcrição revisada no teste',day_request);
+    if public.eo_save_day_entry(sa,current_date,'no_sale',array['Sem estoque'],'Observação privada',path_audio,10,'Transcrição revisada no teste',day_request)<>entry_id then
       raise exception 'FAIL: retransmissão do diário retornou outro registro'; end if;
     second_id:=public.eo_save_day_entry(sa,current_date,'sold','{}','Outra interação');
     if entry_id=second_id or jsonb_array_length(public.eo_day_entries(current_date,current_date,sa))<>2 then

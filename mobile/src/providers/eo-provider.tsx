@@ -11,6 +11,16 @@ import type { AdminTab, ArchivedMessage, AuditRow, ChecklistDetail, ChecklistRun
 
 Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true }) });
 
+async function devicePushToken(projectId: string): Promise<string> {
+  try { return (await Notifications.getExpoPushTokenAsync({ projectId })).data; }
+  catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    if (/aps[-_ ]?environment|aps[-_ ]?enviroment|entitlement/i.test(message)) throw new Error("Esta instalação do EO não possui a assinatura Apple necessária para push. Instale a nova versão pelo TestFlight e ative as notificações novamente. Som e banner locais continuam disponíveis.");
+    if (/firebase|fcm|google.services/i.test(message)) throw new Error("Esta versão Android ainda precisa da configuração Firebase para push. O teste local de som e banner continua disponível.");
+    throw new Error("Não foi possível registrar este aparelho para push. Confira a internet e tente novamente.");
+  }
+}
+
 type Result = { ok: boolean };
 type PeopleQuery = { search?: string; role?: string; state?: string; region?: string; uf?: string; page?: number; sort?: string };
 type AdminStore = Store & { active: boolean };
@@ -19,7 +29,7 @@ type ContextValue = {
   configured: boolean; session: Session | null; initializing: boolean; loading: boolean; busy: boolean;
   passwordMode: boolean; workspace: Workspace | null; notices: LiveNotice[]; more: boolean;
   alerts: LiveAlert[]; checklists: ChecklistRun[]; checklistDetail: ChecklistDetail | null; soundEnabled: boolean;
-  pushGranted: boolean;
+  pushGranted: boolean; pushRegistered: boolean;
   audit: AuditRow[]; members: LivePerson[]; error: string; message: string;
   peopleTotal: number; adminStores: AdminStore[];
   searchPeople: (query?: PeopleQuery) => Promise<void>; loadPerson: (id: string) => Promise<void>;
@@ -62,6 +72,7 @@ export function EOProvider({ children }: { children: ReactNode }) {
   const [checklistDetail, setChecklistDetail] = useState<ChecklistDetail | null>(null);
   const [soundEnabled, setSoundEnabledState] = useState(true);
   const [pushGranted, setPushGranted] = useState(false);
+  const [pushRegistered, setPushRegistered] = useState(false);
   const [more, setMore] = useState(false);
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [members, setMembers] = useState<LivePerson[]>([]);
@@ -107,6 +118,7 @@ export function EOProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let alive = true;
+    setPushRegistered(false);
     if (!session) { setPushGranted(false); return () => { alive = false; }; }
     void Notifications.getPermissionsAsync().then((permission) => { if (alive) setPushGranted(permission.granted); });
     return () => { alive = false; };
@@ -115,12 +127,16 @@ export function EOProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const projectId = Constants.easConfig?.projectId ?? Constants.expoConfig?.extra?.eas?.projectId;
     if (!session?.user.id || !pushGranted || !Device.isDevice || !projectId || !supabase) return;
-    const register = (token: string) => rpc("eo_register_push_device", { p_token: token, p_platform: Platform.OS }).catch(() => undefined);
+    let active = true;
+    const register = async (token: string) => {
+      try { await rpc("eo_register_push_device", { p_token: token, p_platform: Platform.OS }); if (active) setPushRegistered(true); }
+      catch { if (active) setPushRegistered(false); }
+    };
     void Notifications.getExpoPushTokenAsync({ projectId }).then(({ data }) => register(data)).catch(() => undefined);
     const subscription = Notifications.addPushTokenListener(() => {
       void Notifications.getExpoPushTokenAsync({ projectId }).then(({ data }) => register(data)).catch(() => undefined);
     });
-    return () => subscription.remove();
+    return () => { active = false; subscription.remove(); };
   }, [session?.user.id, pushGranted]);
 
   const refresh = useCallback(async () => {
@@ -221,11 +237,19 @@ export function EOProvider({ children }: { children: ReactNode }) {
     await refreshOperational();
   }, () => scheduled ? `Alerta programado para ${new Date(data.scheduledFor!).toLocaleString("pt-BR")}.` : pushDevices ? `Alerta publicado e encaminhado a ${pushDevices} aparelhos registrados. A entrega é confirmada pelo serviço, não pelo aparelho.` : "Alerta publicado no app. Nenhum aparelho registrou permissão push ainda.");
   }, [act, refreshOperational, uploadMessageFiles]);
-  const publishChecklist = useCallback((data: { title: string; description: string; items: { prompt: string; type: "acceptance" | "photo" | "text" | "yes_no"; required: boolean }[]; stores: string[] }) => act(async () => {
-    if (!data.stores.length || !data.items.length) throw new Error("Selecione lojas e inclua ao menos uma pergunta.");
-    await rpc("eo_checklist_create", { p_title: data.title.trim(), p_description: data.description.trim(), p_items: data.items, p_stores: data.stores });
-    await refreshOperational();
-  }, "Checklist criado e atribuído às equipes selecionadas."), [act, refreshOperational]);
+  const publishChecklist = useCallback((data: { title: string; description: string; items: { prompt: string; type: "acceptance" | "photo" | "text" | "yes_no"; required: boolean }[]; stores: string[] }) => {
+    let delivery = "";
+    return act(async () => {
+      if (!data.stores.length || !data.items.length) throw new Error("Selecione lojas e inclua ao menos uma pergunta.");
+      const template = await rpc<string>("eo_checklist_create", { p_title: data.title.trim(), p_description: data.description.trim(), p_items: data.items, p_stores: data.stores });
+      await refreshOperational();
+      try {
+        const alertId = await rpc<string>("eo_checklist_notification", { p_template: template });
+        const { data: result, error } = await supabase!.functions.invoke("send-alert-push", { body: { alert_id: alertId } });
+        delivery = error ? " O aviso interno foi salvo, mas o push não pôde ser enviado." : ` Push encaminhado a ${result?.devices ?? 0} aparelho(s) registrado(s), sem confirmação de exibição.`;
+      } catch { delivery = " O aviso interno foi salvo, mas o push não pôde ser enviado."; }
+    }, () => "Checklist criado e atribuído às equipes selecionadas." + delivery);
+  }, [act, refreshOperational]);
   const enablePush = useCallback(() => act(async () => {
     if (!Device.isDevice) throw new Error("As notificações push precisam ser ativadas em um aparelho físico.");
     const projectId = Constants.easConfig?.projectId ?? Constants.expoConfig?.extra?.eas?.projectId;
@@ -235,11 +259,13 @@ export function EOProvider({ children }: { children: ReactNode }) {
       await Notifications.setNotificationChannelAsync("eo-alerts-quiet", { name: "Alertas do EO, sem som", importance: Notifications.AndroidImportance.MAX, sound: null, vibrationPattern: [] });
     }
     let permission = await Notifications.getPermissionsAsync();
-    if (!permission.granted) permission = await Notifications.requestPermissionsAsync();
+    if (!permission.granted) permission = await Notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowBadge: true, allowSound: true } });
     setPushGranted(permission.granted);
     if (!permission.granted) throw new Error("Permissão negada. Para ativar depois, permita notificações nas configurações do aparelho.");
-    const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+    setPushRegistered(false);
+    const token = await devicePushToken(projectId);
     await rpc("eo_register_push_device", { p_token: token, p_platform: Platform.OS });
+    setPushRegistered(true);
   }, "Notificações do sistema ativadas neste aparelho."), [act]);
   const captureChecklistPhoto = useCallback((run: string, item: string) => act(async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -257,6 +283,11 @@ export function EOProvider({ children }: { children: ReactNode }) {
   const sendTestPush = useCallback(() => act(async () => {
     if (workspace?.person.role !== "admin") throw new Error("Somente o administrador pode enviar um teste.");
     if (!pushGranted) throw new Error("Ative as notificações e registre este aparelho primeiro.");
+    const projectId = Constants.easConfig?.projectId ?? Constants.expoConfig?.extra?.eas?.projectId;
+    if (!projectId) throw new Error("Projeto de notificações não configurado nesta versão.");
+    const token = await devicePushToken(projectId);
+    await rpc("eo_register_push_device", { p_token: token, p_platform: Platform.OS });
+    setPushRegistered(true);
     const { data, error: invokeError } = await supabase!.functions.invoke("send-test-push", { body: {} });
     if (invokeError) throw new Error("Não foi possível enviar o teste. Confira o projeto EAS, a permissão e a Edge Function.");
     if (!data?.devices) throw new Error("Nenhum aparelho seu está registrado para receber o teste.");
@@ -407,10 +438,10 @@ export function EOProvider({ children }: { children: ReactNode }) {
   }, [act]);
 
   const value = useMemo<ContextValue>(() => ({
-    configured: backendConfigured, session, initializing, loading, busy, passwordMode, workspace, notices, more, alerts, checklists, checklistDetail, soundEnabled, pushGranted, audit, members, error, message, archivedMessages, reportMessages, reportData, peopleTotal, adminStores, searchPeople, loadPerson, saveStore,
+    configured: backendConfigured, session, initializing, loading, busy, passwordMode, workspace, notices, more, alerts, checklists, checklistDetail, soundEnabled, pushGranted, pushRegistered, audit, members, error, message, archivedMessages, reportMessages, reportData, peopleTotal, adminStores, searchPeople, loadPerson, saveStore,
     clearFeedback, login, changeTemporaryPassword, signout, refresh, acknowledge, loadMore, loadAdmin, loadNoticeReport, archiveMessage, addStore, inviteMember, toggleMember, saveMember, publish, issueTemporaryPassword,
     refreshOperational, markAlert, moderateAlert, setSoundEnabled, openChecklist, saveChecklistAnswer, publishAlert, openMessageAttachment, publishChecklist, enablePush, captureChecklistPhoto, sendTestPush,
-  }), [session, initializing, loading, busy, passwordMode, workspace, notices, more, alerts, checklists, checklistDetail, soundEnabled, pushGranted, audit, members, error, message, archivedMessages, reportMessages, reportData, peopleTotal, adminStores, searchPeople, loadPerson, saveStore, clearFeedback, login, changeTemporaryPassword, signout, refresh, acknowledge, loadMore, loadAdmin, loadNoticeReport, archiveMessage, addStore, inviteMember, toggleMember, saveMember, publish, issueTemporaryPassword, refreshOperational, markAlert, moderateAlert, setSoundEnabled, openChecklist, saveChecklistAnswer, publishAlert, openMessageAttachment, publishChecklist, enablePush, captureChecklistPhoto, sendTestPush]);
+  }), [session, initializing, loading, busy, passwordMode, workspace, notices, more, alerts, checklists, checklistDetail, soundEnabled, pushGranted, pushRegistered, audit, members, error, message, archivedMessages, reportMessages, reportData, peopleTotal, adminStores, searchPeople, loadPerson, saveStore, clearFeedback, login, changeTemporaryPassword, signout, refresh, acknowledge, loadMore, loadAdmin, loadNoticeReport, archiveMessage, addStore, inviteMember, toggleMember, saveMember, publish, issueTemporaryPassword, refreshOperational, markAlert, moderateAlert, setSoundEnabled, openChecklist, saveChecklistAnswer, publishAlert, openMessageAttachment, publishChecklist, enablePush, captureChecklistPhoto, sendTestPush]);
 
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

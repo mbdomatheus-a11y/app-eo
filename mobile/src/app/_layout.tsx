@@ -1,3 +1,4 @@
+import { ContactUpdateGate } from "../features/ContactRefresh";
 import { DeviceSecurity } from "../providers/device-security";
 import { useEffect } from "react";
 import * as Notifications from "expo-notifications";
@@ -18,7 +19,7 @@ function RootNavigation() {
     const open = (response: Notifications.NotificationResponse | null) => {
       if (!response) return;
       const type = response.notification.request.content.data?.type;
-      router.navigate((type === "mood" ? "/mood" : "/notices") as never);
+      router.navigate((type === "mood" ? "/mood" : type === "checklist" ? "/checklists" : type === "contact_update" ? "/profile" : "/notices") as never);
       void Notifications.clearLastNotificationResponseAsync();
     };
     void Notifications.getLastNotificationResponseAsync().then(open);
@@ -36,7 +37,7 @@ function RootNavigation() {
   }
   if (app.workspace && ["login", "access", "change-password"].includes(first)) return <Redirect href="/" />;
 
-  return <Stack screenOptions={{
+  return <><Stack screenOptions={{
     headerStyle: { backgroundColor: C.canvas },
     headerTintColor: C.dark,
     headerTitleStyle: { color: C.ink, fontSize: 17, fontWeight: "700" },
@@ -54,8 +55,12 @@ function RootNavigation() {
     <Stack.Screen name="compose" options={{ title: "Novo comunicado" }} />
     <Stack.Screen name="scope" options={{ title: "Minhas lojas" }} />
     <Stack.Screen name="checklists" options={{ title: "Checklists" }} />
+    <Stack.Screen name="contacts" options={{ title: "Atualizar contatos" }} />
+    <Stack.Screen name="checklist-admin" options={{ title: "Criar checklist" }} />
     <Stack.Screen name="alerts" options={{ title: "Alertas" }} />
     <Stack.Screen name="device" options={{ title: "Meu aparelho" }} />
+    <Stack.Screen name="product" options={{ title: "Pedir produto" }} />
+    <Stack.Screen name="assortment" options={{ title: "Sortimento" }} />
     <Stack.Screen name="sales" options={{ title: "Vendas" }} />
     <Stack.Screen name="diary" options={{ title: "Diário de vendas" }} />
     <Stack.Screen name="mood" options={{ title: "Como está seu dia?" }} />
@@ -66,7 +71,7 @@ function RootNavigation() {
     <Stack.Screen name="audit" options={{ title: "Auditoria" }} />
     <Stack.Screen name="reports" options={{ title: "Relatórios" }} />
     <Stack.Screen name="archive" options={{ title: "Comunicados arquivados" }} />
-  </Stack>;
+  </Stack>{app.workspace && !app.passwordMode && <ContactUpdateGate key={`${app.workspace.person.id}:${app.alerts.find((alert) => alert.data?.type === "contact_update")?.id ?? "none"}`} onSignOut={() => { void app.signout(); }} />}</>;
 }
 
 export default function RootLayout() {

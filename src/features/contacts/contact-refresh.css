@@ -1,0 +1,16 @@
+.contact-refresh { display: grid; gap: 12px; padding: 20px; border: 1px solid #e4e1db; border-radius: 18px; background: #fefefe; }
+.contact-refresh h3,.contact-gate h2 { margin: 0; color: #282b31; }
+.contact-refresh p,.contact-gate p { line-height: 1.5; }
+.contact-refresh fieldset { display: grid; gap: 12px; border: 1px solid #e4e1db; border-radius: 12px; padding: 14px; }
+.contact-refresh label { display: flex; gap: 9px; align-items: flex-start; }
+.contact-refresh input { flex-shrink: 0; }
+.contact-refresh button,.contact-gate button { min-height: 46px; padding: 10px 16px; border: 1px solid #ddd; border-radius: 12px; background: #4a4e58; color: #fff; font: inherit; cursor: pointer; }
+.contact-refresh button:disabled,.contact-gate button:disabled { opacity: .55; cursor: default; }
+.contact-confirm { display: flex; flex-wrap: wrap; gap: 10px; }
+.contact-confirm p { flex-basis: 100%; }
+.contact-gate { box-sizing: border-box; width: min(500px,calc(100vw - 32px)); max-height: calc(100dvh - 32px); border: 1px solid #e4e1db; border-radius: 20px; padding: 24px; color: #282b31; background: #fefefe; }
+.contact-gate::backdrop { background: #282b31b3; }
+.contact-gate form { display: grid; gap: 14px; }
+.contact-gate input { box-sizing: border-box; width: 100%; min-height: 48px; border: 1px solid #c9c6c0; border-radius: 10px; padding: 12px; font-size: 16px; }
+.contact-gate .contact-signout { margin-top: 14px; background: #fefefe; color: #4a4e58; }
+.contact-gate [role=alert],.contact-refresh [role=alert] { color: #b53435; }

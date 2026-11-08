@@ -1,3 +1,7 @@
+import { CommercialPanel } from "./features/commercial/CommercialPanel";
+import { ContactRefreshAdmin, ContactUpdateGate } from "./features/contacts/ContactRefresh";
+import { ChecklistAdmin } from "./features/checklists/ChecklistAdmin";
+import { ChecklistInbox } from "./features/checklists/ChecklistInbox";
 import { AccountMenu } from "./features/account/AccountMenu";
 import { TableViewport } from "./components/TableViewport";
 import {
@@ -53,7 +57,7 @@ import NativeExperience from "./mobile/NativeExperience";
 import { SalesReports } from "./features/sales/SalesReports";
 import { OperationsPanel } from "./features/operations/OperationsPanel";
 
-type Page = "home" | "notices" | "modules" | "admin" | "sales" | "diary" | "mood";
+type Page = "home" | "notices" | "modules" | "admin" | "sales" | "diary" | "mood" | "checklists" | "product" | "assortment";
 type AdminStore = Store & { active: boolean };
 function StorePicker({ stores, selected, onChange }: { stores: Store[]; selected: string[]; onChange: (ids: string[]) => void }) {
   const [search,setSearch] = useState(""); const [uf,setUf] = useState(""); const [region,setRegion] = useState(""); const [page,setPage] = useState(0); const [sort,setSort] = useState("code");
@@ -149,7 +153,7 @@ export default function ConnectedApp() {
   const [importReady, setImportReady] = useState<boolean | null>(null);
   const [activeImport, setActiveImport] = useState<{ id: string; created_at: string; source_name: string; store_count: number; manager_count: number; regional_count: number; people_count: number; assignment_count: number } | null>(null);
   const [editingMember, setEditingMember] = useState<LivePerson | null>(null);
-  const [tab, setTab] = useState<"stores" | "people" | "audit" | "import" | "archive" | "reports">("stores"),
+  const [tab, setTab] = useState<"stores" | "people" | "audit" | "import" | "archive" | "reports" | "contacts" | "checklists">("stores"),
     [future, setFuture] = useState("");
   const [archivedMessages, setArchivedMessages] = useState<{ kind: "notice" | "alert"; id: string; title: string; body: string; archived_at: string; archived_by_name: string | null; attachments: MessageAttachment[] }[]>([]);
   const [messageFiles, setMessageFiles] = useState<File[]>([]);
@@ -750,7 +754,7 @@ export default function ConnectedApp() {
         temporaryPassword={temporaryPassword}
         editingMember={editingMember}
         setEditingMember={setEditingMember}
-        tab={tab === "import" ? "stores" : tab}
+        tab={tab === "import" || tab === "contacts" || tab === "checklists" ? "stores" : tab}
         setTab={(nextTab) => setTab(nextTab)}
         login={login}
         changePassword={changePassword}
@@ -935,14 +939,16 @@ export default function ConnectedApp() {
     { id: "notices" as const, label: "Comunicados", icon: Megaphone },
     { id: "modules" as const, label: "Aplicativos", icon: Grid2X2 },
     { id: "sales" as const, label: "Vendas", icon: Building2 },
+    { id: "product" as const, label: "Pedir produto", icon: Grid2X2 },
+    { id: "assortment" as const, label: "Sortimento", icon: ClipboardCheck },
     { id: "diary" as const, label: "Diário de vendas", icon: Mic },
     { id: "mood" as const, label: "Como está seu dia?", icon: Users },
+    { id: "checklists" as const, label: "Checklists", icon: ClipboardCheck },
     ...(admin
       ? [{ id: "admin" as const, label: "Administração", icon: Settings2 }]
       : []),
   ];
   const planned = [
-    { title: "Checklist", icon: ClipboardCheck },
     { title: "Cartazeamento", icon: FileImage },
     { title: "Escala da equipe", icon: CalendarDays },
     { title: "Fotos e evidências", icon: Upload },
@@ -1186,6 +1192,9 @@ export default function ConnectedApp() {
               <section className="eo-shortcuts" aria-labelledby="eo-available-title">
                 <h2 id="eo-available-title">Disponíveis no portal</h2>
                 <div className="eo-tile-grid">
+                  <button className="eo-tile" onClick={() => setPage("product")}><span className="eo-tile-icon" data-tone="gold"><Grid2X2 size={21} /></span><strong>Pedir produto</strong><small>Procura e oportunidades comerciais</small></button>
+                  <button className="eo-tile" onClick={() => setPage("assortment")}><span className="eo-tile-icon" data-tone="blue"><ClipboardCheck size={21} /></span><strong>Sortimento</strong><small>Código e quantidades por tamanho</small></button>
+                  <button className="eo-tile" onClick={() => setPage("checklists")}><span className="eo-tile-icon" data-tone="green"><ClipboardCheck size={21} /></span><strong>Checklists</strong><small>Rotinas e respostas da equipe</small></button>
                   <button className="eo-tile" onClick={() => setPage("sales")}><span className="eo-tile-icon" data-tone="blue"><Building2 size={21} /></span><strong>Vendas</strong><small>Semana, mês e ano</small></button>
                   <button className="eo-tile" onClick={() => setPage("diary")}><span className="eo-tile-icon" data-tone="green"><Mic size={21} /></span><strong>Diário de vendas</strong><small>Relatos, motivos e áudio</small></button>
                   <button className="eo-tile" onClick={() => setPage("mood")}><span className="eo-tile-icon" data-tone="purple"><Users size={21} /></span><strong>Como está seu dia?</strong><small>Sentimento e acompanhamento</small></button>
@@ -1214,10 +1223,13 @@ export default function ConnectedApp() {
               </section>
             </>
           )}
+          {page === "product" && <CommercialPanel workspace={workspace} mode="product" />}
+          {page === "assortment" && <CommercialPanel workspace={workspace} mode="assortment" />}
+          {page === "checklists" && <ChecklistInbox />}
           {page === "admin" && admin && (
             <>
               <div className="tabs admin-tabs">
-                {(["stores", "people", "import", "audit", ...(workspace.person.role === "admin" ? ["reports" as const, "archive" as const] : [])] as const).map((t) => (
+                {(["stores", "people", "import", "audit", ...(workspace.person.role === "admin" ? ["reports" as const, "archive" as const, "contacts" as const, "checklists" as const] : [])] as const).map((t) => (
                   <button
                     key={t}
                     className={tab === t ? "selected" : ""}
@@ -1232,11 +1244,15 @@ export default function ConnectedApp() {
                         audit: "Auditoria",
                         reports: "Relatórios",
                         archive: "Comunicados arquivados",
+                        contacts: "Atualizar contatos",
+                        checklists: "Criar checklist",
                       }[t]
                     }
                   </button>
                 ))}
               </div>
+              {tab === "contacts" && <ContactRefreshAdmin />}
+              {tab === "checklists" && <ChecklistAdmin stores={workspace.stores} />}
               {tab === "stores" && (
                 <div className="admin-stores-layout">
                   <div className="admin-section-heading"><div><span className="eyebrow">ESTRUTURA DA OPERAÇÃO</span><h2>Suas lojas</h2><p>Encontre unidades, refine a seleção e gerencie os cadastros.</p></div><button type="button" className="primary" onClick={() => { setNewStoreOpen(true); setNewStoreDirty(false); }}><Plus size={18} /> Nova loja</button></div>
@@ -1598,8 +1614,9 @@ export default function ConnectedApp() {
       </div>
       <nav className="mobile-nav" aria-label="Navegação no celular">
         {navigation.filter((item) => ["home", "notices", "sales"].includes(item.id)).map((n) => <button key={n.id} aria-current={page === n.id ? "page" : undefined} className={page === n.id ? "active" : ""} onClick={() => { setPage(n.id); setMoreOpen(false); }}><n.icon size={21} /><span>{n.id === "home" ? "Início" : n.label}</span></button>)}
-        <button className={moreOpen || ["modules", "diary", "mood", "admin"].includes(page) ? "active" : ""} aria-expanded={moreOpen} onClick={() => setMoreOpen(true)}><Grid2X2 size={21} /><span>Mais</span></button>
+        <button className={moreOpen || ["modules", "diary", "mood", "admin", "checklists", "product", "assortment"].includes(page) ? "active" : ""} aria-expanded={moreOpen} onClick={() => setMoreOpen(true)}><Grid2X2 size={21} /><span>Mais</span></button>
       </nav>
+      <ContactUpdateGate key={workspace.person.id} onSignOut={() => void signout()} />
       {moreOpen && <Dialog title="Seu espaço" close={() => setMoreOpen(false)}><nav className="eo-more-menu" aria-label="Todos os módulos">{navigation.map((n) => <button type="button" key={n.id} aria-current={page === n.id ? "page" : undefined} onClick={() => { setMoreOpen(false); n.id === "admin" ? void openAdmin(tab) : setPage(n.id); }}><n.icon size={22} /><span>{n.label}</span><ChevronRight size={18} /></button>)}</nav></Dialog>}
       {newStoreOpen && <Dialog title="Nova loja" close={() => { if (!busy && (!newStoreDirty || window.confirm("Descartar as alterações desta loja?"))) { setNewStoreOpen(false); setNewStoreDirty(false); } }}><p className="field-hint">Cadastre uma unidade para associar pessoas, comunicados e resultados.</p><form className="form" onSubmit={addStore} onChange={() => setNewStoreDirty(true)}>
                       <label>

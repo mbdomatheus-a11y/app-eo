@@ -11,3 +11,9 @@ verify_jwt = true
 
 [functions.summarize-operations]
 verify_jwt = true
+
+[functions.organize-product]
+verify_jwt = true
+
+[functions.transcribe-audio]
+verify_jwt = true

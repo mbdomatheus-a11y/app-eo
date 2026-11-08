@@ -203,6 +203,27 @@ jobs:
           chmod 600 "$key_path"
           echo "ASC_API_KEY_PATH=$key_path" >> "$GITHUB_ENV"
 
+      - name: Enable EO Push Notifications capability for automatic signing
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const xcode = require('xcode');
+          const projectDir = fs.readdirSync('ios').find(name => name.endsWith('.xcodeproj'));
+          if (!projectDir) throw new Error('Projeto iOS do EO não encontrado.');
+          const projectPath = `ios/${projectDir}/project.pbxproj`;
+          const project = xcode.project(projectPath);
+          project.parseSync();
+          const target = project.getFirstTarget();
+          const attributes = project.getFirstProject().firstProject.attributes;
+          attributes.TargetAttributes ||= {};
+          attributes.TargetAttributes[target.uuid] ||= {};
+          attributes.TargetAttributes[target.uuid].SystemCapabilities ||= {};
+          attributes.TargetAttributes[target.uuid].SystemCapabilities['com.apple.Push'] = { enabled: 1 };
+          fs.writeFileSync(projectPath, project.writeSync());
+          console.log('Push Notifications ativado no target do EO; Xcode atualizará o provisionamento automaticamente.');
+          NODE
+
       - name: Archive, sign, export, and upload EO to TestFlight
         shell: bash
         run: |
@@ -248,6 +269,25 @@ jobs:
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="" \
             archive
+          archive_app="$(find "$archive_path/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)"
+          if [ -z "$archive_app" ]; then
+            echo "::error::O aplicativo assinado do EO não foi encontrado no archive."
+            exit 1
+          fi
+          signed_entitlements="$RUNNER_TEMP/EO-signed-entitlements.plist"
+          codesign --display --entitlements :- "$archive_app" > "$signed_entitlements"
+          aps_environment="$(/usr/libexec/PlistBuddy -c 'Print :aps-environment' "$signed_entitlements" 2>/dev/null || true)"
+          case "$aps_environment" in
+            development|production) echo "Archive EO com entitlement APNs: $aps_environment" ;;
+            *) echo "::error::A assinatura do EO não contém aps-environment válido. Confira Push Notifications no App ID com.appeo.mobile e a permissão da chave Apple para atualizar o provisionamento. Upload cancelado."; exit 1 ;;
+          esac
+          profile_plist="$RUNNER_TEMP/EO-provisioning-profile.plist"
+          security cms -D -i "$archive_app/embedded.mobileprovision" > "$profile_plist"
+          profile_aps="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:aps-environment' "$profile_plist" 2>/dev/null || true)"
+          if [ "$profile_aps" != "$aps_environment" ]; then
+            echo "::error::O perfil do EO não autoriza o entitlement APNs da assinatura. Atualize o provisionamento do App ID com.appeo.mobile. Upload cancelado."
+            exit 1
+          fi
           xcodebuild \
             -exportArchive \
             -archivePath "$archive_path" \

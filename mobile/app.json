@@ -12,13 +12,21 @@
       "supportsTablet": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
+      },
+      "icon": "./assets/eo-icon.png",
+      "entitlements": {
+        "aps-environment": "production"
       }
     },
     "android": {
       "package": "com.appeo.mobile",
       "versionCode": 19,
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": true
+      "predictiveBackGestureEnabled": true,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/eo-adaptive-foreground.png",
+        "backgroundColor": "#4A4E58"
+      }
     },
     "plugins": [
       [
@@ -29,7 +37,12 @@
       ],
       "expo-updates",
       "expo-router",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "mode": "production"
+        }
+      ],
       [
         "expo-calendar",
         {
@@ -54,7 +67,15 @@
         }
       ],
       "expo-sharing",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permita que o EO leia códigos de barras e registre evidências quando você solicitar.",
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": true
+        }
+      ]
     ],
     "runtimeVersion": {
       "policy": "fingerprint"
@@ -74,6 +95,7 @@
         "projectId": "1b9d38c0-be49-44cf-9783-a179dd812713"
       }
     },
-    "owner": "controlalls-team"
+    "owner": "controlalls-team",
+    "icon": "./assets/eo-icon.png"
   }
 }
