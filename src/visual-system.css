@@ -124,7 +124,7 @@ button { user-select: none; }
   .eo-portal .eo-overview { grid-template-columns: minmax(0,1fr); }
   .eo-portal .eo-attention { flex-wrap: wrap; }
 }
-@media(max-width:390px) {
+@media(max-width:350px) {
   .form-grid { grid-template-columns: minmax(0,1fr); }
   .form-grid > label:first-child { grid-column: auto; }
   .eo-portal .breadcrumb { display: none; }
