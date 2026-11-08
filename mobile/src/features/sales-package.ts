@@ -1,6 +1,5 @@
 import { strFromU8, strToU8, unzipSync } from "fflate";
 
-const LIMIT = 10 * 1024 * 1024;
 const MAX_ENTRIES = 100;
 const tagPattern = /<!--[\s\S]*?-->|<(?:[^>"']|"[^"]*"|'[^']*')*>/g;
 const imageMime: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", avif: "image/avif", ico: "image/x-icon", woff: "font/woff", woff2: "font/woff2", ttf: "font/ttf", otf: "font/otf" };
@@ -39,7 +38,7 @@ function base64(bytes: Uint8Array) {
 }
 
 export function prepareSalesPackage(name: string, input: Uint8Array): PreparedSalesPackage {
-  if (!input.length || input.length > LIMIT) throw new Error("O arquivo deve ter conteúdo e no máximo 10 MB.");
+  if (!input.length) throw new Error("O arquivo deve ter conteúdo.");
   if (/\.html?$/i.test(name)) {
     const html = strFromU8(input);
     if (!html.trim()) throw new Error("O arquivo HTML está vazio.");
@@ -57,22 +56,17 @@ export function prepareSalesPackage(name: string, input: Uint8Array): PreparedSa
     if (names.has(entry.name)) throw new Error("O ZIP contém nomes de arquivo repetidos.");
     names.add(entry.name);
     expanded += entry.originalSize;
-    if (!Number.isSafeInteger(entry.originalSize) || entry.originalSize < 0 || expanded > LIMIT) throw new Error("Os arquivos descompactados devem somar no máximo 10 MB.");
+    if (!Number.isSafeInteger(entry.originalSize) || entry.originalSize < 0 || !Number.isSafeInteger(expanded)) throw new Error("O ZIP informa um tamanho descompactado inválido.");
     return false;
   } });
   const files = unzipSync(input);
-  if (Object.values(files).reduce((total, bytes) => total + bytes.length, 0) > LIMIT) throw new Error("O pacote descompactado ultrapassa 10 MB.");
   const htmlFiles = Object.keys(files).filter((path) => /\.html?$/i.test(path));
   const indexes = htmlFiles.filter((path) => /(^|\/)index\.html?$/i.test(path));
   const entry = htmlFiles.find((path) => /^index\.html?$/i.test(path)) ?? (indexes.length === 1 ? indexes[0] : htmlFiles.length === 1 ? htmlFiles[0] : undefined);
   if (!entry) throw new Error("Inclua um index.html principal no ZIP, ou deixe apenas um arquivo HTML.");
   const cachedAssets = new Map<string, string>();
-  let embeddedLength = 0;
-  let cssLength = 0;
   function asset(from: string, reference: string): string {
     if (/^data:/i.test(reference.trim())) {
-      embeddedLength += reference.length;
-      if (embeddedLength > LIMIT) throw new Error("Os recursos incorporados ultrapassam 10 MB.");
       return reference;
     }
     const path = resolveReference(from, reference);
@@ -83,14 +77,10 @@ export function prepareSalesPackage(name: string, input: Uint8Array): PreparedSa
     if (!mime) throw new Error(`Formato auxiliar não suportado: ${path}. Use imagens, fontes e CSS locais.`);
     let data = cachedAssets.get(path);
     if (!data) { data = `data:${mime};base64,${base64(bytes)}`; cachedAssets.set(path, data); }
-    embeddedLength += data.length;
-    if (embeddedLength > LIMIT) throw new Error("Os recursos incorporados ultrapassam 10 MB. Reduza as imagens ou repetições.");
     return data;
   }
   function css(source: string, path: string, ancestors: string[] = []): string {
     if (ancestors.length > 10 || ancestors.includes(path)) throw new Error("O CSS contém importações circulares ou profundas demais.");
-    cssLength += source.length;
-    if (cssLength > LIMIT) throw new Error("As importações de CSS ultrapassam o limite de 10 MB.");
     const importedBlocks: string[] = [];
     const rewritten = source.replace(/@import\s+(?:url\(\s*["']?([^"')]+)["']?\s*\)|["']([^"']+)["'])\s*([^;]*);/gi, (_, a: string, b: string, media: string) => {
       const imported = resolveReference(path, a ?? b ?? "");
@@ -135,6 +125,5 @@ export function prepareSalesPackage(name: string, input: Uint8Array): PreparedSa
   });
   html = html.replace(/<!--eo-script-(\d+)-->/g, (_, index: string) => rawBlocks[Number(index)]);
   const bytes = strToU8(html);
-  if (bytes.length > LIMIT) throw new Error("O HTML final com CSS e imagens incorporados ultrapassa 10 MB. Reduza as imagens do pacote.");
   return { html, bytes, fileCount: Object.keys(files).filter((path) => !path.endsWith("/")).length, hasScripts: /<script\b/i.test(html) };
 }

@@ -1,7 +1,9 @@
+import { parseSalesData } from "./sales-data";
+import { SalesDatasetView } from "./SalesDatasetView";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowLeft, Archive, ChevronRight, FileText, RefreshCw, Search, Upload } from "lucide-react";
 import { rpc, supabase, type Workspace } from "../../services/supabase";
-import { MAX_HTML_BYTES, periodLabels, prepareSalesHtml, SALES_BUCKET, salesPeriods, STATIC_HTML_NOTICE, validateHtmlFile, type SalesPeriod, type SalesReport } from "./sales-html";
+import { periodLabels, prepareSalesHtml, SALES_BUCKET, salesPeriods, STATIC_HTML_NOTICE, validateHtmlFile, type SalesPeriod, type SalesReport } from "./sales-html";
 import "./sales-reports.css";
 import { prepareSalesPackage } from "./sales-package";
 
@@ -45,10 +47,11 @@ export function SalesReports({ workspace, initialPeriod = "week" }: { workspace:
   async function openReport(report: SalesReport) {
     if (actionLock.current || !supabase) return;
     actionLock.current = true; setBusy(true); setError(""); setMessage(""); setHtml(""); setSelected(report);
+    if (report.structured) { actionLock.current = false; setBusy(false); return; }
     try {
       const { data, error: failure } = await supabase.storage.from(SALES_BUCKET).download(report.object_path);
       if (failure) throw failure;
-      if (!data || data.size > MAX_HTML_BYTES) throw new Error("O arquivo está vazio ou excede o limite de 10 MB.");
+      if (!data || !data.size) throw new Error("O arquivo está vazio.");
       const source = await data.text();
       if (!source.trim()) throw new Error("O arquivo HTML está vazio.");
       setHtml(prepareSalesHtml(source));
@@ -68,18 +71,41 @@ export function SalesReports({ workspace, initialPeriod = "week" }: { workspace:
       const prepared = prepareSalesPackage(file.name, new Uint8Array(await file.arrayBuffer()));
       if (!title.trim()) throw new Error("Informe um título para o relatório.");
       if (!allStores && !storeIds.length) throw new Error("Selecione pelo menos uma loja.");
+      const dataset = parseSalesData(prepared.html);
+      if (dataset && !dataset.rows.length) throw new Error("O HTML reconhecido não contém linhas válidas.");
+      if (!window.confirm(`Confirma o título "${title.trim()}" e o período ${periodLabels[publishPeriod]}?${dataset ? "\n" + dataset.rows.length.toLocaleString("pt-BR") + " registros reconhecidos. Confira o período: datas internas podem divergir." : ""}`)) return;
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Entre novamente para publicar.");
       objectPath = `${user.id}/${crypto.randomUUID()}.html`;
       const { error: failure } = await supabase.storage.from(SALES_BUCKET).upload(objectPath, prepared.bytes, { contentType: "text/html", upsert: false });
       if (failure) throw failure;
-      await rpc<string>("eo_publish_sales_report", { p_title: title.trim(), p_period: publishPeriod, p_object_path: objectPath, p_stores: allStores ? [] : storeIds });
-      published = true;
+      const args = { p_title: title.trim(), p_period: publishPeriod, p_object_path: objectPath, p_stores: allStores ? [] : storeIds };
+      if (dataset) {
+        const id = await rpc<string>("eo_begin_sales_dataset", args);
+        published = true; // O rascunho já referencia o objeto e preserva a auditoria.
+        try {
+          let accepted = 0, ignored = 0;
+          for (let offset = 0; offset < dataset.rows.length; offset += 500) {
+            setMessage(`Importando dados: ${Math.min(offset + 500, dataset.rows.length).toLocaleString("pt-BR")} de ${dataset.rows.length.toLocaleString("pt-BR")}…`);
+            const result = await rpc<{accepted: number; ignored: number}>("eo_append_sales_dataset", { p_id: id, p_batch: offset / 500, p_rows: dataset.rows.slice(offset, offset + 500) });
+            accepted += result.accepted; ignored += result.ignored;
+          }
+          await rpc("eo_finish_sales_dataset", { p_id: id });
+          setMessage(`Relatório publicado: ${accepted.toLocaleString("pt-BR")} registros.${ignored ? ` ${ignored.toLocaleString("pt-BR")} linhas de lojas ausentes ou fora da abrangência foram ignoradas.` : ""}`);
+        } catch (cause) {
+          await rpc("eo_archive_sales_report", { p_id: id, p_archived: true }).catch(() => {});
+          throw cause;
+        }
+      } else {
+        await rpc<string>("eo_publish_sales_report", args);
+        published = true;
+        setMessage("Relatório publicado em prévia estática. Scripts permanecem desativados.");
+      }
       setTitle(""); setFile(null); setComposer(false); setArchived(false);
       if (fileInput.current) fileInput.current.value = "";
-      setMessage(`Relatório publicado para as lojas selecionadas.${prepared.fileCount > 1 ? ` Pacote de ${prepared.fileCount} arquivos processado.` : ""}${prepared.hasScripts ? " A prévia mantém os scripts desativados." : ""}`);
       if (period === publishPeriod) await load(); else setPeriod(publishPeriod);
     } catch (cause) {
+      setMessage("");
       if (objectPath && !published) await supabase.storage.from(SALES_BUCKET).remove([objectPath]);
       setError(cause instanceof Error ? cause.message : "Não foi possível publicar o relatório.");
     } finally { actionLock.current = false; setBusy(false); }
@@ -100,15 +126,15 @@ export function SalesReports({ workspace, initialPeriod = "week" }: { workspace:
     {message && <div className="sales-feedback" role="status">{message}</div>}
     {selected ? <>
       <div className="sales-heading"><div><button type="button" className="text-button sales-back" disabled={busy} onClick={() => { setSelected(null); setHtml(""); setError(""); }}><ArrowLeft size={18} /> Voltar aos relatórios</button><h2>{selected.title}</h2><p>{periodLabels[selected.period]} · {new Date(selected.published_at).toLocaleDateString("pt-BR")}{selected.archived_at ? " · Arquivado" : ""}</p></div>{admin && <button className="secondary" type="button" disabled={busy} onClick={() => void archive(selected)}><Archive size={16} />{selected.archived_at ? "Restaurar" : "Arquivar"}</button>}</div>
-      <p className="sales-preview-note">{STATIC_HTML_NOTICE}</p>
+      {selected.structured ? <SalesDatasetView report={selected} /> : <p className="sales-preview-note">{STATIC_HTML_NOTICE}</p>}
       {busy && <p role="status">Carregando relatório…</p>}
       {html && <div className="sales-viewer"><iframe title={selected.title} sandbox="" referrerPolicy="no-referrer" srcDoc={html} /></div>}
-      {!busy && !html && <button className="secondary" type="button" onClick={() => void openReport(selected)}>Tentar abrir novamente</button>}
+      {!selected.structured && !busy && !html && <button className="secondary" type="button" onClick={() => void openReport(selected)}>Tentar abrir novamente</button>}
     </> : <>
       <div className="sales-heading"><div><span className="eyebrow">RESULTADOS DA OPERAÇÃO</span><h2>Vendas</h2><p>Seus relatórios por semana, mês e ano.</p></div><div className="sales-actions"><button className="secondary" type="button" disabled={loading || busy} onClick={() => { setError(""); void load(); }} aria-label="Atualizar relatórios"><RefreshCw size={17} /></button>{admin && <button className="primary" type="button" disabled={busy} onClick={() => setComposer(!composer)}><Upload size={17} />{composer ? "Fechar publicação" : "Publicar HTML"}</button>}</div></div>
       {admin && composer && <form className="sales-publish" onSubmit={(event) => void publish(event)}>
-        <h3>Novo relatório</h3><p className="sales-preview-note">{STATIC_HTML_NOTICE} Até 10 MB no arquivo, no total descompactado e no HTML final. Máximo de 100 arquivos e pastas.</p>
-        <label>Título<input value={title} maxLength={160} onChange={(event) => setTitle(event.target.value)} required disabled={busy} placeholder="Ex.: Resultado da semana 45" /></label>
+        <h3>Novo relatório</h3><p className="sales-preview-note">{STATIC_HTML_NOTICE} Sem limite de tamanho imposto pelo EO. O armazenamento e a memória do aparelho continuam sujeitos aos limites disponíveis. ZIP: até 100 arquivos e pastas.</p>
+        <label>Título<input value={title} maxLength={120} onChange={(event) => setTitle(event.target.value)} required disabled={busy} placeholder="Ex.: Resultado da semana 45" /></label>
         <label>Período<select value={publishPeriod} onChange={(event) => setPublishPeriod(event.target.value as SalesPeriod)} disabled={busy}>{salesPeriods.map((value) => <option key={value} value={value}>{periodLabels[value]}</option>)}</select></label>
         <label>HTML ou pacote ZIP<input ref={fileInput} type="file" accept=".html,.htm,.zip,text/html,application/zip" disabled={busy} onChange={(event) => { setFile(event.target.files?.[0] ?? null); }} required /></label>
         <fieldset disabled={busy}><legend>Lojas destinatárias</legend><label className="sales-checkbox"><input type="checkbox" checked={allStores} onChange={(event) => setAllStores(event.target.checked)} />Todas as lojas do meu escopo</label>

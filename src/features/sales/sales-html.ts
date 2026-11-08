@@ -1,15 +1,14 @@
 export type SalesPeriod = "week" | "month" | "year";
-export type SalesReport = { id: string; title: string; period: SalesPeriod; published_at: string; store_ids: string[]; object_path: string; archived_at?: string | null };
+export type SalesReport = { id: string; title: string; period: SalesPeriod; published_at: string; store_ids: string[]; object_path: string; structured?: boolean; import_state?: string; archived_at?: string | null };
 export const SALES_BUCKET = "eo-sales-html";
-export const MAX_HTML_BYTES = 10 * 1024 * 1024;
 export const periodLabels: Record<SalesPeriod, string> = { week: "Semana", month: "Mês", year: "Ano" };
 export const salesPeriods: SalesPeriod[] = ["week", "month", "year"];
-export const STATIC_HTML_NOTICE = "Prévia estática: filtros e cálculos em JavaScript ficam desativados até analisarmos um arquivo de exemplo. Dependências externas são bloqueadas. Envie HTML único ou ZIP com index.html, CSS e imagens locais.";
+export const STATIC_HTML_NOTICE = "Relatórios no formato reconhecido são convertidos em tabelas com filtros de loja, regional e departamento. Outros HTMLs abrem em prévia estática isolada. Envie HTML único ou ZIP com arquivos locais.";
 const policy = "default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'";
 
 export function validateHtmlFile(name: string, size: number) {
   if (!/\.(html?|zip)$/i.test(name)) throw new Error("Escolha um arquivo HTML ou ZIP.");
-  if (!size || size > MAX_HTML_BYTES) throw new Error("O arquivo deve ter conteúdo e no máximo 10 MB.");
+  if (!Number.isSafeInteger(size) || size <= 0) throw new Error("O arquivo deve ter conteúdo.");
 }
 
 export function prepareSalesHtml(source: string): string {

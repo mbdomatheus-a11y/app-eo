@@ -10,9 +10,11 @@ Todos os administradores ativos gerenciam lojas e usuários, inclusive perfil Ad
 
 ## Venda semana, mês e ano
 
-Administradores publicam HTML ou ZIP de até 10 MB e 100 entradas. O ZIP deve ter index.html ou um único HTML principal. CSS, imagens e fontes locais são incorporados em um arquivo autocontido, guardado no bucket privado eo-sales-html. A publicação tem abrangência por loja e pode ser arquivada ou restaurada.
+Administradores publicam HTML ou ZIP sem limite artificial de bytes no EO, mantendo até 100 entradas no ZIP. O bucket eo-sales-html herda o limite global do Supabase, que no Free pode chegar a 50 MB por arquivo. Memória e armazenamento continuam finitos. O ZIP deve ter index.html ou um único HTML principal. CSS, imagens e fontes locais são incorporados em um arquivo autocontido, guardado no bucket privado eo-sales-html. A publicação tem abrangência por loja e pode ser arquivada ou restaurada.
 
-O visualizador é estático e isolado. JavaScript, navegação externa e navegação entre vários HTMLs ficam bloqueados. Relatórios que montam dados por scripts, JSON ou serviços externos precisam da amostra real para adaptação. Nenhum relatório real foi fornecido nesta entrega.
+A amostra semanal recebida em 08/11 tem 43.773.370 bytes e 71.676 registros em JSON RAW, 467 lojas e quatro níveis de subtotais. O parser reconhecido extrai somente JSON, sem executar scripts, e importa lotes de 500 linhas com idempotência. Dados estruturados são consultados com escopo por loja no servidor, filtros, ordenação e paginação. O HTML original estruturado fica restrito aos admins; clientes com escopo recebem só suas linhas. Totais consideram um nível por vez para evitar duplicação.
+
+HTMLs desconhecidos continuam em prévia estática isolada. JavaScript, navegação externa e navegação entre vários HTMLs ficam bloqueados. APIs meteorológicas externas do arquivo não são executadas. O período da amostra é contraditório: título Agosto/2026, D1 em setembro e rótulo semanal em outubro/novembro; a publicação exige confirmação do título e período. Mensal/anual usarão o mesmo parser se trouxerem RAW com o mesmo esquema, sem presumir que todo HTML é compatível.
 
 ## Diário e sentimento
 
@@ -37,3 +39,5 @@ Migrações 202611070001 a 004. Testes SQL de permissões, escopo, regional/GGL,
 expo-audio, react-native-webview e expo-sharing acrescentam componentes nativos. A primeira instalação desta versão requer nova build. Alterações futuras compatíveis podem ser agrupadas por atualização remota.
 
 Para testar push físico, o usuário precisa instalar a versão compatível, entrar e ativar notificações em Meu aparelho. Um aceite do Expo não comprova exibição no celular. Antes desta entrega o banco não tinha dispositivos registrados.
+
+Atualização de 08/11: migrações 202611080001 e 002 removem teto artificial do relatório e adicionam tabelas estruturadas auditáveis. Builds anteriores d5f1595 concluídas: iOS run 42440035123 e Android APK 42440051157. Estas alterações de JavaScript não adicionam bibliotecas nativas.

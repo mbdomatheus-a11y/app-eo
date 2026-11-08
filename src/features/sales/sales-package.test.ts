@@ -35,10 +35,11 @@ describe("pacotes estáticos de relatórios de vendas", () => {
     expect(() => prepareSalesPackage("a.zip", zipSync({ "semana.html": strToU8("Semana"), "mes.html": strToU8("Mês") }))).toThrow(/index.html/);
   });
 
-  it("rejeita ZIP pequeno cujo conteúdo expandido excede 10 MB", () => {
+  it("aceita HTML e ZIP acima do antigo limite de 10 MB", () => {
     const input = zipSync({ "index.html": new Uint8Array(10 * 1024 * 1024 + 1).fill(65) });
     expect(input.length).toBeLessThan(100_000);
-    expect(() => prepareSalesPackage("a.zip", input)).toThrow(/descompactados/);
+    expect(prepareSalesPackage("a.zip", input).bytes.length).toBe(10 * 1024 * 1024 + 1);
+    expect(prepareSalesPackage("a.html", new Uint8Array(11 * 1024 * 1024).fill(65)).bytes.length).toBe(11 * 1024 * 1024);
   });
 
   it("rejeita mais de 100 entradas e importações de CSS circulares", () => {
