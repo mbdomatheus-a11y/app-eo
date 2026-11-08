@@ -22,3 +22,11 @@ Requisito alterado por Matheus: sempre mostrar texto editável e pedir revisão 
 
 ## Distribuição
 Mudanças nativas de ícone, APNs e câmera foram agrupadas para nova versão via GitHub, sem EAS Build. Futuras atualizações JS precisam do runtime desta versão. Não mandar OTA de nova câmera para runtimes antigos. Build sem configuração FCM não habilita push Android por si só.
+
+## Validação desta entrega
+- 23 testes unitários passaram, uma amostra opcional ignorada. TypeScript web/mobile e exportação iOS passaram. A primeira exportação local falhou por permissão no arquivo temporário do Hermes, sem erro de código; reexecução autorizada passou.
+- SQLs report-helper-permissions, contact-refresh-security, checklist-distribution-security, product-assortment-security e operacional-security passaram com fixtures revertidas. Os testes novos usam papel authenticated real, além do JWT.
+- Modelo Excel aberto com openpyxl: abas Instrucoes/Checklist, freeze A2, autofiltro A1:D5, larguras 10/80/18/20, cabeçalho negrito/grafite.
+- Teste ao vivo no portal: exemplo fictício de blusa branca masculina44 organizado pela Anthropic em Vestuário/blusa/branca/masculino/44/muita procura. Não foi enviado pedido para pessoas nem criada solicitação real; só a chamada de IA ficou auditada. Contatos/checklists/sortimento abertos sem disparos reais.
+- Site publicado no commit 3da5bab. Builds agrupadas em andamento: iOS https://github.com/mbdomatheus-a11y/app-eo/actions/runs/42502967739 ; APK Android https://github.com/mbdomatheus-a11y/app-eo/actions/runs/42503034898 . Atualizar resultado ao concluir.
+- A ativação da transcrição depende da escolha de provedor e credencial separada solicitadas ao usuário. Nada foi enviado a OpenAI sem configuração explícita. FCM Android foi adiado expressamente pelo usuário.

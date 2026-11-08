@@ -52,6 +52,10 @@ begin
     begin perform public.eo_save_day_entry(sa,current_date,'sold','{}','',path_audio,61,'Transcrição revisada no teste');
       exception when raise_exception then rejected:=true; end;
     if not rejected then raise exception 'FAIL: duração maior que 60 segundos'; end if;
+    rejected:=false;
+    begin perform public.eo_save_day_entry(sa,current_date,'sold','{}','',path_audio,10,null);
+      exception when raise_exception then rejected:=true; end;
+    if not rejected then raise exception 'FAIL: áudio sem texto revisado'; end if;
     entry_id:=public.eo_save_day_entry(sa,current_date,'no_sale',array['Sem estoque'],'Observação privada',path_audio,10,'Transcrição revisada no teste',day_request);
     if public.eo_save_day_entry(sa,current_date,'no_sale',array['Sem estoque'],'Observação privada',path_audio,10,'Transcrição revisada no teste',day_request)<>entry_id then
       raise exception 'FAIL: retransmissão do diário retornou outro registro'; end if;

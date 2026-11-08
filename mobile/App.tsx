@@ -119,6 +119,7 @@ export function NoticeScreen({ id, back }: { id: string; back: () => void }) {
 export function ModulesScreen({ openTab, mode = "checklists" }: { openTab: (tab: string) => void; mode?: "checklists" | "alerts" }) {
   const app = useEO();
   const [checklistId, setChecklistId] = useState("");
+  const [selectedChecklist, setSelectedChecklist] = useState<ChecklistRun | null>(null);
   const [checklistPage, setChecklistPage] = useState(0);
   const [checklistQuery, setChecklistQuery] = useState("");
   const [checklistStatus, setChecklistStatus] = useState("");
@@ -149,7 +150,7 @@ export function ModulesScreen({ openTab, mode = "checklists" }: { openTab: (tab:
   const canPublish = ["admin", "diretor", "gerente"].includes(app.workspace!.person.role);
   const availableRegions = [...new Set(app.workspace!.stores.map((store) => store.region.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   const alertRecipientStores = alertTarget === "all" ? app.workspace!.stores.map((store) => store.id) : alertTarget === "region" ? app.workspace!.stores.filter((store) => store.region === alertRegion).map((store) => store.id) : alertStores;
-  const activeRun = checklistFeed.items.find((run) => run.run_id === checklistId);
+  const activeRun = selectedChecklist?.run_id === checklistId ? selectedChecklist : checklistFeed.items.find((run) => run.run_id === checklistId);
   useEffect(() => { if (checklistId && !activeRun) setChecklistId(""); }, [checklistId, activeRun]);
   useEffect(() => { if (activeRun && app.checklistDetail?.run.id !== checklistId && !app.busy) void app.openChecklist(checklistId); }, [checklistId, activeRun, app.checklistDetail?.run.id, app.busy]);
   if (activeRun && app.checklistDetail?.run.id === checklistId) {
@@ -176,7 +177,7 @@ export function ModulesScreen({ openTab, mode = "checklists" }: { openTab: (tab:
     {feedLoading && <Text style={s.small}>Carregando checklists…</Text>}
     {feedError && <Card><Text style={{ color: C.red }}>{feedError}</Text><Button title="Tentar novamente" secondary onPress={() => setFeedRetry(feedRetry + 1)} /></Card>}
     {!feedLoading && !feedError && !checklistFeed.total && <Text style={s.small}>Nenhum checklist para os filtros selecionados.</Text>}
-    {checklistFeed.items.map((run) => <Pressable key={run.run_id} accessibilityRole="button" onPress={() => setChecklistId(run.run_id)} style={({ pressed }) => [s.card, pressed && s.pressed]}><View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Badge warning={run.status !== "completed"}>{run.status === "completed" ? "Concluído" : run.status === "in_progress" ? "Em andamento" : "Pendente"}</Badge><Text style={s.small}>{run.answered_count}/{run.item_count}</Text></View><Text style={s.strong}>{run.title}</Text><Text style={s.small}>{run.store_name} · Atualizado {new Date(run.updated_at).toLocaleDateString("pt-BR")}</Text><Text style={{ color: C.dark, fontSize: 12, fontWeight: "800" }}>Abrir rotina  ›</Text></Pressable>)}
+    {checklistFeed.items.map((run) => <Pressable key={run.run_id} accessibilityRole="button" onPress={() => { setSelectedChecklist(run); setChecklistId(run.run_id); }} style={({ pressed }) => [s.card, pressed && s.pressed]}><View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}><Badge warning={run.status !== "completed"}>{run.status === "completed" ? "Concluído" : run.status === "in_progress" ? "Em andamento" : "Pendente"}</Badge><Text style={s.small}>{run.answered_count}/{run.item_count}</Text></View><Text style={s.strong}>{run.title}</Text><Text style={s.small}>{run.store_name} · Atualizado {new Date(run.updated_at).toLocaleDateString("pt-BR")}</Text><Text style={{ color: C.dark, fontSize: 12, fontWeight: "800" }}>Abrir rotina  ›</Text></Pressable>)}
     {!app.checklists.length && <Card><Text style={s.strong}>Sua lista de rotinas está vazia</Text><Text style={s.small}>Quando um checklist for atribuído à sua loja, ele aparecerá aqui com o estágio de andamento.</Text></Card>}
     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}><Button title="Anterior" secondary disabled={feedLoading || checklistPage === 0} onPress={() => setChecklistPage(checklistPage - 1)} /><Text style={s.small}>{checklistPage + 1} / {Math.max(1, Math.ceil(checklistFeed.total / 30))}</Text><Button title="Próxima" secondary disabled={feedLoading || (checklistPage + 1) * 30 >= checklistFeed.total} onPress={() => setChecklistPage(checklistPage + 1)} /></View>
     </>}
