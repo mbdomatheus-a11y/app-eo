@@ -105,19 +105,6 @@ jobs:
           CI: '1'
         run: npx expo prebuild --clean --platform ios
 
-      - name: Preserve native build number without changing OTA compatibility
-        shell: bash
-        run: |
-          # O número único já foi escrito no projeto/Info.plist pelo prebuild.
-          # O fingerprint usa o app.json estável do repositório, igual ao EAS Update.
-          node <<'NODE'
-          const fs = require('fs');
-          const { execFileSync } = require('child_process');
-          fs.writeFileSync('app.json', execFileSync('git', ['show', 'HEAD:mobile/app.json']));
-          NODE
-          info_plist="$(find ios -mindepth 2 -maxdepth 2 -name Info.plist -not -path '*/Pods/*' -print -quit)"
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$info_plist"
-
       - name: Compile iOS Simulator app
         run: |
           workspace="$(find ios -maxdepth 1 -type d -name '*.xcworkspace' -print -quit)"
@@ -205,6 +192,19 @@ jobs:
         env:
           CI: '1'
         run: npx expo prebuild --clean --platform ios
+
+      - name: Preserve native build number without changing OTA compatibility
+        shell: bash
+        run: |
+          # O número único já foi escrito no projeto/Info.plist pelo prebuild.
+          # O fingerprint usa o app.json estável do repositório, igual ao EAS Update.
+          node <<'NODE'
+          const fs = require('fs');
+          const { execFileSync } = require('child_process');
+          fs.writeFileSync('app.json', execFileSync('git', ['show', 'HEAD:mobile/app.json']));
+          NODE
+          info_plist="$(find ios -mindepth 2 -maxdepth 2 -name Info.plist -not -path '*/Pods/*' -print -quit)"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$info_plist"
 
       - name: Prepare App Store Connect API key
         shell: bash
