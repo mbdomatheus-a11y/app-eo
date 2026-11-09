@@ -6,5 +6,16 @@ import { Page } from "../ui";
 export default function ChecklistAdmin() {
   const app = useEO();
   if (app.workspace?.person.role !== "admin") return <Redirect href="/" />;
-  return <RouteFrame><Page><ChecklistExcel stores={app.workspace.stores} onPublished={() => { void app.refreshOperational(); }} /></Page></RouteFrame>;
+  return (
+    <RouteFrame>
+      <Page>
+        <ChecklistExcel
+          stores={app.workspace.stores}
+          onPublished={() => {
+            void app.refreshOperational();
+          }}
+        />
+      </Page>
+    </RouteFrame>
+  );
 }

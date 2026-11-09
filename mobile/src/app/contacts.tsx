@@ -6,5 +6,11 @@ import { Page } from "../ui";
 export default function Contacts() {
   const app = useEO();
   if (app.workspace?.person.role !== "admin") return <Redirect href="/" />;
-  return <RouteFrame><Page><ContactRefreshAdmin /></Page></RouteFrame>;
+  return (
+    <RouteFrame>
+      <Page>
+        <ContactRefreshAdmin />
+      </Page>
+    </RouteFrame>
+  );
 }

@@ -21,8 +21,8 @@ begin
     perform public.eo_save_mood(sb,current_date,'happy');
     perform set_config('request.jwt.claim.sub',c::text,true);
     perform public.eo_save_day_entry(sa,current_date,'sold','{}','');
-    perform public.eo_save_day_entry(sa,current_date,'no_sale',array['Sem estoque'],'');
-    perform public.eo_save_day_entry(sa,current_date,'no_sale',array['Sem estoque'],'');
+    perform public.eo_save_day_entry(sa,current_date,'no_sale',array['Falta de produto'],'');
+    perform public.eo_save_day_entry(sa,current_date,'no_sale',array['Falta de produto'],'');
     perform public.eo_save_mood(sa,current_date,'happy');
     perform public.eo_save_mood(sa,current_date,'neutral');
     page:=public.eo_day_entries_page(current_date,current_date,array[sa],2,0,cutoff);
@@ -48,7 +48,7 @@ begin
     if not exists(select 1 from jsonb_array_elements(overview->'groups') g where g->>'key'='Regional teste A'
       and (g->>'diary_count')::integer=4 and (g->>'happy')::integer=1 and (g->>'neutral')::integer=1 and (g->>'sad')::integer=1) then
       raise exception 'FAIL: grupos do overview'; end if;
-    if not exists(select 1 from jsonb_array_elements(overview->'top_reasons') r where r->>'reason'='Sem estoque' and (r->>'count')::integer=2) then
+    if not exists(select 1 from jsonb_array_elements(overview->'top_reasons') r where r->>'reason'='Falta de produto' and (r->>'count')::integer=2) then
       raise exception 'FAIL: contagem dos motivos'; end if;
     perform set_config('request.jwt.claim.sub',c::text,true);
     page:=public.eo_day_entries_page(current_date,current_date,array[sa]);

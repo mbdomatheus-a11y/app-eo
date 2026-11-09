@@ -40,7 +40,12 @@
       [
         "expo-notifications",
         {
-          "mode": "production"
+          "mode": "production",
+          "sounds": [
+            "./assets/sounds/eo-soft.wav",
+            "./assets/sounds/eo-bell.wav",
+            "./assets/sounds/eo-alert.wav"
+          ]
         }
       ],
       [
@@ -74,6 +79,19 @@
           "cameraPermission": "Permita que o EO leia códigos de barras e registre evidências quando você solicitar.",
           "recordAudioAndroid": false,
           "barcodeScannerEnabled": true
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Permita que o EO ouça seu ditado quando você solicitar.",
+          "speechRecognitionPermission": "Permita que o EO transforme sua fala em texto para sua revisão."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Permita registrar sua localização ao responder um checklist, somente com seu consentimento."
         }
       ]
     ],

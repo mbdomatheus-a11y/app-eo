@@ -1,5 +1,25 @@
+import { ActionAgenda } from "./features/operations/ActionAgenda";
+import { EmailField } from "./features/identity/EmailField";
+import { ChecklistReport } from "./features/checklists/ChecklistReport";
+import { BusinessUnits } from "./features/identity/BusinessUnits";
+import { SoundSettings } from "./features/communications/SoundSettings";
+import { ModuleAccess } from "./features/module-access/ModuleAccess";
+import { ReportsHub } from "./features/reports/ReportsHub";
+import { MoodReminderBanner } from "./features/operations/MoodReminderBanner";
+import { SuccessToast } from "./components/SuccessToast";
+import { IdentityPreferences } from "./features/identity/IdentityPreferences";
+import {
+  CommunicationTargets,
+  NoticeEngagement,
+  CommunicationInbox,
+  ScheduledMessages,
+} from "./features/communications/Communications";
+import { safeAttachmentName } from "./features/communications/model";
 import { CommercialPanel } from "./features/commercial/CommercialPanel";
-import { ContactRefreshAdmin, ContactUpdateGate } from "./features/contacts/ContactRefresh";
+import {
+  ContactRefreshAdmin,
+  ContactUpdateGate,
+} from "./features/contacts/ContactRefresh";
 import { ChecklistAdmin } from "./features/checklists/ChecklistAdmin";
 import { ChecklistInbox } from "./features/checklists/ChecklistInbox";
 import { AccountMenu } from "./features/account/AccountMenu";
@@ -57,21 +77,219 @@ import NativeExperience from "./mobile/NativeExperience";
 import { SalesReports } from "./features/sales/SalesReports";
 import { OperationsPanel } from "./features/operations/OperationsPanel";
 
-type Page = "home" | "notices" | "modules" | "admin" | "sales" | "diary" | "mood" | "checklists" | "product" | "assortment";
+type Page =
+  | "home"
+  | "notices"
+  | "modules"
+  | "admin"
+  | "sales"
+  | "diary"
+  | "mood"
+  | "checklists"
+  | "product"
+  | "assortment"
+  | "agenda";
 type AdminStore = Store & { active: boolean };
-function StorePicker({ stores, selected, onChange }: { stores: Store[]; selected: string[]; onChange: (ids: string[]) => void }) {
-  const [search,setSearch] = useState(""); const [uf,setUf] = useState(""); const [region,setRegion] = useState(""); const [page,setPage] = useState(0); const [sort,setSort] = useState("code");
-  const regionOf = (store: Store) => store.segments?.REGIONAL || store.region || "";
-  const filtered = stores.filter((store) => (!uf || store.segments?.UF===uf) && (!region || regionOf(store)===region) && `${store.code} ${store.name} ${regionOf(store)}`.toLocaleLowerCase("pt-BR").includes(search.trim().toLocaleLowerCase("pt-BR"))).sort((a,b)=>(sort==="name" ? a.name.localeCompare(b.name,"pt-BR") : a.code.localeCompare(b.code,"pt-BR",{numeric:true})));
-  const current = Math.min(page,Math.max(0,Math.ceil(filtered.length/20)-1));
-  return <div className="store-picker">{selected.map((id)=><input key={id} type="hidden" name="stores" value={id} />)}<p className="field-hint">{selected.length} lojas selecionadas. A seleção permanece ao mudar os filtros.</p><details><summary>Selecionar lojas</summary><div className="form-grid">
-    <label>Buscar loja<input type="search" value={search} onChange={(e)=>{setSearch(e.target.value);setPage(0);}} placeholder="Código, nome ou regional" /></label>
-    <label>UF<select value={uf} onChange={(e)=>{setUf(e.target.value);setRegion("");setPage(0);}}><option value="">Todas</option>{[...new Set(stores.map((store)=>store.segments?.UF || "").filter(Boolean))].sort().map((value)=><option key={value}>{value}</option>)}</select></label>
-    <label>Regional<select value={region} onChange={(e)=>{setRegion(e.target.value);setPage(0);}}><option value="">Todas</option>{[...new Set(stores.filter((store)=>!uf || store.segments?.UF===uf).map(regionOf).filter(Boolean))].sort().map((value)=><option key={value}>{value}</option>)}</select></label>
-    <label>Ordenação<select value={sort} onChange={(e)=>setSort(e.target.value)}><option value="code">Código</option><option value="name">Nome</option></select></label></div>
-    <div className="selection-actions"><button type="button" className="secondary" onClick={()=>onChange([...new Set([...selected,...stores.map((store)=>store.id)])])}>Todas ({stores.length})</button><button type="button" className="secondary" onClick={()=>onChange([...new Set([...selected,...filtered.map((store)=>store.id)])])}>Adicionar filtro ({filtered.length})</button><button type="button" className="secondary" onClick={()=>{const ids=new Set(filtered.map((store)=>store.id));onChange(selected.filter((id)=>!ids.has(id)));}}>Remover filtro</button><button type="button" className="text-button" onClick={()=>onChange([])}>Limpar seleção</button></div>
-    <div className="registration-store-list">{filtered.slice(current*20,current*20+20).map((store)=><label className="checkbox-label" key={store.id}><input type="checkbox" checked={selected.includes(store.id)} onChange={(e)=>onChange(e.target.checked ? [...selected,store.id] : selected.filter((id)=>id!==store.id))} />{store.code} · {store.name}{regionOf(store) && ` · ${regionOf(store)}`}</label>)}</div>
-    <div className="pagination"><button type="button" className="secondary" disabled={!current} onClick={()=>setPage(current-1)}>Anterior</button><span>{filtered.length ? `${current*20+1} a ${Math.min(current*20+20,filtered.length)} de ${filtered.length}` : "Nenhuma loja encontrada"}</span><button type="button" className="secondary" disabled={(current+1)*20>=filtered.length} onClick={()=>setPage(current+1)}>Próxima</button></div></details></div>;
+function StorePicker({
+  stores,
+  selected,
+  onChange,
+}: {
+  stores: Store[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [uf, setUf] = useState("");
+  const [region, setRegion] = useState("");
+  const [page, setPage] = useState(0);
+  const [sort, setSort] = useState("code");
+  const regionOf = (store: Store) =>
+    store.segments?.REGIONAL || store.region || "";
+  const filtered = stores
+    .filter(
+      (store) =>
+        (!uf || store.segments?.UF === uf) &&
+        (!region || regionOf(store) === region) &&
+        `${store.code} ${store.name} ${regionOf(store)}`
+          .toLocaleLowerCase("pt-BR")
+          .includes(search.trim().toLocaleLowerCase("pt-BR")),
+    )
+    .sort((a, b) =>
+      sort === "name"
+        ? a.name.localeCompare(b.name, "pt-BR")
+        : a.code.localeCompare(b.code, "pt-BR", { numeric: true }),
+    );
+  const current = Math.min(
+    page,
+    Math.max(0, Math.ceil(filtered.length / 20) - 1),
+  );
+  return (
+    <div className="store-picker">
+      {selected.map((id) => (
+        <input key={id} type="hidden" name="stores" value={id} />
+      ))}
+      <p className="field-hint">
+        {selected.length} lojas selecionadas. A seleção permanece ao mudar os
+        filtros.
+      </p>
+      <details>
+        <summary>Selecionar lojas</summary>
+        <div className="form-grid">
+          <label>
+            Buscar loja
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(0);
+              }}
+              placeholder="Código, nome ou regional"
+            />
+          </label>
+          <label>
+            UF
+            <select
+              value={uf}
+              onChange={(e) => {
+                setUf(e.target.value);
+                setRegion("");
+                setPage(0);
+              }}
+            >
+              <option value="">Todas</option>
+              {[
+                ...new Set(
+                  stores
+                    .map((store) => store.segments?.UF || "")
+                    .filter(Boolean),
+                ),
+              ]
+                .sort()
+                .map((value) => (
+                  <option key={value}>{value}</option>
+                ))}
+            </select>
+          </label>
+          <label>
+            Regional
+            <select
+              value={region}
+              onChange={(e) => {
+                setRegion(e.target.value);
+                setPage(0);
+              }}
+            >
+              <option value="">Todas</option>
+              {[
+                ...new Set(
+                  stores
+                    .filter((store) => !uf || store.segments?.UF === uf)
+                    .map(regionOf)
+                    .filter(Boolean),
+                ),
+              ]
+                .sort()
+                .map((value) => (
+                  <option key={value}>{value}</option>
+                ))}
+            </select>
+          </label>
+          <label>
+            Ordenação
+            <select value={sort} onChange={(e) => setSort(e.target.value)}>
+              <option value="code">Código</option>
+              <option value="name">Nome</option>
+            </select>
+          </label>
+        </div>
+        <div className="selection-actions">
+          <button
+            type="button"
+            className="secondary"
+            onClick={() =>
+              onChange([
+                ...new Set([...selected, ...stores.map((store) => store.id)]),
+              ])
+            }
+          >
+            Todas ({stores.length})
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() =>
+              onChange([
+                ...new Set([...selected, ...filtered.map((store) => store.id)]),
+              ])
+            }
+          >
+            Adicionar filtro ({filtered.length})
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => {
+              const ids = new Set(filtered.map((store) => store.id));
+              onChange(selected.filter((id) => !ids.has(id)));
+            }}
+          >
+            Remover filtro
+          </button>
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => onChange([])}
+          >
+            Limpar seleção
+          </button>
+        </div>
+        <div className="registration-store-list">
+          {filtered.slice(current * 20, current * 20 + 20).map((store) => (
+            <label className="checkbox-label" key={store.id}>
+              <input
+                type="checkbox"
+                checked={selected.includes(store.id)}
+                onChange={(e) =>
+                  onChange(
+                    e.target.checked
+                      ? [...selected, store.id]
+                      : selected.filter((id) => id !== store.id),
+                  )
+                }
+              />
+              {store.code} · {store.name}
+              {regionOf(store) && ` · ${regionOf(store)}`}
+            </label>
+          ))}
+        </div>
+        <div className="pagination">
+          <button
+            type="button"
+            className="secondary"
+            disabled={!current}
+            onClick={() => setPage(current - 1)}
+          >
+            Anterior
+          </button>
+          <span>
+            {filtered.length
+              ? `${current * 20 + 1} a ${Math.min(current * 20 + 20, filtered.length)} de ${filtered.length}`
+              : "Nenhuma loja encontrada"}
+          </span>
+          <button
+            type="button"
+            className="secondary"
+            disabled={(current + 1) * 20 >= filtered.length}
+            onClick={() => setPage(current + 1)}
+          >
+            Próxima
+          </button>
+        </div>
+      </details>
+    </div>
+  );
 }
 function Dialog({
   title,
@@ -90,7 +308,14 @@ function Dialog({
     return () => el.close();
   }, []);
   return (
-    <dialog ref={ref} aria-labelledby={titleId} onCancel={(event) => { event.preventDefault(); close(); }}>
+    <dialog
+      ref={ref}
+      aria-labelledby={titleId}
+      onCancel={(event) => {
+        event.preventDefault();
+        close();
+      }}
+    >
       <div className="modal-head">
         <h2 id={titleId}>{title}</h2>
         <button aria-label="Fechar" className="icon-button" onClick={close}>
@@ -107,7 +332,10 @@ export default function ConnectedApp() {
   const [moreOpen, setMoreOpen] = useState(false);
   useEffect(() => {
     if (!newStoreOpen || !newStoreDirty) return;
-    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [newStoreOpen, newStoreDirty]);
@@ -115,7 +343,10 @@ export default function ConnectedApp() {
   const [registrationRole, setRegistrationRole] = useState("colaborador");
   const [registrationDirty, setRegistrationDirty] = useState(false);
   const [registrationStores, setRegistrationStores] = useState<string[]>([]);
-  const [passwordTarget, setPasswordTarget] = useState<Pick<LivePerson, "id" | "display_name" | "login_chapa"> | null>(null);
+  const [passwordTarget, setPasswordTarget] = useState<Pick<
+    LivePerson,
+    "id" | "display_name" | "login_chapa"
+  > | null>(null);
   useEffect(() => {
     if (!registrationOpen || !registrationDirty) return;
     const confirmUnload = (event: BeforeUnloadEvent) => {
@@ -133,7 +364,10 @@ export default function ConnectedApp() {
     [initializing, setInitializing] = useState(true);
   const [workspace, setWorkspace] = useState<Workspace | null>(null),
     [notices, setNotices] = useState<LiveNotice[]>([]);
-  const [page, setPage] = useState<Page>("home"),
+  const [agendaChecklistId, setAgendaChecklistId] = useState("");
+  const [reportModule, setReportModule] = useState("");
+  const [visibleModules, setVisibleModules] = useState<string[]>([]);
+  const [page, setPage] = useState<Page>("modules"),
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(false);
   const [error, setError] = useState(""),
@@ -147,47 +381,164 @@ export default function ConnectedApp() {
   const [audit, setAudit] = useState<AuditRow[]>([]),
     [members, setMembers] = useState<LivePerson[]>([]);
   const [temporaryPassword, setTemporaryPassword] = useState("");
-  const [importData, setImportData] = useState<Record<string, Record<string, string>[]> | null>(null);
+  const [importData, setImportData] = useState<Record<
+    string,
+    Record<string, string>[]
+  > | null>(null);
   const [importFileName, setImportFileName] = useState("");
-  const [importCounts, setImportCounts] = useState<Record<string, number> | null>(null);
+  const [importCounts, setImportCounts] = useState<Record<
+    string,
+    number
+  > | null>(null);
   const [importReady, setImportReady] = useState<boolean | null>(null);
-  const [activeImport, setActiveImport] = useState<{ id: string; created_at: string; source_name: string; store_count: number; manager_count: number; regional_count: number; people_count: number; assignment_count: number } | null>(null);
+  const [activeImport, setActiveImport] = useState<{
+    id: string;
+    created_at: string;
+    source_name: string;
+    store_count: number;
+    manager_count: number;
+    regional_count: number;
+    people_count: number;
+    assignment_count: number;
+  } | null>(null);
   const [editingMember, setEditingMember] = useState<LivePerson | null>(null);
-  const [tab, setTab] = useState<"stores" | "people" | "audit" | "import" | "archive" | "reports" | "contacts" | "checklists">("stores"),
+  const [tab, setTab] = useState<
+      | "stores"
+      | "people"
+      | "audit"
+      | "import"
+      | "archive"
+      | "reports"
+      | "contacts"
+      | "checklists"
+    >("stores"),
     [future, setFuture] = useState("");
-  const [archivedMessages, setArchivedMessages] = useState<{ kind: "notice" | "alert"; id: string; title: string; body: string; archived_at: string; archived_by_name: string | null; attachments: MessageAttachment[] }[]>([]);
+  const [archivedMessages, setArchivedMessages] = useState<
+    {
+      kind: "notice" | "alert";
+      id: string;
+      title: string;
+      body: string;
+      archived_at: string;
+      archived_by_name: string | null;
+      attachments: MessageAttachment[];
+    }[]
+  >([]);
   const [messageFiles, setMessageFiles] = useState<File[]>([]);
-  const [reportMessages, setReportMessages] = useState<{ notice_id: string; version: number; title: string; published_at: string; archived_at: string | null; total_stores: number; eligible_people: number; confirmed_people: number }[]>([]);
-  const [reportData, setReportData] = useState<{ total_stores: number; stores_with_read: number; stores_fully_read: number; stores_pending: number; read_rule: string; groups: { group: string; total_stores: number; stores_with_read: number; stores_fully_read: number; stores_pending: number }[] } | null>(null);
+  const [reportMessages, setReportMessages] = useState<
+    {
+      notice_id: string;
+      version: number;
+      title: string;
+      published_at: string;
+      archived_at: string | null;
+      total_stores: number;
+      eligible_people: number;
+      confirmed_people: number;
+    }[]
+  >([]);
+  const [reportData, setReportData] = useState<{
+    total_stores: number;
+    stores_with_read: number;
+    stores_fully_read: number;
+    stores_pending: number;
+    read_rule: string;
+    groups: {
+      group: string;
+      total_stores: number;
+      stores_with_read: number;
+      stores_fully_read: number;
+      stores_pending: number;
+    }[];
+  } | null>(null);
   const [reportNotice, setReportNotice] = useState("");
   const [reportVersion, setReportVersion] = useState(1);
   const [reportGroup, setReportGroup] = useState("regional");
   const [reportSegmentBy, setReportSegmentBy] = useState("");
   const [reportSegmentValues, setReportSegmentValues] = useState<string[]>([]);
   const [composeSegmentBy, setComposeSegmentBy] = useState("");
-  const [composeSegmentValues, setComposeSegmentValues] = useState<string[]>([]);
-  const [importedStores, setImportedStores] = useState<Record<string, unknown>[]>([]);
-  const [storeSort, setStoreSort] = useState<{ key: string; direction: "asc" | "desc" }>({ key: "COD", direction: "asc" });
-  const [editingStore, setEditingStore] = useState<Record<string, unknown> | null>(null);
+  const [composeSegmentValues, setComposeSegmentValues] = useState<string[]>(
+    [],
+  );
+  const [importedStores, setImportedStores] = useState<
+    Record<string, unknown>[]
+  >([]);
+  const [storeSort, setStoreSort] = useState<{
+    key: string;
+    direction: "asc" | "desc";
+  }>({ key: "COD", direction: "asc" });
+  const [editingStore, setEditingStore] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
   const [templateChoice, setTemplateChoice] = useState(false);
   const [storeSearch, setStoreSearch] = useState("");
-  const [importPage,setImportPage] = useState(0);
-  const [adminStores,setAdminStores] = useState<AdminStore[]>([]);
-  const [managedStore,setManagedStore] = useState<AdminStore | null>(null);
-  const [storeUf,setStoreUf] = useState(""); const [storeRegion,setStoreRegion] = useState(""); const [storeState,setStoreState] = useState("active"); const [storePage,setStorePage] = useState(0);
-  const [peopleSearch,setPeopleSearch] = useState(""); const [peopleRole,setPeopleRole] = useState(""); const [peopleState,setPeopleState] = useState(""); const [peopleRegion,setPeopleRegion] = useState(""); const [peopleUf,setPeopleUf] = useState(""); const [peopleSort,setPeopleSort] = useState("name"); const [peoplePage,setPeoplePage] = useState(0); const [peopleTotal,setPeopleTotal] = useState(0);
-  const [editStores,setEditStores] = useState<string[]>([]); const [composeStores,setComposeStores] = useState<string[]>([]);
+  const [importPage, setImportPage] = useState(0);
+  const [adminStores, setAdminStores] = useState<AdminStore[]>([]);
+  const [managedStore, setManagedStore] = useState<AdminStore | null>(null);
+  const [storeUf, setStoreUf] = useState("");
+  const [storeRegion, setStoreRegion] = useState("");
+  const [storeState, setStoreState] = useState("active");
+  const [storePage, setStorePage] = useState(0);
+  const [peopleSearch, setPeopleSearch] = useState("");
+  const [peopleRole, setPeopleRole] = useState("");
+  const [peopleState, setPeopleState] = useState("");
+  const [peopleRegion, setPeopleRegion] = useState("");
+  const [peopleUf, setPeopleUf] = useState("");
+  const [peopleSort, setPeopleSort] = useState("name");
+  const [peoplePage, setPeoplePage] = useState(0);
+  const [peopleTotal, setPeopleTotal] = useState(0);
+  const [editStores, setEditStores] = useState<string[]>([]);
+  const [composeStores, setComposeStores] = useState<string[]>([]);
   const peopleRequest = useRef(0);
   const searchPeople = useCallback(async () => {
     const request = ++peopleRequest.current;
-    const result = await rpc<{items: LivePerson[];total:number}>("eo_admin_people_page", {p_search:peopleSearch,p_role:peopleRole,p_state:peopleState,p_region:peopleRegion,p_uf:peopleUf,p_sort:peopleSort,p_limit:30,p_offset:peoplePage*30});
-    if(request===peopleRequest.current){setMembers(result.items);setPeopleTotal(result.total);}
-  },[peopleSearch,peopleRole,peopleState,peopleRegion,peopleUf,peopleSort,peoplePage]);
-  useEffect(()=>{
-    if(page!=="admin" || tab!=="people" || workspace?.person.role!=="admin")return;
-    const timer=setTimeout(()=>void searchPeople().catch((cause)=>setError(cause instanceof Error ? cause.message : "Não foi possível buscar pessoas.")),250);
-    return()=>clearTimeout(timer);
-  },[page,tab,workspace?.person.role,searchPeople]);
+    const result = await rpc<{ items: LivePerson[]; total: number }>(
+      "eo_admin_people_page",
+      {
+        p_search: peopleSearch,
+        p_role: peopleRole,
+        p_state: peopleState,
+        p_region: peopleRegion,
+        p_uf: peopleUf,
+        p_sort: peopleSort,
+        p_limit: 30,
+        p_offset: peoplePage * 30,
+      },
+    );
+    if (request === peopleRequest.current) {
+      setMembers(result.items);
+      setPeopleTotal(result.total);
+    }
+  }, [
+    peopleSearch,
+    peopleRole,
+    peopleState,
+    peopleRegion,
+    peopleUf,
+    peopleSort,
+    peoplePage,
+  ]);
+  useEffect(() => {
+    if (
+      page !== "admin" ||
+      tab !== "people" ||
+      workspace?.person.role !== "admin"
+    )
+      return;
+    const timer = setTimeout(
+      () =>
+        void searchPeople().catch((cause) =>
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "Não foi possível buscar pessoas.",
+          ),
+        ),
+      250,
+    );
+    return () => clearTimeout(timer);
+  }, [page, tab, workspace?.person.role, searchPeople]);
   const epoch = useRef(0),
     requestId = useRef(crypto.randomUUID());
   const clear = useCallback(() => {
@@ -203,7 +554,7 @@ export default function ConnectedApp() {
     setImportData(null);
     setImportCounts(null);
     setImportFileName("");
-    setPage("home");
+    setPage("modules");
     setTemporaryPassword("");
   }, []);
   useEffect(() => {
@@ -245,7 +596,15 @@ export default function ConnectedApp() {
         return;
       }
       const ctx = await rpc<Workspace>("eo_context");
-      const feed = await rpc<LiveNotice[]>("eo_feed");
+      const moduleRules =
+        await rpc<{ id: string; visible: boolean }[]>("eo_my_modules");
+      const visible = moduleRules
+        .filter((rule) => rule.visible)
+        .map((rule) => rule.id);
+      const feed = visible.includes("notices")
+        ? await rpc<LiveNotice[]>("eo_feed")
+        : [];
+      setVisibleModules(visible);
       if (current !== epoch.current) return;
       setWorkspace(ctx);
       setNotices(feed);
@@ -262,6 +621,27 @@ export default function ConnectedApp() {
   useEffect(() => {
     if (session?.user.id) void refresh();
   }, [session?.user.id, refresh]);
+  useEffect(() => {
+    if (
+      workspace &&
+      workspace.person.role !== "admin" &&
+      !["home", "modules", "admin"].includes(page) &&
+      !visibleModules.includes(page)
+    )
+      setPage("modules");
+  }, [workspace?.person.id, page, visibleModules]);
+  useEffect(() => {
+    if (page === "admin" && tab === "reports" && reportModule)
+      document
+        .getElementById("eo-report-detail")
+        ?.scrollIntoView({ block: "start" });
+  }, [page, tab, reportModule]);
+  useEffect(() => {
+    if (!workspace?.person.id) return;
+    void rpc("eo_record_access", { p_platform: "web", p_module: page }).catch(
+      () => {},
+    );
+  }, [workspace?.person.id, page]);
   async function act(work: () => Promise<void>) {
     if (busy) return;
     setBusy(true);
@@ -340,53 +720,112 @@ export default function ConnectedApp() {
   async function uploadMessageFiles(files: File[]) {
     if (!files.length) return [] as Omit<MessageAttachment, "id">[];
     if (files.length > 10) throw new Error("Anexe no máximo 10 arquivos.");
-    const allowed = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
+    const allowed = new Set([
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+    ]);
     const uploaded: Omit<MessageAttachment, "id">[] = [];
     for (const file of files) {
       const ext = file.name.toLowerCase().split(".").pop() ?? "";
-      const mimeType = file.type || ({ pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" } as Record<string, string>)[ext] || "";
+      const mimeType =
+        file.type ||
+        (
+          {
+            pdf: "application/pdf",
+            jpg: "image/jpeg",
+            jpeg: "image/jpeg",
+            png: "image/png",
+            webp: "image/webp",
+          } as Record<string, string>
+        )[ext] ||
+        "";
       if (!allowed.has(mimeType)) throw new Error("Use PDF, JPG, PNG ou WebP.");
-      if (!file.size || file.size > 10 * 1024 * 1024) throw new Error("Cada arquivo deve ter até 10 MB.");
-      const path = `${workspace!.person.id}/${crypto.randomUUID()}-${file.name.replace(/[^\p{L}\p{N}._-]/gu, "_").slice(-180)}`;
-      const { error: uploadError } = await supabase!.storage.from("eo-message-attachments").upload(path, file, { contentType: mimeType, upsert: false });
+      if (!file.size) throw new Error("O arquivo está vazio.");
+      const path = `${workspace!.person.id}/${crypto.randomUUID()}-${safeAttachmentName(file.name)}`;
+      const { error: uploadError } = await supabase!.storage
+        .from("eo-message-attachments")
+        .upload(path, file, { contentType: mimeType, upsert: false });
       if (uploadError) throw uploadError;
-      uploaded.push({ object_path: path, file_name: file.name.slice(0, 255), mime_type: mimeType, byte_size: file.size });
+      uploaded.push({
+        object_path: path,
+        file_name: file.name.slice(0, 255),
+        mime_type: mimeType,
+        byte_size: file.size,
+      });
     }
     return uploaded;
   }
   async function openMessageAttachment(file: MessageAttachment) {
     if (!supabase) return;
-    const { data, error: signedError } = await supabase.storage.from("eo-message-attachments").createSignedUrl(file.object_path, 60);
-    if (signedError) { setError("Você não tem acesso a este anexo ou o link expirou."); return; }
+    const { data, error: signedError } = await supabase.storage
+      .from("eo-message-attachments")
+      .createSignedUrl(file.object_path, 60);
+    if (signedError) {
+      setError("Você não tem acesso a este anexo ou o link expirou.");
+      return;
+    }
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   }
-  async function archiveMessage(kind: "notice" | "alert", id: string, archived: boolean) {
+  async function archiveMessage(
+    kind: "notice" | "alert",
+    id: string,
+    archived: boolean,
+  ) {
     await act(async () => {
-      await rpc("eo_admin_archive_message", { p_kind: kind, p_id: id, p_archived: archived });
+      await rpc("eo_admin_archive_message", {
+        p_kind: kind,
+        p_id: id,
+        p_archived: archived,
+      });
       if (kind === "notice" && opened?.notice_id === id) setOpened(null);
       await refresh();
-      if (tab === "archive") setArchivedMessages(await rpc<typeof archivedMessages>("eo_admin_archived_messages"));
-      setMessage(archived ? "Comunicado arquivado; o histórico e a auditoria foram preservados." : "Mensagem restaurada para a equipe.");
+      if (tab === "archive")
+        setArchivedMessages(
+          await rpc<typeof archivedMessages>("eo_admin_archived_messages"),
+        );
+      setMessage(
+        archived
+          ? "Comunicado arquivado; o histórico e a auditoria foram preservados."
+          : "Mensagem restaurada para a equipe.",
+      );
     });
   }
-  async function loadNoticeReport(noticeId: string, version: number, groupBy: string, segmentBy = reportSegmentBy, segmentValues = reportSegmentValues) {
-    if (!noticeId) { setReportData(null); return; }
-    await act(async () => setReportData(await rpc("eo_admin_notice_report", { p_notice: noticeId, p_version: version, p_group_by: groupBy, p_segment_by: segmentBy || null, p_segment_values: segmentValues })));
+  async function loadNoticeReport(
+    noticeId: string,
+    version: number,
+    groupBy: string,
+    segmentBy = reportSegmentBy,
+    segmentValues = reportSegmentValues,
+  ) {
+    if (!noticeId) {
+      setReportData(null);
+      return;
+    }
+    await act(async () =>
+      setReportData(
+        await rpc("eo_admin_notice_report", {
+          p_notice: noticeId,
+          p_version: version,
+          p_group_by: groupBy,
+          p_segment_by: segmentBy || null,
+          p_segment_values: segmentValues,
+        }),
+      ),
+    );
   }
   async function publish(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
     const data = new FormData(form);
     await act(async () => {
-      const messageKind = String(data.get("message_kind")) === "alert" ? "alert" : "notice";
-      const targetMode = String(data.get("target_mode") || "all");
-      const targetRegion = String(data.get("target_region") || "");
-      const eligibleStores = filterStores(workspace?.stores ?? [], composeSegmentBy, composeSegmentValues);
-      const stores = targetMode === "all"
-        ? eligibleStores.map((store) => store.id)
-        : targetMode === "region"
-          ? eligibleStores.filter((store) => store.region === targetRegion).map((store) => store.id)
-          : data.getAll("stores").map(String).filter((id) => eligibleStores.some((store) => store.id === id));
+      const messageKind =
+        String(data.get("message_kind")) === "alert" ? "alert" : "notice";
+      const stores = data
+        .getAll("stores")
+        .map(String)
+        .filter((id) => workspace?.stores.some((store) => store.id === id));
       if (!stores.length) throw new Error("Selecione ao menos uma loja.");
       const title = String(data.get("title")).trim();
       const body = String(data.get("body")).trim();
@@ -397,8 +836,13 @@ export default function ConnectedApp() {
       let pushFailed = false;
       if (scheduleAt) {
         const scheduledFor = new Date(scheduleAt);
-        if (Number.isNaN(scheduledFor.getTime()) || scheduledFor.getTime() < Date.now() + 120_000)
-          throw new Error("Escolha um horário pelo menos dois minutos à frente.");
+        if (
+          Number.isNaN(scheduledFor.getTime()) ||
+          scheduledFor.getTime() < Date.now() + 120_000
+        )
+          throw new Error(
+            "Escolha um horário pelo menos dois minutos à frente.",
+          );
         await rpc<string>("eo_schedule_message_with_options", {
           p_message_type: messageKind,
           p_title: title,
@@ -421,7 +865,10 @@ export default function ConnectedApp() {
           p_send_push: sendPush,
         });
         if (sendPush) {
-          const { error: pushError } = await supabase!.functions.invoke("send-alert-push", { body: { alert_id: requestId.current } });
+          const { error: pushError } = await supabase!.functions.invoke(
+            "send-alert-push",
+            { body: { alert_id: requestId.current } },
+          );
           pushFailed = Boolean(pushError);
         }
       } else {
@@ -432,76 +879,168 @@ export default function ConnectedApp() {
           p_urgent: urgent,
           p_attachments: attachments,
         });
-        const { error: pushError } = await supabase!.functions.invoke("send-alert-push", { body: { alert_id: alertId } });
+        const { error: pushError } = await supabase!.functions.invoke(
+          "send-alert-push",
+          { body: { alert_id: alertId } },
+        );
         pushFailed = Boolean(pushError);
       }
       requestId.current = crypto.randomUUID();
       setMessageFiles([]);
       setCompose(false);
       await refresh();
-      setMessage(scheduleAt
-        ? `${messageKind === "notice" ? "Comunicado" : "Alerta push"} programado para ${new Date(scheduleAt).toLocaleString("pt-BR")}.`
-        : messageKind === "notice" ? pushFailed ? "Comunicado publicado, mas o push não foi confirmado. Confira a auditoria." : sendPush ? "Comunicado publicado e enviado também por push." : "Comunicado publicado." : pushFailed
-          ? "Alerta salvo, mas o envio push não foi confirmado. Confira a auditoria antes de reenviar."
-          : "Alerta enviado para as lojas selecionadas.");
+      setMessage(
+        scheduleAt
+          ? `${messageKind === "notice" ? "Comunicado" : "Alerta push"} programado para ${new Date(scheduleAt).toLocaleString("pt-BR")}.`
+          : messageKind === "notice"
+            ? pushFailed
+              ? "Comunicado publicado, mas o push não foi confirmado. Confira a auditoria."
+              : sendPush
+                ? "Comunicado publicado e enviado também por push."
+                : "Comunicado publicado."
+            : pushFailed
+              ? "Alerta salvo, mas o envio push não foi confirmado. Confira a auditoria antes de reenviar."
+              : "Alerta enviado para as lojas selecionadas.",
+      );
     });
   }
   const segmentOptions = [
-    ["GGL", "GGL"], ["REGIONAL", "Regional"], ["UF", "UF"], ["CIDADE", "Cidade"], ["SAFRA", "Safra"],
-    ["GRUPO_CIDADE", "Grupo cidade"], ["POPULACAO", "População"], ["GRUPO_LOJA", "Grupo de loja"],
-    ["CLIMA", "Clima"], ["PERFIL_PRECO", "Perfil de preço"], ["CLUSTERS_VEST_26", "Cluster vestuário 26"],
-    ["CLUSTERS_VEST_10_25", "Cluster vestuário 10/25"], ["RE_VAREJO_24", "RE varejo 24"], ["STATUS_RE_24", "Status RE 24"],
-    ["LATITUDE", "Latitude"], ["LONGITUDE", "Longitude"], ["COORDENADAS", "Coordenadas"], ["TIPO", "Tipo de loja"],
-    ["AT", "Área construída"], ["TOTAL_VENDAS", "Total de vendas"], ["PORTE_VENDAS", "Porte de vendas"],
+    ["GGL", "GGL"],
+    ["REGIONAL", "Regional"],
+    ["UF", "UF"],
+    ["CIDADE", "Cidade"],
+    ["SAFRA", "Safra"],
+    ["GRUPO_CIDADE", "Grupo cidade"],
+    ["POPULACAO", "População"],
+    ["GRUPO_LOJA", "Grupo de loja"],
+    ["CLIMA", "Clima"],
+    ["PERFIL_PRECO", "Perfil de preço"],
+    ["CLUSTERS_VEST_26", "Cluster vestuário 26"],
+    ["CLUSTERS_VEST_10_25", "Cluster vestuário 10/25"],
+    ["RE_VAREJO_24", "RE varejo 24"],
+    ["STATUS_RE_24", "Status RE 24"],
+    ["LATITUDE", "Latitude"],
+    ["LONGITUDE", "Longitude"],
+    ["COORDENADAS", "Coordenadas"],
+    ["TIPO", "Tipo de loja"],
+    ["AT", "Área construída"],
+    ["TOTAL_VENDAS", "Total de vendas"],
+    ["PORTE_VENDAS", "Porte de vendas"],
   ] as const;
   function segmentValuesFor(stores: Store[], key: string) {
     if (!key) return [];
-    return [...new Set(stores.map((store) => store.segments?.[key]?.trim() ?? "").filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }));
+    return [
+      ...new Set(
+        stores
+          .map((store) => store.segments?.[key]?.trim() ?? "")
+          .filter(Boolean),
+      ),
+    ].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }));
   }
   function filterStores(stores: Store[], key: string, values: string[]) {
     if (!key || !values.length) return stores;
-    return stores.filter((store) => values.includes(store.segments?.[key] ?? ""));
+    return stores.filter((store) =>
+      values.includes(store.segments?.[key] ?? ""),
+    );
   }
   function downloadCurrentModel() {
     void act(async () => {
-      const workbook = await rpc<Record<string, Record<string, string | number | null>[]>>("eo_admin_export_org");
+      const workbook = await rpc<
+        Record<string, Record<string, string | number | null>[]>
+      >("eo_admin_export_org");
       const blob = createXlsx(workbook);
-      const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
-      anchor.href = url; anchor.download = "Modelo-importacao-administrativa-EO-dados-atuais.xlsx"; anchor.click(); URL.revokeObjectURL(url);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "Modelo-importacao-administrativa-EO-dados-atuais.xlsx";
+      anchor.click();
+      URL.revokeObjectURL(url);
       setMessage("Planilha com os dados atuais baixada.");
     });
   }
   function storeRecords() {
     return importedStores.map((raw) => {
-      const item = raw as Record<string, unknown>; const attrs = (item.attributes ?? {}) as Record<string, unknown>;
-      return { ...attrs, COD: item.code ?? attrs.COD ?? "", LOJA: item.name ?? attrs.LOJA ?? "", REGIONAL: item.region ?? attrs.REGIONAL ?? "", GGL: item.ggl ?? attrs.GGL ?? "", "CHAPA GERENTE": item.manager_chapa ?? attrs["CHAPA GERENTE"] ?? "", "NOME DO GERENTE": item.manager_name ?? attrs["NOME DO GERENTE"] ?? "", TELEFONE: item.manager_phone ?? attrs.TELEFONE ?? "", __id: item.id } as Record<string, unknown>;
+      const item = raw as Record<string, unknown>;
+      const attrs = (item.attributes ?? {}) as Record<string, unknown>;
+      return {
+        ...attrs,
+        COD: item.code ?? attrs.COD ?? "",
+        LOJA: item.name ?? attrs.LOJA ?? "",
+        REGIONAL: item.region ?? attrs.REGIONAL ?? "",
+        GGL: item.ggl ?? attrs.GGL ?? "",
+        "CHAPA GERENTE": item.manager_chapa ?? attrs["CHAPA GERENTE"] ?? "",
+        "NOME DO GERENTE": item.manager_name ?? attrs["NOME DO GERENTE"] ?? "",
+        TELEFONE: item.manager_phone ?? attrs.TELEFONE ?? "",
+        __id: item.id,
+      } as Record<string, unknown>;
     });
   }
   function orderedStoreRecords() {
     const q = storeSearch.trim().toLocaleLowerCase("pt-BR");
     const numeric = (raw: string) => {
       const value = raw.trim().replace(/[^\d,.-]/g, "");
-      const normalized = value.includes(",") ? value.replaceAll(".", "").replace(",", ".") : /^-?\d{1,3}(\.\d{3})+$/.test(value) ? value.replaceAll(".", "") : value;
-      return normalized && Number.isFinite(Number(normalized)) ? Number(normalized) : null;
+      const normalized = value.includes(",")
+        ? value.replaceAll(".", "").replace(",", ".")
+        : /^-?\d{1,3}(\.\d{3})+$/.test(value)
+          ? value.replaceAll(".", "")
+          : value;
+      return normalized && Number.isFinite(Number(normalized))
+        ? Number(normalized)
+        : null;
     };
-    return storeRecords().filter((row) => !q || Object.entries(row).some(([key, value]) => key !== "__id" && String(value ?? "").toLocaleLowerCase("pt-BR").includes(q)))
+    return storeRecords()
+      .filter(
+        (row) =>
+          !q ||
+          Object.entries(row).some(
+            ([key, value]) =>
+              key !== "__id" &&
+              String(value ?? "")
+                .toLocaleLowerCase("pt-BR")
+                .includes(q),
+          ),
+      )
       .sort((a, b) => {
-        const av = String(a[storeSort.key] ?? ""), bv = String(b[storeSort.key] ?? "");
-        const an = numeric(av), bn = numeric(bv);
-        const cmp = an !== null && bn !== null ? an - bn : av.localeCompare(bv, "pt-BR", { numeric: true, sensitivity: "base" });
+        const av = String(a[storeSort.key] ?? ""),
+          bv = String(b[storeSort.key] ?? "");
+        const an = numeric(av),
+          bn = numeric(bv);
+        const cmp =
+          an !== null && bn !== null
+            ? an - bn
+            : av.localeCompare(bv, "pt-BR", {
+                numeric: true,
+                sensitivity: "base",
+              });
         return storeSort.direction === "asc" ? cmp : -cmp;
       });
   }
   async function saveStoreEdits(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!editingStore) return;
-    const data = new FormData(event.currentTarget); const attributes = Object.fromEntries([...data.entries()].map(([key, value]) => [key, String(value)]));
+    event.preventDefault();
+    if (!editingStore) return;
+    const data = new FormData(event.currentTarget);
+    const attributes = Object.fromEntries(
+      [...data.entries()].map(([key, value]) => [key, String(value)]),
+    );
     await act(async () => {
-      await rpc("eo_admin_update_store_attributes", { p_store: editingStore.__id, p_attributes: attributes });
-      setImportedStores(await rpc<Record<string, unknown>[]>("eo_admin_imported_stores")); setEditingStore(null);
+      await rpc("eo_admin_update_store_attributes", {
+        p_store: editingStore.__id,
+        p_attributes: attributes,
+      });
+      setImportedStores(
+        await rpc<Record<string, unknown>[]>("eo_admin_imported_stores"),
+      );
+      setEditingStore(null);
       setMessage("Dados da loja atualizados e registrados na auditoria.");
     });
   }
-  const availableRegions = [...new Set((workspace?.stores ?? []).map((store) => store.region.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const availableRegions = [
+    ...new Set(
+      (workspace?.stores ?? [])
+        .map((store) => store.region.trim())
+        .filter(Boolean),
+    ),
+  ].sort((a, b) => a.localeCompare(b, "pt-BR"));
   async function loadMore() {
     await act(async () => {
       const tail = notices.at(-1);
@@ -519,24 +1058,51 @@ export default function ConnectedApp() {
     setPage("admin");
     await act(async () => {
       if (which === "audit") setAudit(await rpc<AuditRow[]>("eo_admin_audit"));
-      if (which === "archive") setArchivedMessages(await rpc<typeof archivedMessages>("eo_admin_archived_messages"));
+      if (which === "archive")
+        setArchivedMessages(
+          await rpc<typeof archivedMessages>("eo_admin_archived_messages"),
+        );
       if (which === "reports") {
-        const messages = await rpc<typeof reportMessages>("eo_admin_report_messages");
+        const messages = await rpc<typeof reportMessages>(
+          "eo_admin_report_messages",
+        );
         setReportMessages(messages);
         if (messages.length) {
           setReportNotice(messages[0].notice_id);
           setReportVersion(messages[0].version);
-          setReportData(await rpc("eo_admin_notice_report", { p_notice: messages[0].notice_id, p_version: messages[0].version, p_group_by: reportGroup, p_segment_by: reportSegmentBy || null, p_segment_values: reportSegmentValues }));
+          setReportData(
+            await rpc("eo_admin_notice_report", {
+              p_notice: messages[0].notice_id,
+              p_version: messages[0].version,
+              p_group_by: reportGroup,
+              p_segment_by: reportSegmentBy || null,
+              p_segment_values: reportSegmentValues,
+            }),
+          );
         } else setReportData(null);
       }
       if (which === "people") await searchPeople();
-      if (which === "stores") setAdminStores(await rpc<AdminStore[]>("eo_admin_stores"));
+      if (which === "stores")
+        setAdminStores(await rpc<AdminStore[]>("eo_admin_stores"));
       if (which === "import") {
         try {
-          const latest = await rpc<{ id?: string; created_at?: string; source_name?: string; store_count?: number; manager_count?: number; regional_count?: number; people_count?: number; assignment_count?: number }>("eo_admin_import_status");
-          setActiveImport(latest.id ? latest as NonNullable<typeof activeImport> : null);
+          const latest = await rpc<{
+            id?: string;
+            created_at?: string;
+            source_name?: string;
+            store_count?: number;
+            manager_count?: number;
+            regional_count?: number;
+            people_count?: number;
+            assignment_count?: number;
+          }>("eo_admin_import_status");
+          setActiveImport(
+            latest.id ? (latest as NonNullable<typeof activeImport>) : null,
+          );
           setImportReady(true);
-          setImportedStores(await rpc<Record<string, unknown>[]>("eo_admin_imported_stores"));
+          setImportedStores(
+            await rpc<Record<string, unknown>[]>("eo_admin_imported_stores"),
+          );
         } catch (e) {
           setImportReady(false);
           throw e;
@@ -558,66 +1124,120 @@ export default function ConnectedApp() {
       await refresh();
       setAdminStores(await rpc<AdminStore[]>("eo_admin_stores"));
       setMessage("Loja cadastrada.");
-      setNewStoreDirty(false); setNewStoreOpen(false);
+      setNewStoreDirty(false);
+      setNewStoreOpen(false);
     });
   }
   async function saveManagedStore(store: AdminStore) {
-    await act(async()=>{
-      await rpc("eo_admin_manage_store",{p_store:store.id,p_code:store.code,p_name:store.name,p_region:store.region,p_active:store.active});
-      setAdminStores(await rpc<AdminStore[]>("eo_admin_stores")); await refresh(); setStorePage(0); setManagedStore(null);
+    await act(async () => {
+      await rpc("eo_admin_manage_store", {
+        p_store: store.id,
+        p_code: store.code,
+        p_name: store.name,
+        p_region: store.region,
+        p_active: store.active,
+      });
+      setAdminStores(await rpc<AdminStore[]>("eo_admin_stores"));
+      await refresh();
+      setStorePage(0);
+      setManagedStore(null);
       setMessage("Loja atualizada. Histórico e vínculos preservados.");
     });
   }
   async function inviteMember(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (isNative) {
-      setError("Use o portal app-eo.vercel.app ou atualize o aplicativo EO para cadastrar usuários.");
+      setError(
+        "Use o portal app-eo.vercel.app ou atualize o aplicativo EO para cadastrar usuários.",
+      );
       return;
     }
     const form = e.currentTarget;
     const data = new FormData(form);
     const role = String(data.get("role"));
-    const selected = registrationOpen ? registrationStores : data.getAll("stores").map(String);
-    const stores = role === "admin" ? [] : selected.length ? selected : workspace?.stores.map((store) => store.id) ?? [];
+    const unitType = String(
+      data.get("unit_type") || (role === "admin" ? "administracao" : "loja"),
+    );
+    const selected = registrationOpen
+      ? registrationStores
+      : data.getAll("stores").map(String);
+    const stores =
+      role === "admin"
+        ? []
+        : unitType !== "loja"
+          ? selected
+          : selected.length
+            ? selected
+            : (workspace?.stores.map((store) => store.id) ?? []);
     await act(async () => {
-      if (role !== "admin" && !stores.length)
-        throw new Error("Cadastre uma loja antes de criar um acesso com vínculo.");
-      const { data: created, error: inviteError } = await supabase!.functions.invoke(
-        "admin-identity",
-        {
+      if (unitType === "loja" && !stores.length)
+        throw new Error(
+          "Cadastre uma loja antes de criar um acesso com vínculo.",
+        );
+      const { data: created, error: inviteError } =
+        await supabase!.functions.invoke("admin-identity", {
           body: {
             action: "create-person",
             email: String(data.get("email") ?? "").trim(),
             chapa: String(data.get("chapa")).trim(),
             name: String(data.get("name")).trim(),
             role,
+            unit_type: unitType,
             stores,
           },
-        },
-      );
+        });
       if (inviteError || typeof created?.password !== "string") {
-        const response = inviteError?.context instanceof Response ? await inviteError.context.json().catch(() => null) : null;
-        throw new Error(response?.error ?? "Não foi possível cadastrar a pessoa.");
+        const response =
+          inviteError?.context instanceof Response
+            ? await inviteError.context.json().catch(() => null)
+            : null;
+        throw new Error(
+          response?.error ?? "Não foi possível cadastrar a pessoa.",
+        );
       }
       form.reset();
       setRegistrationOpen(false);
       setTemporaryPassword(created.password);
-      setPasswordTarget({ id: "", display_name: String(data.get("name")).trim(), login_chapa: String(data.get("chapa")).trim() });
-      setMessage("Usuário cadastrado. Compartilhe a senha temporária com a pessoa.");
+      setPasswordTarget({
+        id: "",
+        display_name: String(data.get("name")).trim(),
+        login_chapa: String(data.get("chapa")).trim(),
+      });
+      setMessage(
+        "Usuário cadastrado. Compartilhe a senha temporária com a pessoa.",
+      );
       await searchPeople();
     });
   }
   async function toggleMember(p: LivePerson) {
     await act(async () => {
-      const { error: statusError } = await supabase!.functions.invoke("admin-identity", {
-        body: { action: "set-person-active", user_id: p.id, active: !p.active },
-      });
+      const { error: statusError } = await supabase!.functions.invoke(
+        "admin-identity",
+        {
+          body: {
+            action: "set-person-active",
+            user_id: p.id,
+            active: !p.active,
+          },
+        },
+      );
       if (statusError) {
-        const response = statusError.context instanceof Response ? await statusError.context.json().catch(() => null) : null;
-        throw new Error(response?.error ?? "Não foi possível alterar o acesso.");
+        const response =
+          statusError.context instanceof Response
+            ? await statusError.context.json().catch(() => null)
+            : null;
+        throw new Error(
+          response?.error ?? "Não foi possível alterar o acesso.",
+        );
       }
-      setMembers((current) => current.map((member) => member.id === p.id ? { ...member, active: !p.active } : member));
-      setEditingMember((current) => current?.id === p.id ? { ...current, active: !p.active } : current);
+      setMembers((current) =>
+        current.map((member) =>
+          member.id === p.id ? { ...member, active: !p.active } : member,
+        ),
+      );
+      setEditingMember((current) =>
+        current?.id === p.id ? { ...current, active: !p.active } : current,
+      );
       setMessage(p.active ? "Acesso desativado." : "Acesso reativado.");
     });
   }
@@ -633,6 +1253,7 @@ export default function ConnectedApp() {
         p_chapa: String(data.get("chapa")).trim(),
         p_stores: editStores,
         p_active: editingMember.active,
+        p_unit_type: String(data.get("unit_type")),
       });
       await searchPeople();
       setEditingMember(null);
@@ -645,7 +1266,9 @@ export default function ConnectedApp() {
         "admin-identity",
         {
           body: {
-            action: person ? "issue-person-temporary-password" : "issue-master-temporary-password",
+            action: person
+              ? "issue-person-temporary-password"
+              : "issue-master-temporary-password",
             user_id: person?.id ?? workspace!.person.id,
           },
         },
@@ -653,14 +1276,20 @@ export default function ConnectedApp() {
       if (issueError || typeof data?.password !== "string") {
         if (issueError?.context instanceof Response) {
           const response = await issueError.context.json().catch(() => null);
-          if (typeof response?.error === "string") throw new Error(response.error);
+          if (typeof response?.error === "string")
+            throw new Error(response.error);
         }
         throw new Error("Não foi possível gerar uma senha temporária.");
       }
       setTemporaryPassword(data.password);
-      if (person) setMembers((current) => current.map((member) => member.id === person.id
-        ? { ...member, must_change_password: true }
-        : member));
+      if (person)
+        setMembers((current) =>
+          current.map((member) =>
+            member.id === person.id
+              ? { ...member, must_change_password: true }
+              : member,
+          ),
+        );
       setMessage(
         "Senha temporária criada. Copie e guarde em local seguro agora.",
       );
@@ -675,29 +1304,45 @@ export default function ConnectedApp() {
     if (!file) return;
     try {
       const data = await readOrgWorkbook(file);
-      if (!data.Lojas.length) throw new Error("A aba Lojas não contém linhas para importar.");
-      if (!data.Regionais.length) throw new Error("Preencha a aba Regionais antes de importar.");
-      const storeCodes = new Set(data.Lojas.map((row) => row.COD.trim()).filter(Boolean));
+      if (!data.Lojas.length)
+        throw new Error("A aba Lojas não contém linhas para importar.");
+      if (!data.Regionais.length)
+        throw new Error("Preencha a aba Regionais antes de importar.");
+      const storeCodes = new Set(
+        data.Lojas.map((row) => row.COD.trim()).filter(Boolean),
+      );
       const managers = data.Gerentes.filter((row) => {
         const chapa = (row.CHAPA ?? "").trim();
         const storeCode = (row["COD LOJA"] ?? "").trim();
         return /^\d+$/.test(chapa) && storeCodes.has(storeCode);
       });
-      const people = data.Pessoas.filter((row) =>
-        /^[0-9]{1,20}$/.test((row.CHAPA ?? "").trim()) &&
-        !!(row.NOME ?? "").trim() &&
-        !!(row["CARGO OPERACIONAL"] ?? "").trim(),
+      const people = data.Pessoas.filter(
+        (row) =>
+          /^[0-9]{1,20}$/.test((row.CHAPA ?? "").trim()) &&
+          !!(row.NOME ?? "").trim() &&
+          !!(row["CARGO OPERACIONAL"] ?? "").trim(),
       );
       const skippedManagers = data.Gerentes.length - managers.length;
       const skippedPeople = data.Pessoas.length - people.length;
       const importableData = { ...data, Gerentes: managers, Pessoas: people };
       setImportData(importableData);
       setImportFileName(file.name);
-      setImportCounts(Object.fromEntries(Object.entries(importableData).map(([name, rows]) => [name, rows.length])));
+      setImportCounts(
+        Object.fromEntries(
+          Object.entries(importableData).map(([name, rows]) => [
+            name,
+            rows.length,
+          ]),
+        ),
+      );
       setError("");
       const skipped = [
-        skippedManagers ? `${skippedManagers} gerente(s) sem CHAPA numérica ou COD LOJA correspondente` : "",
-        skippedPeople ? `${skippedPeople} pessoa(s) sem CHAPA numérica, nome e cargo` : "",
+        skippedManagers
+          ? `${skippedManagers} gerente(s) sem CHAPA numérica ou COD LOJA correspondente`
+          : "",
+        skippedPeople
+          ? `${skippedPeople} pessoa(s) sem CHAPA numérica, nome e cargo`
+          : "",
       ].filter(Boolean);
       setMessage(
         skipped.length
@@ -714,16 +1359,35 @@ export default function ConnectedApp() {
   async function importOrgBase() {
     if (!importData) return;
     await act(async () => {
-      const result = await rpc<{ stores: number; managers: number; regionals: number; people: number; assignments: number }>("eo_admin_import_org", {
+      const result = await rpc<{
+        stores: number;
+        managers: number;
+        regionals: number;
+        people: number;
+        assignments: number;
+      }>("eo_admin_import_org", {
         p_source_name: importFileName,
         p_payload: importData,
       });
-      setMessage(`Base atualizada: ${result.stores} lojas, ${result.managers} gerentes, ${result.regionals} regionais, ${result.people} pessoas e ${result.assignments} vínculos. A operação anterior permanece substituída somente após validação integral.`);
+      setMessage(
+        `Base atualizada: ${result.stores} lojas, ${result.managers} gerentes, ${result.regionals} regionais, ${result.people} pessoas e ${result.assignments} vínculos. A operação anterior permanece substituída somente após validação integral.`,
+      );
       setImportData(null);
       setImportCounts(null);
       setImportFileName("");
-      const latest = await rpc<{ id?: string; created_at?: string; source_name?: string; store_count?: number; manager_count?: number; regional_count?: number; people_count?: number; assignment_count?: number }>("eo_admin_import_status");
-      setActiveImport(latest.id ? latest as NonNullable<typeof activeImport> : null);
+      const latest = await rpc<{
+        id?: string;
+        created_at?: string;
+        source_name?: string;
+        store_count?: number;
+        manager_count?: number;
+        regional_count?: number;
+        people_count?: number;
+        assignment_count?: number;
+      }>("eo_admin_import_status");
+      setActiveImport(
+        latest.id ? (latest as NonNullable<typeof activeImport>) : null,
+      );
       setImportReady(true);
       await refresh();
       setAudit(await rpc<AuditRow[]>("eo_admin_audit"));
@@ -754,7 +1418,11 @@ export default function ConnectedApp() {
         temporaryPassword={temporaryPassword}
         editingMember={editingMember}
         setEditingMember={setEditingMember}
-        tab={tab === "import" || tab === "contacts" || tab === "checklists" ? "stores" : tab}
+        tab={
+          tab === "import" || tab === "contacts" || tab === "checklists"
+            ? "stores"
+            : tab
+        }
         setTab={(nextTab) => setTab(nextTab)}
         login={login}
         changePassword={changePassword}
@@ -808,7 +1476,13 @@ export default function ConnectedApp() {
     return (
       <div className="auth-shell eo-signin">
         <section className="auth-intro">
-          <img className="eo-brand-icon" src="/eo-icon.svg" alt="EO" width="42" height="42" />
+          <img
+            className="eo-brand-icon"
+            src="/eo-icon.svg"
+            alt="EO"
+            width="42"
+            height="42"
+          />
           <span className="hero-kicker">SEU ESPAÇO DE TRABALHO</span>
           <h1>Excelência Operacional</h1>
           <p>Acompanhe os comunicados e as rotinas das suas lojas.</p>
@@ -856,6 +1530,9 @@ export default function ConnectedApp() {
             Precisa de acesso ou redefinir a senha? Procure a administração. A
             liberação é individual.
           </p>
+          <a className="auth-privacy-link" href="/termos.html">
+            Termos de uso
+          </a>
           <a className="auth-privacy-link" href="/privacidade.html">
             Política de Privacidade
           </a>
@@ -929,15 +1606,37 @@ export default function ConnectedApp() {
     );
   const admin = workspace.person.role === "admin",
     leader = admin || workspace.person.role === "diretor";
-  const pendingNoticeCount = notices.filter((notice) => !notice.acknowledged).length;
-  const filteredAdminStores = adminStores.filter((store)=>(!storeUf || store.segments?.UF===storeUf) && (!storeRegion || (store.segments?.REGIONAL || store.region)===storeRegion) && (!storeState || store.active===(storeState==="active")) && `${store.code} ${store.name} ${store.region}`.toLocaleLowerCase("pt-BR").includes(storeSearch.trim().toLocaleLowerCase("pt-BR"))).sort((a,b)=>{
-    const key=storeSort.key==="name" ? "name" : storeSort.key==="region" ? "region" : "code";
-    return (storeSort.direction==="asc" ? 1 : -1)*a[key].localeCompare(b[key],"pt-BR",{numeric:true});
-  });
+  const pendingNoticeCount = notices.filter(
+    (notice) => !notice.acknowledged,
+  ).length;
+  const filteredAdminStores = adminStores
+    .filter(
+      (store) =>
+        (!storeUf || store.segments?.UF === storeUf) &&
+        (!storeRegion ||
+          (store.segments?.REGIONAL || store.region) === storeRegion) &&
+        (!storeState || store.active === (storeState === "active")) &&
+        `${store.code} ${store.name} ${store.region}`
+          .toLocaleLowerCase("pt-BR")
+          .includes(storeSearch.trim().toLocaleLowerCase("pt-BR")),
+    )
+    .sort((a, b) => {
+      const key =
+        storeSort.key === "name"
+          ? "name"
+          : storeSort.key === "region"
+            ? "region"
+            : "code";
+      return (
+        (storeSort.direction === "asc" ? 1 : -1) *
+        a[key].localeCompare(b[key], "pt-BR", { numeric: true })
+      );
+    });
   const navigation = [
     { id: "home" as const, label: "Visão geral", icon: Home },
     { id: "notices" as const, label: "Comunicados", icon: Megaphone },
     { id: "modules" as const, label: "Aplicativos", icon: Grid2X2 },
+    { id: "agenda" as const, label: "Agenda de ações", icon: CalendarDays },
     { id: "sales" as const, label: "Vendas", icon: Building2 },
     { id: "product" as const, label: "Pedir produto", icon: Grid2X2 },
     { id: "assortment" as const, label: "Sortimento", icon: ClipboardCheck },
@@ -948,6 +1647,11 @@ export default function ConnectedApp() {
       ? [{ id: "admin" as const, label: "Administração", icon: Settings2 }]
       : []),
   ];
+  const allowedNavigation = navigation.filter(
+    (item) =>
+      ["home", "modules", "admin"].includes(item.id) ||
+      visibleModules.includes(item.id),
+  );
   const planned = [
     { title: "Cartazeamento", icon: FileImage },
     { title: "Escala da equipe", icon: CalendarDays },
@@ -964,10 +1668,16 @@ export default function ConnectedApp() {
           href="#"
           onClick={(e) => {
             e.preventDefault();
-            setPage("home");
+            setPage("modules");
           }}
         >
-          <img className="eo-brand-icon" src="/eo-icon.svg" alt="EO" width="42" height="42" />
+          <img
+            className="eo-brand-icon"
+            src="/eo-icon.svg"
+            alt="EO"
+            width="42"
+            height="42"
+          />
           <span className="brand-copy">
             EXCELÊNCIA
             <br />
@@ -983,7 +1693,7 @@ export default function ConnectedApp() {
         </div>
         <p className="nav-label">SEU ESPAÇO</p>
         <nav aria-label="Navegação principal">
-          {navigation.map((n) => (
+          {allowedNavigation.map((n) => (
             <button
               className={`nav-item ${page === n.id ? "active" : ""}`}
               key={n.id}
@@ -1006,7 +1716,9 @@ export default function ConnectedApp() {
             <LogOut size={19} />
             Sair da conta
           </button>
-          <span className="sidebar-version">Excelência Operacional (EO) · atualização {__APP_VERSION__}</span>
+          <span className="sidebar-version">
+            Excelência Operacional (EO) · atualização {__APP_VERSION__}
+          </span>
         </div>
       </aside>
       <div className="main-shell">
@@ -1017,16 +1729,20 @@ export default function ConnectedApp() {
             {navigation.find((n) => n.id === page)?.label}
           </div>
           <div className="top-actions">
-            <span className="badge" title="Identificador do commit publicado">Versão {__APP_VERSION__}</span>
-            <button
-              className="notification-button icon-button"
-              aria-label={`Abrir comunicados${pendingNoticeCount ? `, ${pendingNoticeCount} pendente(s)` : ""}`}
-              title="Comunicados"
-              onClick={() => setPage("notices")}
-            >
-              <Bell size={18} />
-              {pendingNoticeCount > 0 && <span />}
-            </button>
+            <span className="badge" title="Identificador do commit publicado">
+              Versão {__APP_VERSION__}
+            </span>
+            <CommunicationInbox
+              openNotice={(id) => {
+                void act(async () => {
+                  const notice = await rpc<LiveNotice | null>("eo_notice_get", {
+                    p_notice: id,
+                  });
+                  if (notice) setOpened(notice);
+                  else setError("Comunicado indisponível.");
+                });
+              }}
+            />
             <button
               className="icon-button"
               aria-label="Atualizar dados"
@@ -1035,10 +1751,21 @@ export default function ConnectedApp() {
             >
               <RefreshCw size={18} />
             </button>
-            <AccountMenu person={workspace.person} onSignOut={() => void signout()} disabled={busy} />
+            <AccountMenu
+              stores={workspace.stores}
+              person={workspace.person}
+              onSignOut={() => void signout()}
+              disabled={busy}
+            />
           </div>
         </header>
         <main id="conteudo" className={page === "home" ? "eo-home" : undefined}>
+          {visibleModules.includes("mood") && (
+            <MoodReminderBanner
+              userId={workspace.person.id}
+              onRespond={() => setPage("mood")}
+            />
+          )}
           <div className="page-heading">
             <div>
               <span className="eyebrow">
@@ -1051,7 +1778,9 @@ export default function ConnectedApp() {
                   ? `Olá, ${workspace.person.name.trim().split(/\s+/)[0]}`
                   : navigation.find((n) => n.id === page)?.label}
               </h1>
-              {page === "home" && <p>Veja o que precisa da sua atenção hoje.</p>}
+              {page === "home" && (
+                <p>Veja o que precisa da sua atenção hoje.</p>
+              )}
             </div>
             {leader && page === "notices" && (
               <button
@@ -1069,6 +1798,7 @@ export default function ConnectedApp() {
               {error}
             </div>
           )}
+          <SuccessToast message={message} />
           {message && (
             <div className="info-strip" role="status">
               {message}
@@ -1078,42 +1808,90 @@ export default function ConnectedApp() {
             <>
               {page === "home" && (
                 <>
-                  <section className="eo-overview" aria-labelledby="eo-overview-title">
+                  <section
+                    className="eo-overview"
+                    aria-labelledby="eo-overview-title"
+                  >
                     <div className="eo-attention">
-                      <span className="eo-tile-icon"><Bell size={22} /></span>
+                      <span className="eo-tile-icon">
+                        <Bell size={22} />
+                      </span>
                       <div>
-                        <h2 id="eo-overview-title">Comunicados para confirmar</h2>
-                        <p><strong>{pendingNoticeCount}</strong> {pendingNoticeCount === 1 ? "pendente" : "pendentes"}{more ? " entre os itens carregados" : ""}</p>
+                        <h2 id="eo-overview-title">
+                          Comunicados para confirmar
+                        </h2>
+                        <p>
+                          <strong>{pendingNoticeCount}</strong>{" "}
+                          {pendingNoticeCount === 1 ? "pendente" : "pendentes"}
+                          {more ? " entre os itens carregados" : ""}
+                        </p>
                       </div>
-                      <button className="secondary" onClick={() => setPage("notices")}>
+                      <button
+                        className="secondary"
+                        onClick={() => setPage("notices")}
+                      >
                         Abrir caixa de entrada <ArrowRight size={16} />
                       </button>
                     </div>
                     <div className="eo-scope">
-                      <span className="eo-tile-icon"><Building2 size={22} /></span>
-                      <div><strong>{workspace.stores.length}</strong><p>Lojas no seu acesso</p></div>
+                      <span className="eo-tile-icon">
+                        <Building2 size={22} />
+                      </span>
+                      <div>
+                        <strong>{workspace.stores.length}</strong>
+                        <p>Lojas no seu acesso</p>
+                      </div>
                     </div>
                   </section>
-                  <section className="eo-shortcuts" aria-labelledby="eo-shortcuts-title">
+                  <section
+                    className="eo-shortcuts"
+                    aria-labelledby="eo-shortcuts-title"
+                  >
                     <h2 id="eo-shortcuts-title">Acesso rápido</h2>
                     <div className="eo-tile-grid">
-                      <button className="eo-tile" onClick={() => setPage("notices")}>
-                        <span className="eo-tile-icon" data-tone="gold"><Megaphone size={21} /></span>
-                        <strong>Comunicados</strong><small>Orientações e confirmações</small>
-                      </button>
-                      <button className="eo-tile" onClick={() => setPage("modules")}>
-                        <span className="eo-tile-icon" data-tone="green"><Grid2X2 size={21} /></span>
-                        <strong>Aplicativos</strong><small>Ferramentas da operação</small>
+                      {visibleModules.includes("notices") && (
+                        <button
+                          className="eo-tile"
+                          onClick={() => setPage("notices")}
+                        >
+                          <span className="eo-tile-icon" data-tone="gold">
+                            <Megaphone size={21} />
+                          </span>
+                          <strong>Comunicados</strong>
+                          <small>Orientações e confirmações</small>
+                        </button>
+                      )}
+                      <button
+                        className="eo-tile"
+                        onClick={() => setPage("modules")}
+                      >
+                        <span className="eo-tile-icon" data-tone="green">
+                          <Grid2X2 size={21} />
+                        </span>
+                        <strong>Aplicativos</strong>
+                        <small>Ferramentas da operação</small>
                       </button>
                       {admin && (
                         <>
-                          <button className="eo-tile" onClick={() => void openAdmin("stores")}>
-                            <span className="eo-tile-icon" data-tone="blue"><Building2 size={21} /></span>
-                            <strong>Lojas e acessos</strong><small>Gerenciar a operação</small>
+                          <button
+                            className="eo-tile"
+                            onClick={() => void openAdmin("stores")}
+                          >
+                            <span className="eo-tile-icon" data-tone="blue">
+                              <Building2 size={21} />
+                            </span>
+                            <strong>Lojas e acessos</strong>
+                            <small>Gerenciar a operação</small>
                           </button>
-                          <button className="eo-tile" onClick={() => void openAdmin("reports")}>
-                            <span className="eo-tile-icon" data-tone="purple"><CheckCheck size={21} /></span>
-                            <strong>Relatórios</strong><small>Leitura por loja e regional</small>
+                          <button
+                            className="eo-tile"
+                            onClick={() => void openAdmin("reports")}
+                          >
+                            <span className="eo-tile-icon" data-tone="purple">
+                              <CheckCheck size={21} />
+                            </span>
+                            <strong>Relatórios</strong>
+                            <small>Leitura por loja e regional</small>
                           </button>
                         </>
                       )}
@@ -1127,7 +1905,14 @@ export default function ConnectedApp() {
                     ? "Comunicados recentes"
                     : "Orientações para o time"}
                 </h2>
-                {page === "home" && <button className="text-button" onClick={() => setPage("notices")}>Ver todos <ChevronRight size={16} /></button>}
+                {page === "home" && (
+                  <button
+                    className="text-button"
+                    onClick={() => setPage("notices")}
+                  >
+                    Ver todos <ChevronRight size={16} />
+                  </button>
+                )}
               </div>
               <section className="notice-grid">
                 {(page === "home" ? notices.slice(0, 4) : notices).map((n) => (
@@ -1184,52 +1969,214 @@ export default function ConnectedApp() {
               )}
             </>
           )}
+          {page === "notices" && admin && <SoundSettings />}
+          {page === "agenda" && (
+            <ActionAgenda
+              onOpen={(task) => {
+                if (task.kind === "checklist") {
+                  setAgendaChecklistId(task.source_id);
+                  setPage("checklists");
+                } else
+                  void act(async () => {
+                    const notice = await rpc<LiveNotice | null>(
+                      "eo_notice_get",
+                      { p_notice: task.source_id },
+                    );
+                    if (notice) setOpened(notice);
+                  });
+              }}
+            />
+          )}
           {page === "sales" && <SalesReports workspace={workspace} />}
           {page === "diary" && <OperationsPanel workspace={workspace} />}
-          {page === "mood" && <OperationsPanel workspace={workspace} initialTab="mood" />}
+          {page === "mood" && (
+            <OperationsPanel workspace={workspace} initialTab="mood" />
+          )}
           {page === "modules" && (
             <>
-              <section className="eo-shortcuts" aria-labelledby="eo-available-title">
+              <section
+                className="eo-shortcuts"
+                aria-labelledby="eo-available-title"
+              >
                 <h2 id="eo-available-title">Disponíveis no portal</h2>
                 <div className="eo-tile-grid">
-                  <button className="eo-tile" onClick={() => setPage("product")}><span className="eo-tile-icon" data-tone="gold"><Grid2X2 size={21} /></span><strong>Pedir produto</strong><small>Procura e oportunidades comerciais</small></button>
-                  <button className="eo-tile" onClick={() => setPage("assortment")}><span className="eo-tile-icon" data-tone="blue"><ClipboardCheck size={21} /></span><strong>Sortimento</strong><small>Código e quantidades por tamanho</small></button>
-                  <button className="eo-tile" onClick={() => setPage("checklists")}><span className="eo-tile-icon" data-tone="green"><ClipboardCheck size={21} /></span><strong>Checklists</strong><small>Rotinas e respostas da equipe</small></button>
-                  <button className="eo-tile" onClick={() => setPage("sales")}><span className="eo-tile-icon" data-tone="blue"><Building2 size={21} /></span><strong>Vendas</strong><small>Semana, mês e ano</small></button>
-                  <button className="eo-tile" onClick={() => setPage("diary")}><span className="eo-tile-icon" data-tone="green"><Mic size={21} /></span><strong>Diário de vendas</strong><small>Relatos, motivos e áudio</small></button>
-                  <button className="eo-tile" onClick={() => setPage("mood")}><span className="eo-tile-icon" data-tone="purple"><Users size={21} /></span><strong>Como está seu dia?</strong><small>Sentimento e acompanhamento</small></button>
-                  <button className="eo-tile" onClick={() => setPage("notices")}>
-                    <span className="eo-tile-icon" data-tone="gold"><Megaphone size={21} /></span>
-                    <strong>Comunicados</strong><small>Orientações e confirmações</small>
-                  </button>
+                  {visibleModules.includes("agenda") && (
+                    <button
+                      className="eo-tile"
+                      onClick={() => setPage("agenda")}
+                    >
+                      <span className="eo-tile-icon">
+                        <CalendarDays size={21} />
+                      </span>
+                      <strong>Agenda de ações</strong>
+                      <small>Pendências e lembretes no calendário</small>
+                    </button>
+                  )}
+                  {visibleModules.includes("product") && (
+                    <button
+                      className="eo-tile"
+                      onClick={() => setPage("product")}
+                    >
+                      <span className="eo-tile-icon" data-tone="gold">
+                        <Grid2X2 size={21} />
+                      </span>
+                      <strong>Pedir produto</strong>
+                      <small>Procura e oportunidades comerciais</small>
+                    </button>
+                  )}
+                  {visibleModules.includes("assortment") && (
+                    <button
+                      className="eo-tile"
+                      onClick={() => setPage("assortment")}
+                    >
+                      <span className="eo-tile-icon" data-tone="blue">
+                        <ClipboardCheck size={21} />
+                      </span>
+                      <strong>Sortimento</strong>
+                      <small>Código e quantidades por tamanho</small>
+                    </button>
+                  )}
+                  {visibleModules.includes("checklists") && (
+                    <button
+                      className="eo-tile"
+                      onClick={() => setPage("checklists")}
+                    >
+                      <span className="eo-tile-icon" data-tone="green">
+                        <ClipboardCheck size={21} />
+                      </span>
+                      <strong>Checklists</strong>
+                      <small>Rotinas e respostas da equipe</small>
+                    </button>
+                  )}
+                  {visibleModules.includes("sales") && (
+                    <button
+                      className="eo-tile"
+                      onClick={() => setPage("sales")}
+                    >
+                      <span className="eo-tile-icon" data-tone="blue">
+                        <Building2 size={21} />
+                      </span>
+                      <strong>Vendas</strong>
+                      <small>Semana, mês e ano</small>
+                    </button>
+                  )}
+                  {visibleModules.includes("diary") && (
+                    <button
+                      className="eo-tile"
+                      onClick={() => setPage("diary")}
+                    >
+                      <span className="eo-tile-icon" data-tone="green">
+                        <Mic size={21} />
+                      </span>
+                      <strong>Diário de vendas</strong>
+                      <small>Relatos, motivos e áudio</small>
+                    </button>
+                  )}
+                  {visibleModules.includes("mood") && (
+                    <button className="eo-tile" onClick={() => setPage("mood")}>
+                      <span className="eo-tile-icon" data-tone="purple">
+                        <Users size={21} />
+                      </span>
+                      <strong>Como está seu dia?</strong>
+                      <small>Sentimento e acompanhamento</small>
+                    </button>
+                  )}
+                  {visibleModules.includes("notices") && (
+                    <button
+                      className="eo-tile"
+                      onClick={() => setPage("notices")}
+                    >
+                      <span className="eo-tile-icon" data-tone="gold">
+                        <Megaphone size={21} />
+                      </span>
+                      <strong>Comunicados</strong>
+                      <small>Orientações e confirmações</small>
+                    </button>
+                  )}
                   {admin && (
-                    <button className="eo-tile" onClick={() => void openAdmin("stores")}>
-                      <span className="eo-tile-icon" data-tone="blue"><Settings2 size={21} /></span>
-                      <strong>Administração</strong><small>Lojas, pessoas e acessos</small>
+                    <button
+                      className="eo-tile"
+                      onClick={() => void openAdmin("reports")}
+                    >
+                      <span className="eo-tile-icon">
+                        <ClipboardCheck size={21} />
+                      </span>
+                      <strong>Relatórios</strong>
+                      <small>Operação, respostas e auditoria</small>
+                    </button>
+                  )}
+                  {admin && (
+                    <button
+                      className="eo-tile"
+                      onClick={() => void openAdmin("stores")}
+                    >
+                      <span className="eo-tile-icon" data-tone="blue">
+                        <Settings2 size={21} />
+                      </span>
+                      <strong>Administração</strong>
+                      <small>Lojas, pessoas e acessos</small>
                     </button>
                   )}
                 </div>
               </section>
-              <section className="eo-shortcuts" aria-labelledby="eo-planned-title">
+              <section
+                className="eo-shortcuts"
+                aria-labelledby="eo-planned-title"
+              >
                 <h2 id="eo-planned-title">Próximas integrações web</h2>
                 <div className="eo-tile-grid">
                   {planned.map((m) => (
-                    <button className="eo-tile" key={m.title} onClick={() => setFuture(m.title)}>
-                      <span className="eo-tile-icon"><m.icon size={21} /></span>
-                      <strong>{m.title}</strong><small>Em planejamento</small>
+                    <button
+                      className="eo-tile"
+                      key={m.title}
+                      onClick={() => setFuture(m.title)}
+                    >
+                      <span className="eo-tile-icon">
+                        <m.icon size={21} />
+                      </span>
+                      <strong>{m.title}</strong>
+                      <small>Em planejamento</small>
                     </button>
                   ))}
                 </div>
               </section>
             </>
           )}
-          {page === "product" && <CommercialPanel workspace={workspace} mode="product" />}
-          {page === "assortment" && <CommercialPanel workspace={workspace} mode="assortment" />}
-          {page === "checklists" && <ChecklistInbox />}
+          {page === "product" && (
+            <CommercialPanel workspace={workspace} mode="product" />
+          )}
+          {page === "assortment" && (
+            <CommercialPanel workspace={workspace} mode="assortment" />
+          )}
+          {page === "checklists" && (
+            <>
+              {workspace.person.role === "admin" && (
+                <details className="panel">
+                  <summary>Criar novo checklist</summary>
+                  <ChecklistAdmin stores={workspace.stores} />
+                </details>
+              )}
+              <ChecklistInbox initialRun={agendaChecklistId} />
+            </>
+          )}
           {page === "admin" && admin && (
             <>
               <div className="tabs admin-tabs">
-                {(["stores", "people", "import", "audit", ...(workspace.person.role === "admin" ? ["reports" as const, "archive" as const, "contacts" as const, "checklists" as const] : [])] as const).map((t) => (
+                {(
+                  [
+                    "stores",
+                    "people",
+                    "import",
+                    "audit",
+                    ...(workspace.person.role === "admin"
+                      ? [
+                          "reports" as const,
+                          "archive" as const,
+                          "contacts" as const,
+                        ]
+                      : []),
+                  ] as const
+                ).map((t) => (
                   <button
                     key={t}
                     className={tab === t ? "selected" : ""}
@@ -1251,20 +2198,244 @@ export default function ConnectedApp() {
                   </button>
                 ))}
               </div>
+              {tab === "people" && (
+                <details className="panel">
+                  <summary>Visibilidade dos módulos</summary>
+                  <ModuleAccess onChanged={() => void refresh()} />
+                </details>
+              )}
+              {tab === "stores" && (
+                <details className="panel">
+                  <summary>Gerenciar EC, CDA e outras unidades</summary>
+                  <BusinessUnits />
+                </details>
+              )}
+              {tab === "reports" && (
+                <ReportsHub
+                  workspace={workspace}
+                  onOpen={(id) => {
+                    if (id === "sales") setPage("sales");
+                    else setReportModule(id);
+                  }}
+                />
+              )}
+              {tab === "reports" &&
+                reportModule &&
+                reportModule !== "notices" && (
+                  <div id="eo-report-detail">
+                    {reportModule === "checklists" && <ChecklistReport />}
+                    {["product", "assortment"].includes(reportModule) && (
+                      <CommercialPanel
+                        key={reportModule}
+                        workspace={workspace}
+                        mode={reportModule as "product" | "assortment"}
+                        reportOnly
+                      />
+                    )}
+                    {["diary", "mood"].includes(reportModule) && (
+                      <OperationsPanel workspace={workspace} reportOnly />
+                    )}
+                  </div>
+                )}
               {tab === "contacts" && <ContactRefreshAdmin />}
-              {tab === "checklists" && <ChecklistAdmin stores={workspace.stores} />}
+              {tab === "checklists" && (
+                <ChecklistAdmin stores={workspace.stores} />
+              )}
               {tab === "stores" && (
                 <div className="admin-stores-layout">
-                  <div className="admin-section-heading"><div><span className="eyebrow">ESTRUTURA DA OPERAÇÃO</span><h2>Suas lojas</h2><p>Encontre unidades, refine a seleção e gerencie os cadastros.</p></div><button type="button" className="primary" onClick={() => { setNewStoreOpen(true); setNewStoreDirty(false); }}><Plus size={18} /> Nova loja</button></div>
-                  <section className="panel store-directory"><h2>Lojas cadastradas</h2>
-                    <div className="form-grid"><label>Buscar<input type="search" value={storeSearch} onChange={(e)=>{setStoreSearch(e.target.value);setStorePage(0);}} placeholder="Código, nome ou regional" /></label>
-                    <label>UF<select value={storeUf} onChange={(e)=>{setStoreUf(e.target.value);setStoreRegion("");setStorePage(0);}}><option value="">Todas</option>{[...new Set(adminStores.map((store)=>store.segments?.UF || "").filter(Boolean))].sort().map((value)=><option key={value}>{value}</option>)}</select></label>
-                    <label>Regional<select value={storeRegion} onChange={(e)=>{setStoreRegion(e.target.value);setStorePage(0);}}><option value="">Todas</option>{[...new Set(adminStores.filter((store)=>!storeUf || store.segments?.UF===storeUf).map((store)=>store.segments?.REGIONAL || store.region).filter(Boolean))].sort().map((value)=><option key={value}>{value}</option>)}</select></label>
-                    <label>Situação<select value={storeState} onChange={(e)=>{setStoreState(e.target.value);setStorePage(0);}}><option value="active">Ativas</option><option value="archived">Arquivadas</option><option value="">Todas</option></select></label>
-                    <label>Ordenar<select value={storeSort.key} onChange={(e)=>setStoreSort({...storeSort,key:e.target.value})}><option value="code">Código</option><option value="name">Nome</option><option value="region">Regional</option></select></label>
-                    <label>Ordem<select value={storeSort.direction} onChange={(e)=>setStoreSort({...storeSort,direction:e.target.value as "asc"|"desc"})}><option value="asc">Crescente</option><option value="desc">Decrescente</option></select></label></div>
-                    <TableViewport><table><thead><tr><th>Código</th><th>Loja</th><th>UF</th><th>Regional</th><th>Situação</th><th>Ação</th></tr></thead><tbody>{filteredAdminStores.slice(storePage*30,storePage*30+30).map((store)=><tr key={store.id}><td>{store.code}</td><td>{store.name}</td><td>{store.segments?.UF || ""}</td><td>{store.segments?.REGIONAL || store.region}</td><td>{store.active ? "Ativa" : "Arquivada"}</td><td><button className="text-button" onClick={()=>setManagedStore({...store})}>Editar</button></td></tr>)}</tbody></table></TableViewport>
-                    <div className="pagination"><button className="secondary" disabled={!storePage} onClick={()=>setStorePage(storePage-1)}>Anterior</button><span>{filteredAdminStores.length} lojas · página {storePage+1}</span><button className="secondary" disabled={(storePage+1)*30>=filteredAdminStores.length} onClick={()=>setStorePage(storePage+1)}>Próxima</button></div>
+                  <div className="admin-section-heading">
+                    <div>
+                      <span className="eyebrow">ESTRUTURA DA OPERAÇÃO</span>
+                      <h2>Suas lojas</h2>
+                      <p>
+                        Encontre unidades, refine a seleção e gerencie os
+                        cadastros.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="primary"
+                      onClick={() => {
+                        setNewStoreOpen(true);
+                        setNewStoreDirty(false);
+                      }}
+                    >
+                      <Plus size={18} /> Nova loja
+                    </button>
+                  </div>
+                  <section className="panel store-directory">
+                    <h2>Lojas cadastradas</h2>
+                    <div className="form-grid">
+                      <label>
+                        Buscar
+                        <input
+                          type="search"
+                          value={storeSearch}
+                          onChange={(e) => {
+                            setStoreSearch(e.target.value);
+                            setStorePage(0);
+                          }}
+                          placeholder="Código, nome ou regional"
+                        />
+                      </label>
+                      <label>
+                        UF
+                        <select
+                          value={storeUf}
+                          onChange={(e) => {
+                            setStoreUf(e.target.value);
+                            setStoreRegion("");
+                            setStorePage(0);
+                          }}
+                        >
+                          <option value="">Todas</option>
+                          {[
+                            ...new Set(
+                              adminStores
+                                .map((store) => store.segments?.UF || "")
+                                .filter(Boolean),
+                            ),
+                          ]
+                            .sort()
+                            .map((value) => (
+                              <option key={value}>{value}</option>
+                            ))}
+                        </select>
+                      </label>
+                      <label>
+                        Regional
+                        <select
+                          value={storeRegion}
+                          onChange={(e) => {
+                            setStoreRegion(e.target.value);
+                            setStorePage(0);
+                          }}
+                        >
+                          <option value="">Todas</option>
+                          {[
+                            ...new Set(
+                              adminStores
+                                .filter(
+                                  (store) =>
+                                    !storeUf || store.segments?.UF === storeUf,
+                                )
+                                .map(
+                                  (store) =>
+                                    store.segments?.REGIONAL || store.region,
+                                )
+                                .filter(Boolean),
+                            ),
+                          ]
+                            .sort()
+                            .map((value) => (
+                              <option key={value}>{value}</option>
+                            ))}
+                        </select>
+                      </label>
+                      <label>
+                        Situação
+                        <select
+                          value={storeState}
+                          onChange={(e) => {
+                            setStoreState(e.target.value);
+                            setStorePage(0);
+                          }}
+                        >
+                          <option value="active">Ativas</option>
+                          <option value="archived">Arquivadas</option>
+                          <option value="">Todas</option>
+                        </select>
+                      </label>
+                      <label>
+                        Ordenar
+                        <select
+                          value={storeSort.key}
+                          onChange={(e) =>
+                            setStoreSort({ ...storeSort, key: e.target.value })
+                          }
+                        >
+                          <option value="code">Código</option>
+                          <option value="name">Nome</option>
+                          <option value="region">Regional</option>
+                        </select>
+                      </label>
+                      <label>
+                        Ordem
+                        <select
+                          value={storeSort.direction}
+                          onChange={(e) =>
+                            setStoreSort({
+                              ...storeSort,
+                              direction: e.target.value as "asc" | "desc",
+                            })
+                          }
+                        >
+                          <option value="asc">Crescente</option>
+                          <option value="desc">Decrescente</option>
+                        </select>
+                      </label>
+                    </div>
+                    <TableViewport>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Código</th>
+                            <th>Loja</th>
+                            <th>UF</th>
+                            <th>Regional</th>
+                            <th>Situação</th>
+                            <th>Ação</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredAdminStores
+                            .slice(storePage * 30, storePage * 30 + 30)
+                            .map((store) => (
+                              <tr key={store.id}>
+                                <td>{store.code}</td>
+                                <td>{store.name}</td>
+                                <td>{store.segments?.UF || ""}</td>
+                                <td>
+                                  {store.segments?.REGIONAL || store.region}
+                                </td>
+                                <td>{store.active ? "Ativa" : "Arquivada"}</td>
+                                <td>
+                                  <button
+                                    className="text-button"
+                                    onClick={() =>
+                                      setManagedStore({ ...store })
+                                    }
+                                  >
+                                    Editar
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </TableViewport>
+                    <div className="pagination">
+                      <button
+                        className="secondary"
+                        disabled={!storePage}
+                        onClick={() => setStorePage(storePage - 1)}
+                      >
+                        Anterior
+                      </button>
+                      <span>
+                        {filteredAdminStores.length} lojas · página{" "}
+                        {storePage + 1}
+                      </span>
+                      <button
+                        className="secondary"
+                        disabled={
+                          (storePage + 1) * 30 >= filteredAdminStores.length
+                        }
+                        onClick={() => setStorePage(storePage + 1)}
+                      >
+                        Próxima
+                      </button>
+                    </div>
                   </section>
                 </div>
               )}
@@ -1276,37 +2447,189 @@ export default function ConnectedApp() {
                     regionais, equipe e vínculos. O COD identifica a loja e o
                     GGL conecta cada loja ao regional responsável.
                   </p>
-                  <button className="primary template-download" type="button" onClick={() => setTemplateChoice(true)}>
+                  <button
+                    className="primary template-download"
+                    type="button"
+                    onClick={() => setTemplateChoice(true)}
+                  >
                     <Download size={18} />
                     Baixar modelo Excel
                   </button>
                   <div className="panel" style={{ marginTop: 20 }}>
                     <h3>Análise da base carregada</h3>
-                    <p>Consulte os registros atuais, ordene as colunas e edite os dados da loja. As alterações ficam na auditoria.</p>
-                    <div className="form-grid"><label>Buscar em todas as colunas<input value={storeSearch} onChange={(event) => {setStoreSearch(event.currentTarget.value);setImportPage(0);}} placeholder="COD, loja, cidade, gerente…" /></label>
-                      <label>Ordenar coluna<select value={storeSort.key} onChange={(event) => setStoreSort((current) => ({ ...current, key: event.currentTarget.value }))}>{Object.keys(storeRecords()[0] ?? {}).filter((key) => key !== "__id").map((key) => <option key={key}>{key}</option>)}</select></label>
-                      <label>Ordem<select value={storeSort.direction} onChange={(event) => setStoreSort((current) => ({ ...current, direction: event.currentTarget.value as "asc" | "desc" }))}><option value="asc">A a Z · menor para maior</option><option value="desc">Z a A · maior para menor</option></select></label>
+                    <p>
+                      Consulte os registros atuais, ordene as colunas e edite os
+                      dados da loja. As alterações ficam na auditoria.
+                    </p>
+                    <div className="form-grid">
+                      <label>
+                        Buscar em todas as colunas
+                        <input
+                          value={storeSearch}
+                          onChange={(event) => {
+                            setStoreSearch(event.currentTarget.value);
+                            setImportPage(0);
+                          }}
+                          placeholder="COD, loja, cidade, gerente…"
+                        />
+                      </label>
+                      <label>
+                        Ordenar coluna
+                        <select
+                          value={storeSort.key}
+                          onChange={(event) =>
+                            setStoreSort((current) => ({
+                              ...current,
+                              key: event.currentTarget.value,
+                            }))
+                          }
+                        >
+                          {Object.keys(storeRecords()[0] ?? {})
+                            .filter((key) => key !== "__id")
+                            .map((key) => (
+                              <option key={key}>{key}</option>
+                            ))}
+                        </select>
+                      </label>
+                      <label>
+                        Ordem
+                        <select
+                          value={storeSort.direction}
+                          onChange={(event) =>
+                            setStoreSort((current) => ({
+                              ...current,
+                              direction: event.currentTarget.value as
+                                "asc" | "desc",
+                            }))
+                          }
+                        >
+                          <option value="asc">A a Z · menor para maior</option>
+                          <option value="desc">Z a A · maior para menor</option>
+                        </select>
+                      </label>
                     </div>
-                    <div className="info-strip" style={{ margin: "10px 0" }}>{orderedStoreRecords().length.toLocaleString("pt-BR")} lojas visíveis · {Object.keys(storeRecords()[0] ?? {}).filter((key) => key !== "__id").length} colunas carregadas</div>
-                    <TableViewport><table><thead><tr>{Object.keys(storeRecords()[0] ?? {}).filter((key) => key !== "__id").map((key) => <th key={key}><button className="text-button" type="button" onClick={() => { setImportPage(0); setStoreSort((current) => ({ key, direction: current.key === key && current.direction === "asc" ? "desc" : "asc" })); }}>{key}{storeSort.key === key ? storeSort.direction === "asc" ? " ↑" : " ↓" : ""}</button></th>)}<th>Ação</th></tr></thead><tbody>{orderedStoreRecords().slice(importPage*30, importPage*30+30).map((row) => <tr key={String(row.__id)}>{Object.keys(row).filter((key) => key !== "__id").map((key) => <td key={key}>{String(row[key] ?? "")}</td>)}<td><button type="button" className="secondary" onClick={() => setEditingStore(row)}>Editar</button></td></tr>)}</tbody></table></TableViewport>
-                    <div className="pagination"><button className="secondary" type="button" disabled={!importPage} onClick={()=>setImportPage(importPage-1)}>Anterior</button><span>Página {importPage+1} · até 30 lojas por página</span><button className="secondary" type="button" disabled={(importPage+1)*30>=orderedStoreRecords().length} onClick={()=>setImportPage(importPage+1)}>Próxima</button></div>
-                    {!importedStores.length && <p className="field-hint">Aplique a migration 007 para habilitar a consulta e edição da base ativa.</p>}
+                    <div className="info-strip" style={{ margin: "10px 0" }}>
+                      {orderedStoreRecords().length.toLocaleString("pt-BR")}{" "}
+                      lojas visíveis ·{" "}
+                      {
+                        Object.keys(storeRecords()[0] ?? {}).filter(
+                          (key) => key !== "__id",
+                        ).length
+                      }{" "}
+                      colunas carregadas
+                    </div>
+                    <TableViewport>
+                      <table>
+                        <thead>
+                          <tr>
+                            {Object.keys(storeRecords()[0] ?? {})
+                              .filter((key) => key !== "__id")
+                              .map((key) => (
+                                <th key={key}>
+                                  <button
+                                    className="text-button"
+                                    type="button"
+                                    onClick={() => {
+                                      setImportPage(0);
+                                      setStoreSort((current) => ({
+                                        key,
+                                        direction:
+                                          current.key === key &&
+                                          current.direction === "asc"
+                                            ? "desc"
+                                            : "asc",
+                                      }));
+                                    }}
+                                  >
+                                    {key}
+                                    {storeSort.key === key
+                                      ? storeSort.direction === "asc"
+                                        ? " ↑"
+                                        : " ↓"
+                                      : ""}
+                                  </button>
+                                </th>
+                              ))}
+                            <th>Ação</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {orderedStoreRecords()
+                            .slice(importPage * 30, importPage * 30 + 30)
+                            .map((row) => (
+                              <tr key={String(row.__id)}>
+                                {Object.keys(row)
+                                  .filter((key) => key !== "__id")
+                                  .map((key) => (
+                                    <td key={key}>{String(row[key] ?? "")}</td>
+                                  ))}
+                                <td>
+                                  <button
+                                    type="button"
+                                    className="secondary"
+                                    onClick={() => setEditingStore(row)}
+                                  >
+                                    Editar
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </TableViewport>
+                    <div className="pagination">
+                      <button
+                        className="secondary"
+                        type="button"
+                        disabled={!importPage}
+                        onClick={() => setImportPage(importPage - 1)}
+                      >
+                        Anterior
+                      </button>
+                      <span>
+                        Página {importPage + 1} · até 30 lojas por página
+                      </span>
+                      <button
+                        className="secondary"
+                        type="button"
+                        disabled={
+                          (importPage + 1) * 30 >= orderedStoreRecords().length
+                        }
+                        onClick={() => setImportPage(importPage + 1)}
+                      >
+                        Próxima
+                      </button>
+                    </div>
+                    {!importedStores.length && (
+                      <p className="field-hint">
+                        Aplique a migration 007 para habilitar a consulta e
+                        edição da base ativa.
+                      </p>
+                    )}
                   </div>
                   {activeImport ? (
                     <div className="info-strip" style={{ marginTop: 18 }}>
                       <ShieldCheck size={20} />
-                      Última base válida: {new Date(activeImport.created_at).toLocaleString("pt-BR")} · {activeImport.store_count} lojas · arquivo {activeImport.source_name}.
+                      Última base válida:{" "}
+                      {new Date(activeImport.created_at).toLocaleString(
+                        "pt-BR",
+                      )}{" "}
+                      · {activeImport.store_count} lojas · arquivo{" "}
+                      {activeImport.source_name}.
                     </div>
                   ) : (
                     <div className="info-strip" style={{ marginTop: 18 }}>
                       <ShieldCheck size={20} />
-                      Ainda não há uma base importada. A primeira carga válida ativará a estrutura organizacional.
+                      Ainda não há uma base importada. A primeira carga válida
+                      ativará a estrutura organizacional.
                     </div>
                   )}
                   {importReady === false && (
                     <div className="info-strip" style={{ marginTop: 12 }}>
-                      <ShieldCheck size={20} />
-                      A importação ainda não está ativa no banco. Aplique a migration `supabase/migrations/202611020001_org_import.sql` no SQL Editor do Supabase para habilitar o envio.
+                      <ShieldCheck size={20} />A importação ainda não está ativa
+                      no banco. Aplique a migration
+                      `supabase/migrations/202611020001_org_import.sql` no SQL
+                      Editor do Supabase para habilitar o envio.
                     </div>
                   )}
                   <label className="form" style={{ marginTop: 22 }}>
@@ -1321,18 +2644,41 @@ export default function ConnectedApp() {
                   {importCounts && (
                     <div className="panel" aria-live="polite">
                       <h3>Revisar antes de importar</h3>
-                      <p><strong>{importFileName}</strong></p>
+                      <p>
+                        <strong>{importFileName}</strong>
+                      </p>
                       <TableViewport>
                         <table>
-                          <thead><tr><th>Aba</th><th>Linhas</th></tr></thead>
+                          <thead>
+                            <tr>
+                              <th>Aba</th>
+                              <th>Linhas</th>
+                            </tr>
+                          </thead>
                           <tbody>
-                            {Object.entries(importCounts).map(([name, count]) => (
-                              <tr key={name}><td>{name}</td><td>{count.toLocaleString("pt-BR")}</td></tr>
-                            ))}
+                            {Object.entries(importCounts).map(
+                              ([name, count]) => (
+                                <tr key={name}>
+                                  <td>{name}</td>
+                                  <td>{count.toLocaleString("pt-BR")}</td>
+                                </tr>
+                              ),
+                            )}
                           </tbody>
-                        </table></TableViewport>
-                      <p className="muted">A importação substitui a base organizacional ativa em uma transação. Se a validação falhar, a última base válida continua ativa. Contas, senhas e acessos individuais não são criados por esta planilha.</p>
-                      <button className="primary" type="button" onClick={() => void importOrgBase()} disabled={busy || !importReady}>
+                        </table>
+                      </TableViewport>
+                      <p className="muted">
+                        A importação substitui a base organizacional ativa em
+                        uma transação. Se a validação falhar, a última base
+                        válida continua ativa. Contas, senhas e acessos
+                        individuais não são criados por esta planilha.
+                      </p>
+                      <button
+                        className="primary"
+                        type="button"
+                        onClick={() => void importOrgBase()}
+                        disabled={busy || !importReady}
+                      >
                         <Upload size={18} />
                         {busy ? "Importando…" : "Validar e importar base"}
                       </button>
@@ -1348,85 +2694,250 @@ export default function ConnectedApp() {
               {tab === "people" && (
                 <>
                   <div className="section-heading">
-                    <button className="primary" onClick={() => {
-                      setError("");
-                      setRegistrationRole("colaborador");
+                    <button
+                      className="primary"
+                      onClick={() => {
+                        setError("");
+                        setRegistrationRole("colaborador");
 
-                      setRegistrationDirty(false);
+                        setRegistrationDirty(false);
 
-
-                      setRegistrationStores([]);
-                      setRegistrationOpen(true);
-                    }}><Plus size={17} /> Cadastrar usuário</button>
+                        setRegistrationStores([]);
+                        setRegistrationOpen(true);
+                      }}
+                    >
+                      <Plus size={17} /> Cadastrar usuário
+                    </button>
                   </div>
-                  {registrationOpen && <Dialog title="Cadastrar usuário" close={() => {
-                    if (!busy && (!registrationDirty || window.confirm("Sair sem salvar? Os dados preenchidos serão descartados."))) setRegistrationOpen(false);
-                  }}>
-                    <p>
-                      Após cadastrar, compartilhe a chapa e a senha temporária com a pessoa.
-                    </p>
-                    <form className="form" onSubmit={inviteMember} onChange={() => setRegistrationDirty(true)}>
+                  {registrationOpen && (
+                    <Dialog
+                      title="Cadastrar usuário"
+                      close={() => {
+                        if (
+                          !busy &&
+                          (!registrationDirty ||
+                            window.confirm(
+                              "Sair sem salvar? Os dados preenchidos serão descartados.",
+                            ))
+                        )
+                          setRegistrationOpen(false);
+                      }}
+                    >
+                      <p>
+                        Após cadastrar, compartilhe a chapa e a senha temporária
+                        com a pessoa.
+                      </p>
+                      <form
+                        className="form"
+                        onSubmit={inviteMember}
+                        onChange={() => setRegistrationDirty(true)}
+                      >
+                        <label>
+                          Chapa
+                          <input
+                            name="chapa"
+                            required
+                            inputMode="numeric"
+                            pattern="[0-9]{1,20}"
+                            maxLength={20}
+                          />
+                        </label>
+                        <EmailField />
+                        <label>
+                          Nome
+                          <input
+                            name="name"
+                            minLength={2}
+                            maxLength={120}
+                            required
+                          />
+                        </label>
+                        <label>
+                          Perfil
+                          <select
+                            name="role"
+                            value={registrationRole}
+                            onChange={(event) =>
+                              setRegistrationRole(event.target.value)
+                            }
+                          >
+                            <option value="colaborador">Colaborador</option>
+                            <option value="gerente">Gerente</option>
+                            <option value="diretor">Diretor</option>
+                            <option value="admin">Administrador</option>
+                          </select>
+                        </label>
+                        <label>
+                          Unidade
+                          <select
+                            key={registrationRole}
+                            name="unit_type"
+                            defaultValue={
+                              registrationRole === "admin"
+                                ? "administracao"
+                                : "loja"
+                            }
+                          >
+                            <option value="loja">Loja</option>
+                            <option value="ec">Escritório Central (EC)</option>
+                            <option value="cda">
+                              Centro de Distribuição Araçariguama (CDA)
+                            </option>
+                            <option value="administracao">Administração</option>
+                          </select>
+                        </label>
+                        {registrationRole === "admin" ? (
+                          <p className="info-strip">
+                            O perfil Administrador tem acesso à gestão de todas
+                            as lojas.
+                          </p>
+                        ) : (
+                          <fieldset>
+                            <legend>Lojas autorizadas</legend>
+                            <p className="field-hint">
+                              Sem seleção individual, o cadastro inclui todas as
+                              lojas atuais.
+                            </p>
+                            <StorePicker
+                              stores={workspace.stores}
+                              selected={registrationStores}
+                              onChange={(ids) => {
+                                setRegistrationStores(ids);
+                                setRegistrationDirty(true);
+                              }}
+                            />
+                          </fieldset>
+                        )}
+                        {error && (
+                          <p className="form-error" role="alert">
+                            {error}
+                          </p>
+                        )}
+                        <button disabled={busy} className="primary">
+                          {busy
+                            ? "Enviando…"
+                            : registrationRole !== "admin" &&
+                                !registrationStores.length
+                              ? "Cadastrar com acesso a todas as lojas"
+                              : "Cadastrar e gerar senha"}
+                        </button>
+                      </form>
+                    </Dialog>
+                  )}
+                  <section className="panel table-panel">
+                    <h2>Pessoas cadastradas</h2>
+                    <div className="form-grid">
                       <label>
-                        Chapa
+                        Buscar pessoas
                         <input
-                          name="chapa"
-                          required
-                          inputMode="numeric"
-                          pattern="[0-9]{1,20}"
-                          maxLength={20}
-                        />
-                      </label>
-                      <label>
-                        E-mail (opcional)
-                        <input
-                          name="email"
-                          type="email"
-                          maxLength={254}
-                        />
-                      </label>
-                      <label>
-                        Nome
-                        <input
-                          name="name"
-                          minLength={2}
-                          maxLength={120}
-                          required
+                          type="search"
+                          value={peopleSearch}
+                          onChange={(e) => {
+                            setPeopleSearch(e.target.value);
+                            setPeoplePage(0);
+                          }}
+                          placeholder="Nome, chapa ou e-mail"
                         />
                       </label>
                       <label>
                         Perfil
-                        <select name="role" value={registrationRole} onChange={(event) => setRegistrationRole(event.target.value)}>
+                        <select
+                          value={peopleRole}
+                          onChange={(e) => {
+                            setPeopleRole(e.target.value);
+                            setPeoplePage(0);
+                          }}
+                        >
+                          <option value="">Todos</option>
                           <option value="colaborador">Colaborador</option>
                           <option value="gerente">Gerente</option>
                           <option value="diretor">Diretor</option>
                           <option value="admin">Administrador</option>
                         </select>
                       </label>
-                      {registrationRole === "admin" ? (
-                        <p className="info-strip">O perfil Administrador tem acesso à gestão de todas as lojas.</p>
-                      ) : (
-                      <fieldset><legend>Lojas autorizadas</legend>
-                        <p className="field-hint">Sem seleção individual, o cadastro inclui todas as lojas atuais.</p>
-                        <StorePicker stores={workspace.stores} selected={registrationStores} onChange={(ids)=>{setRegistrationStores(ids);setRegistrationDirty(true);}} />
-                      </fieldset>
-                      )}
-                      {error && <p className="form-error" role="alert">{error}</p>}
-                      <button disabled={busy} className="primary">
-                        {busy ? "Enviando…" : registrationRole !== "admin" && !registrationStores.length
-                          ? "Cadastrar com acesso a todas as lojas"
-                          : "Cadastrar e gerar senha"}
-                      </button>
-                    </form>
-                  </Dialog>}
-                  <section className="panel table-panel">
-                    <h2>Pessoas cadastradas</h2>
-                    <div className="form-grid"><label>Buscar pessoas<input type="search" value={peopleSearch} onChange={(e)=>{setPeopleSearch(e.target.value);setPeoplePage(0);}} placeholder="Nome, chapa ou e-mail" /></label>
-                    <label>Perfil<select value={peopleRole} onChange={(e)=>{setPeopleRole(e.target.value);setPeoplePage(0);}}><option value="">Todos</option><option value="colaborador">Colaborador</option><option value="gerente">Gerente</option><option value="diretor">Diretor</option><option value="admin">Administrador</option></select></label>
-                    <label>Situação<select value={peopleState} onChange={(e)=>{setPeopleState(e.target.value);setPeoplePage(0);}}><option value="">Todas</option><option value="active">Ativos</option><option value="archived">Arquivados</option><option value="pending">Primeiro acesso</option></select></label>
-                    <label>UF<select value={peopleUf} onChange={(e)=>{setPeopleUf(e.target.value);setPeopleRegion("");setPeoplePage(0);}}><option value="">Todas</option>{segmentValuesFor(workspace.stores,"UF").map((value)=><option key={value}>{value}</option>)}</select></label>
-                    <label>Regional<select value={peopleRegion} onChange={(e)=>{setPeopleRegion(e.target.value);setPeoplePage(0);}}><option value="">Todas</option>{[...new Set(workspace.stores.filter((store)=>!peopleUf || store.segments?.UF===peopleUf).map((store)=>store.segments?.REGIONAL || store.region).filter(Boolean))].sort().map((value)=><option key={value}>{value}</option>)}</select></label>
-                    <label>Ordenar<select value={peopleSort} onChange={(e)=>{setPeopleSort(e.target.value);setPeoplePage(0);}}><option value="name">Nome</option><option value="chapa">Chapa</option><option value="role">Perfil</option></select></label></div>
-                    <p className="field-hint">{peopleTotal} pessoas encontradas · até 30 por página</p>
+                      <label>
+                        Situação
+                        <select
+                          value={peopleState}
+                          onChange={(e) => {
+                            setPeopleState(e.target.value);
+                            setPeoplePage(0);
+                          }}
+                        >
+                          <option value="">Todas</option>
+                          <option value="active">Ativos</option>
+                          <option value="archived">Arquivados</option>
+                          <option value="pending">Primeiro acesso</option>
+                        </select>
+                      </label>
+                      <label>
+                        UF
+                        <select
+                          value={peopleUf}
+                          onChange={(e) => {
+                            setPeopleUf(e.target.value);
+                            setPeopleRegion("");
+                            setPeoplePage(0);
+                          }}
+                        >
+                          <option value="">Todas</option>
+                          {segmentValuesFor(workspace.stores, "UF").map(
+                            (value) => (
+                              <option key={value}>{value}</option>
+                            ),
+                          )}
+                        </select>
+                      </label>
+                      <label>
+                        Regional
+                        <select
+                          value={peopleRegion}
+                          onChange={(e) => {
+                            setPeopleRegion(e.target.value);
+                            setPeoplePage(0);
+                          }}
+                        >
+                          <option value="">Todas</option>
+                          {[
+                            ...new Set(
+                              workspace.stores
+                                .filter(
+                                  (store) =>
+                                    !peopleUf ||
+                                    store.segments?.UF === peopleUf,
+                                )
+                                .map(
+                                  (store) =>
+                                    store.segments?.REGIONAL || store.region,
+                                )
+                                .filter(Boolean),
+                            ),
+                          ]
+                            .sort()
+                            .map((value) => (
+                              <option key={value}>{value}</option>
+                            ))}
+                        </select>
+                      </label>
+                      <label>
+                        Ordenar
+                        <select
+                          value={peopleSort}
+                          onChange={(e) => {
+                            setPeopleSort(e.target.value);
+                            setPeoplePage(0);
+                          }}
+                        >
+                          <option value="name">Nome</option>
+                          <option value="chapa">Chapa</option>
+                          <option value="role">Perfil</option>
+                        </select>
+                      </label>
+                    </div>
+                    <IdentityPreferences />
+                    <p className="field-hint">
+                      {peopleTotal} pessoas encontradas · até 30 por página
+                    </p>
 
                     <TableViewport>
                       <table>
@@ -1456,23 +2967,25 @@ export default function ConnectedApp() {
                               </td>
                               <td>
                                 {p.active && p.login_chapa && (
-                                  <button className="text-button" disabled={busy} onClick={() => {
-                                    setError("");
-                                    setTemporaryPassword("");
-                                    setPasswordTarget(p);
-                                  }}>Senha temporária</button>
+                                  <button
+                                    className="text-button"
+                                    disabled={busy}
+                                    onClick={() => {
+                                      setError("");
+                                      setTemporaryPassword("");
+                                      setPasswordTarget(p);
+                                    }}
+                                  >
+                                    Senha temporária
+                                  </button>
                                 )}
                                 {p.id !== workspace.person.id && (
                                   <>
                                     <button
                                       className="text-button"
-                                      disabled={
-                                        busy
-                                      }
+                                      disabled={busy}
                                       onClick={() => {
                                         setError("");
-
-
 
                                         setEditStores(p.stores);
                                         setEditingMember(p);
@@ -1482,23 +2995,68 @@ export default function ConnectedApp() {
                                     </button>
                                     <button
                                       className="text-button"
-                                      disabled={
-                                        busy
-                                      }
+                                      disabled={busy}
                                       onClick={() => {
-                                        if (window.confirm(`${p.active ? "Arquivar" : "Reativar"} o acesso de ${p.display_name}?`)) void toggleMember(p);
+                                        if (
+                                          window.confirm(
+                                            `${p.active ? "Arquivar" : "Reativar"} o acesso de ${p.display_name}?`,
+                                          )
+                                        )
+                                          void toggleMember(p);
                                       }}
                                     >
                                       {p.active ? "Arquivar" : "Reativar"}
                                     </button>
+                                    {p.login_chapa !== "330023" && (
+                                      <button
+                                        className="text-button"
+                                        disabled={busy}
+                                        onClick={() => {
+                                          if (
+                                            window.confirm(
+                                              `Excluir o acesso de ${p.display_name}? O histórico e a auditoria serão preservados.`,
+                                            )
+                                          )
+                                            void act(async () => {
+                                              await rpc(
+                                                "eo_admin_delete_person",
+                                                { p_user: p.id },
+                                              );
+                                              await searchPeople();
+                                              setMessage(
+                                                "Acesso excluído. Histórico preservado.",
+                                              );
+                                            });
+                                        }}
+                                      >
+                                        Excluir usuário
+                                      </button>
+                                    )}
                                   </>
                                 )}
                               </td>
                             </tr>
                           ))}
                         </tbody>
-                      </table></TableViewport>
-                    <div className="pagination"><button className="secondary" disabled={!peoplePage || busy} onClick={()=>setPeoplePage(peoplePage-1)}>Anterior</button><span>Página {peoplePage+1}</span><button className="secondary" disabled={(peoplePage+1)*30>=peopleTotal || busy} onClick={()=>setPeoplePage(peoplePage+1)}>Próxima</button></div>
+                      </table>
+                    </TableViewport>
+                    <div className="pagination">
+                      <button
+                        className="secondary"
+                        disabled={!peoplePage || busy}
+                        onClick={() => setPeoplePage(peoplePage - 1)}
+                      >
+                        Anterior
+                      </button>
+                      <span>Página {peoplePage + 1}</span>
+                      <button
+                        className="secondary"
+                        disabled={(peoplePage + 1) * 30 >= peopleTotal || busy}
+                        onClick={() => setPeoplePage(peoplePage + 1)}
+                      >
+                        Próxima
+                      </button>
+                    </div>
                   </section>
                 </>
               )}
@@ -1527,83 +3085,286 @@ export default function ConnectedApp() {
                             <td>
                               {a.action === "alert.published" && a.detail ? (
                                 <span>
-                                  <strong>{String(a.detail.title ?? "Alerta")}</strong>
-                                  {" · "}{String(a.detail.body ?? "")}
-                                  {Array.isArray(a.detail.store_codes) && ` · Lojas: ${(a.detail.store_codes as string[]).join(", ")}`}
+                                  <strong>
+                                    {String(a.detail.title ?? "Alerta")}
+                                  </strong>
+                                  {" · "}
+                                  {String(a.detail.body ?? "")}
+                                  {Array.isArray(a.detail.store_codes) &&
+                                    ` · Lojas: ${(a.detail.store_codes as string[]).join(", ")}`}
                                 </span>
-                              ) : a.action === "organization.imported" && a.detail ? (
+                              ) : a.action === "organization.imported" &&
+                                a.detail ? (
                                 <span>
-                                  {String(a.detail.stores ?? 0)} lojas, {String(a.detail.managers ?? 0)} gerentes, {String(a.detail.regionals ?? 0)} regionais
+                                  {String(a.detail.stores ?? 0)} lojas,{" "}
+                                  {String(a.detail.managers ?? 0)} gerentes,{" "}
+                                  {String(a.detail.regionals ?? 0)} regionais
                                 </span>
-                              ) : ""}
+                              ) : (
+                                ""
+                              )}
                             </td>
                           </tr>
                         ))}
                       </tbody>
-                    </table></TableViewport>
+                    </table>
+                  </TableViewport>
                 </section>
               )}
               {tab === "archive" && workspace.person.role === "admin" && (
                 <section className="panel">
                   <h2>Histórico de comunicados e alertas</h2>
-                  <p>Arquivar remove a mensagem da equipe, preservando conteúdo, anexos e auditoria. Você pode restaurá-la a qualquer momento.</p>
-                  {archivedMessages.length ? archivedMessages.map((item) => (
-                    <article className="notice-card" key={`${item.kind}-${item.id}`}>
-                      <div className="notice-card-top"><span className="badge">{item.kind === "notice" ? "Comunicado" : "Alerta"}</span><time>{new Date(item.archived_at).toLocaleString("pt-BR")}</time></div>
-                      <h3>{item.title}</h3><p>{item.body}</p>
-                      <p className="field-hint">Arquivado por {item.archived_by_name || "administrador"} · registro preservado</p>
-                      {!!item.attachments?.length && <div className="attachment-list">{item.attachments.map((file) => <button className="secondary" key={file.id} onClick={() => void openMessageAttachment(file)}><FileImage size={16} />{file.file_name}</button>)}</div>}
-                      <button className="secondary" disabled={busy} onClick={() => void archiveMessage(item.kind, item.id, false)}>Restaurar para a equipe</button>
-                    </article>
-                  )) : <p>Nenhuma mensagem arquivada.</p>}
+                  <p>
+                    Arquivar remove a mensagem da equipe, preservando conteúdo,
+                    anexos e auditoria. Você pode restaurá-la a qualquer
+                    momento.
+                  </p>
+                  {archivedMessages.length ? (
+                    archivedMessages.map((item) => (
+                      <article
+                        className="notice-card"
+                        key={`${item.kind}-${item.id}`}
+                      >
+                        <div className="notice-card-top">
+                          <span className="badge">
+                            {item.kind === "notice" ? "Comunicado" : "Alerta"}
+                          </span>
+                          <time>
+                            {new Date(item.archived_at).toLocaleString("pt-BR")}
+                          </time>
+                        </div>
+                        <h3>{item.title}</h3>
+                        <p>{item.body}</p>
+                        <p className="field-hint">
+                          Arquivado por{" "}
+                          {item.archived_by_name || "administrador"} · registro
+                          preservado
+                        </p>
+                        {!!item.attachments?.length && (
+                          <div className="attachment-list">
+                            {item.attachments.map((file) => (
+                              <button
+                                className="secondary"
+                                key={file.id}
+                                onClick={() => void openMessageAttachment(file)}
+                              >
+                                <FileImage size={16} />
+                                {file.file_name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <button
+                          className="secondary"
+                          disabled={busy}
+                          onClick={() =>
+                            void archiveMessage(item.kind, item.id, false)
+                          }
+                        >
+                          Restaurar para a equipe
+                        </button>
+                      </article>
+                    ))
+                  ) : (
+                    <p>Nenhuma mensagem arquivada.</p>
+                  )}
                 </section>
               )}
-              {tab === "reports" && workspace.person.role === "admin" && (
-                <section className="panel">
-                  <h2>Leitura dos comunicados</h2>
-                  <p>Veja rapidamente a abrangência e a confirmação por loja, regional ou outro agrupamento da base.</p>
-                  <div className="form-grid">
-                    <label>Comunicado
-                      <select value={reportNotice} onChange={(event) => {
-                        const selected = reportMessages.find((item) => item.notice_id === event.currentTarget.value);
-                        setReportNotice(event.currentTarget.value);
-                        if (selected) { setReportVersion(selected.version); void loadNoticeReport(selected.notice_id, selected.version, reportGroup); }
-                      }}>
-                        {reportMessages.map((item) => <option key={item.notice_id} value={item.notice_id}>{item.title} · {new Date(item.published_at).toLocaleDateString("pt-BR")}{item.archived_at ? " · arquivado" : ""}</option>)}
-                      </select>
-                    </label>
-                    <label>Agrupar por
-                      <select value={reportGroup} onChange={(event) => { const value = event.currentTarget.value; setReportGroup(value); void loadNoticeReport(reportNotice, reportVersion, value); }}>
-                        <option value="regional">Regional</option><option value="loja">Loja</option><option value="ggl">GGL</option><option value="uf">UF</option><option value="cidade">Cidade</option><option value="tipo">Tipo de loja</option><option value="clima">Clima</option><option value="perfil_preco">Perfil de preço</option><option value="grupo_loja">Grupo de loja</option><option value="safra">Safra</option>
-                      </select>
-                    </label>
-                    <label>Filtrar primeiro por
-                      <select value={reportSegmentBy} onChange={(event) => {
-                        const key = event.currentTarget.value; setReportSegmentBy(key); setReportSegmentValues([]);
-                        void loadNoticeReport(reportNotice, reportVersion, reportGroup, key, []);
-                      }}><option value="">Todas as lojas do comunicado</option>{segmentOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
-                    </label>
-                    {reportSegmentBy && <label>Depois selecione valores
-                      <select multiple value={reportSegmentValues} onChange={(event) => {
-                        const values = Array.from(event.currentTarget.selectedOptions, (option) => option.value); setReportSegmentValues(values);
-                        void loadNoticeReport(reportNotice, reportVersion, reportGroup, reportSegmentBy, values);
-                      }}>{segmentValuesFor(workspace.stores, reportSegmentBy).map((value) => <option key={value} value={value}>{value}</option>)}</select>
-                      <span className="field-hint">Use Ctrl ou Command para selecionar mais de um valor. {filterStores(workspace.stores, reportSegmentBy, reportSegmentValues).length} lojas elegíveis na base.</span>
-                    </label>}
-                  </div>
-                  {reportData ? <>
-                    <div className="stats report-stats">
-                      <div className="stat"><div className="stat-top">Lojas destinatárias</div><strong>{reportData.total_stores}</strong></div>
-                      <div className="stat"><div className="stat-top">Lojas com ciência</div><strong>{reportData.stores_with_read}</strong><span className="stat-foot">Pelo menos uma pessoa confirmou</span></div>
-                      <div className="stat"><div className="stat-top">Lojas pendentes</div><strong>{reportData.stores_pending}</strong></div>
+              {tab === "reports" &&
+                (!reportModule || reportModule === "notices") &&
+                workspace.person.role === "admin" && (
+                  <section className="panel" id="eo-report-detail">
+                    <h2>Leitura dos comunicados</h2>
+                    <p>
+                      Veja rapidamente a abrangência e a confirmação por loja,
+                      regional ou outro agrupamento da base.
+                    </p>
+                    <div className="form-grid">
+                      <label>
+                        Comunicado
+                        <select
+                          value={reportNotice}
+                          onChange={(event) => {
+                            const selected = reportMessages.find(
+                              (item) =>
+                                item.notice_id === event.currentTarget.value,
+                            );
+                            setReportNotice(event.currentTarget.value);
+                            if (selected) {
+                              setReportVersion(selected.version);
+                              void loadNoticeReport(
+                                selected.notice_id,
+                                selected.version,
+                                reportGroup,
+                              );
+                            }
+                          }}
+                        >
+                          {reportMessages.map((item) => (
+                            <option key={item.notice_id} value={item.notice_id}>
+                              {item.title} ·{" "}
+                              {new Date(item.published_at).toLocaleDateString(
+                                "pt-BR",
+                              )}
+                              {item.archived_at ? " · arquivado" : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Agrupar por
+                        <select
+                          value={reportGroup}
+                          onChange={(event) => {
+                            const value = event.currentTarget.value;
+                            setReportGroup(value);
+                            void loadNoticeReport(
+                              reportNotice,
+                              reportVersion,
+                              value,
+                            );
+                          }}
+                        >
+                          <option value="regional">Regional</option>
+                          <option value="loja">Loja</option>
+                          <option value="ggl">GGL</option>
+                          <option value="uf">UF</option>
+                          <option value="cidade">Cidade</option>
+                          <option value="tipo">Tipo de loja</option>
+                          <option value="clima">Clima</option>
+                          <option value="perfil_preco">Perfil de preço</option>
+                          <option value="grupo_loja">Grupo de loja</option>
+                          <option value="safra">Safra</option>
+                        </select>
+                      </label>
+                      <label>
+                        Filtrar primeiro por
+                        <select
+                          value={reportSegmentBy}
+                          onChange={(event) => {
+                            const key = event.currentTarget.value;
+                            setReportSegmentBy(key);
+                            setReportSegmentValues([]);
+                            void loadNoticeReport(
+                              reportNotice,
+                              reportVersion,
+                              reportGroup,
+                              key,
+                              [],
+                            );
+                          }}
+                        >
+                          <option value="">Todas as lojas do comunicado</option>
+                          {segmentOptions.map(([key, label]) => (
+                            <option key={key} value={key}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {reportSegmentBy && (
+                        <label>
+                          Depois selecione valores
+                          <select
+                            multiple
+                            value={reportSegmentValues}
+                            onChange={(event) => {
+                              const values = Array.from(
+                                event.currentTarget.selectedOptions,
+                                (option) => option.value,
+                              );
+                              setReportSegmentValues(values);
+                              void loadNoticeReport(
+                                reportNotice,
+                                reportVersion,
+                                reportGroup,
+                                reportSegmentBy,
+                                values,
+                              );
+                            }}
+                          >
+                            {segmentValuesFor(
+                              workspace.stores,
+                              reportSegmentBy,
+                            ).map((value) => (
+                              <option key={value} value={value}>
+                                {value}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="field-hint">
+                            Use Ctrl ou Command para selecionar mais de um
+                            valor.{" "}
+                            {
+                              filterStores(
+                                workspace.stores,
+                                reportSegmentBy,
+                                reportSegmentValues,
+                              ).length
+                            }{" "}
+                            lojas elegíveis na base.
+                          </span>
+                        </label>
+                      )}
                     </div>
-                    <p className="field-hint">{reportData.read_rule} “Leitura completa” indica que todas as pessoas destinatárias daquela loja confirmaram.</p>
-                    <TableViewport><table><thead><tr><th>Agrupamento</th><th>Total de lojas</th><th>Com ciência</th><th>Leitura completa</th><th>Pendentes</th></tr></thead>
-                      <tbody>{reportData.groups.map((group) => <tr key={group.group}><td>{group.group}</td><td>{group.total_stores}</td><td>{group.stores_with_read}</td><td>{group.stores_fully_read}</td><td>{group.stores_pending}</td></tr>)}</tbody>
-                    </table></TableViewport>
-                  </> : <p>{reportMessages.length ? "Carregando relatório…" : "Ainda não há comunicados publicados para exibir."}</p>}
-                </section>
-              )}
+                    {reportData ? (
+                      <>
+                        <div className="stats report-stats">
+                          <div className="stat">
+                            <div className="stat-top">Lojas destinatárias</div>
+                            <strong>{reportData.total_stores}</strong>
+                          </div>
+                          <div className="stat">
+                            <div className="stat-top">Lojas com ciência</div>
+                            <strong>{reportData.stores_with_read}</strong>
+                            <span className="stat-foot">
+                              Pelo menos uma pessoa confirmou
+                            </span>
+                          </div>
+                          <div className="stat">
+                            <div className="stat-top">Lojas pendentes</div>
+                            <strong>{reportData.stores_pending}</strong>
+                          </div>
+                        </div>
+                        <p className="field-hint">
+                          {reportData.read_rule} “Leitura completa” indica que
+                          todas as pessoas destinatárias daquela loja
+                          confirmaram.
+                        </p>
+                        <TableViewport>
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>Agrupamento</th>
+                                <th>Total de lojas</th>
+                                <th>Com ciência</th>
+                                <th>Leitura completa</th>
+                                <th>Pendentes</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {reportData.groups.map((group) => (
+                                <tr key={group.group}>
+                                  <td>{group.group}</td>
+                                  <td>{group.total_stores}</td>
+                                  <td>{group.stores_with_read}</td>
+                                  <td>{group.stores_fully_read}</td>
+                                  <td>{group.stores_pending}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </TableViewport>
+                      </>
+                    ) : (
+                      <p>
+                        {reportMessages.length
+                          ? "Carregando relatório…"
+                          : "Ainda não há comunicados publicados para exibir."}
+                      </p>
+                    )}
+                  </section>
+                )}
             </>
           )}
           <footer>
@@ -1613,44 +3374,142 @@ export default function ConnectedApp() {
         </main>
       </div>
       <nav className="mobile-nav" aria-label="Navegação no celular">
-        {navigation.filter((item) => ["home", "notices", "sales"].includes(item.id)).map((n) => <button key={n.id} aria-current={page === n.id ? "page" : undefined} className={page === n.id ? "active" : ""} onClick={() => { setPage(n.id); setMoreOpen(false); }}><n.icon size={21} /><span>{n.id === "home" ? "Início" : n.label}</span></button>)}
-        <button className={moreOpen || ["modules", "diary", "mood", "admin", "checklists", "product", "assortment"].includes(page) ? "active" : ""} aria-expanded={moreOpen} onClick={() => setMoreOpen(true)}><Grid2X2 size={21} /><span>Mais</span></button>
+        {navigation
+          .filter((item) => ["home", "notices", "sales"].includes(item.id))
+          .map((n) => (
+            <button
+              key={n.id}
+              aria-current={page === n.id ? "page" : undefined}
+              className={page === n.id ? "active" : ""}
+              onClick={() => {
+                setPage(n.id);
+                setMoreOpen(false);
+              }}
+            >
+              <n.icon size={21} />
+              <span>{n.id === "home" ? "Início" : n.label}</span>
+            </button>
+          ))}
+        <button
+          className={
+            moreOpen ||
+            [
+              "modules",
+              "diary",
+              "mood",
+              "admin",
+              "checklists",
+              "product",
+              "assortment",
+            ].includes(page)
+              ? "active"
+              : ""
+          }
+          aria-expanded={moreOpen}
+          onClick={() => setMoreOpen(true)}
+        >
+          <Grid2X2 size={21} />
+          <span>Mais</span>
+        </button>
       </nav>
-      <ContactUpdateGate key={workspace.person.id} onSignOut={() => void signout()} />
-      {moreOpen && <Dialog title="Seu espaço" close={() => setMoreOpen(false)}><nav className="eo-more-menu" aria-label="Todos os módulos">{navigation.map((n) => <button type="button" key={n.id} aria-current={page === n.id ? "page" : undefined} onClick={() => { setMoreOpen(false); n.id === "admin" ? void openAdmin(tab) : setPage(n.id); }}><n.icon size={22} /><span>{n.label}</span><ChevronRight size={18} /></button>)}</nav></Dialog>}
-      {newStoreOpen && <Dialog title="Nova loja" close={() => { if (!busy && (!newStoreDirty || window.confirm("Descartar as alterações desta loja?"))) { setNewStoreOpen(false); setNewStoreDirty(false); } }}><p className="field-hint">Cadastre uma unidade para associar pessoas, comunicados e resultados.</p><form className="form" onSubmit={addStore} onChange={() => setNewStoreDirty(true)}>
-                      <label>
-                        Código
-                        <input name="code" required maxLength={20} />
-                      </label>
-                      <label>
-                        Nome
-                        <input
-                          name="name"
-                          required
-                          minLength={2}
-                          maxLength={120}
-                        />
-                      </label>
-                      <label>
-                        Regional
-                        <input name="region" maxLength={120} />
-                      </label>
-                      <button className="primary" disabled={busy}>
-                        Cadastrar loja
-                      </button>
-                    </form></Dialog>}
+      <ContactUpdateGate
+        key={workspace.person.id}
+        onSignOut={() => void signout()}
+      />
+      {moreOpen && (
+        <Dialog title="Seu espaço" close={() => setMoreOpen(false)}>
+          <nav className="eo-more-menu" aria-label="Todos os módulos">
+            {allowedNavigation.map((n) => (
+              <button
+                type="button"
+                key={n.id}
+                aria-current={page === n.id ? "page" : undefined}
+                onClick={() => {
+                  setMoreOpen(false);
+                  n.id === "admin" ? void openAdmin(tab) : setPage(n.id);
+                }}
+              >
+                <n.icon size={22} />
+                <span>{n.label}</span>
+                <ChevronRight size={18} />
+              </button>
+            ))}
+          </nav>
+        </Dialog>
+      )}
+      {newStoreOpen && (
+        <Dialog
+          title="Nova loja"
+          close={() => {
+            if (
+              !busy &&
+              (!newStoreDirty ||
+                window.confirm("Descartar as alterações desta loja?"))
+            ) {
+              setNewStoreOpen(false);
+              setNewStoreDirty(false);
+            }
+          }}
+        >
+          <p className="field-hint">
+            Cadastre uma unidade para associar pessoas, comunicados e
+            resultados.
+          </p>
+          <form
+            className="form"
+            onSubmit={addStore}
+            onChange={() => setNewStoreDirty(true)}
+          >
+            <label>
+              Código
+              <input name="code" required maxLength={20} />
+            </label>
+            <label>
+              Nome
+              <input name="name" required minLength={2} maxLength={120} />
+            </label>
+            <label>
+              Regional
+              <input name="region" maxLength={120} />
+            </label>
+            <button className="primary" disabled={busy}>
+              Cadastrar loja
+            </button>
+          </form>
+        </Dialog>
+      )}
       {opened && (
         <Dialog title="Comunicado" close={() => setOpened(null)}>
           <span className="badge">Versão {opened.version}</span>
           <h2 className="notice-title">{opened.title}</h2>
           <p className="notice-body">{opened.body}</p>
-          {!!opened.attachments?.length && <div className="attachment-list">{opened.attachments.map((file) => <button className="secondary" key={file.id} disabled={busy} onClick={() => void openMessageAttachment(file)}><FileImage size={16} />{file.file_name}</button>)}</div>}
+          {!!opened.attachments?.length && (
+            <div className="attachment-list">
+              {opened.attachments.map((file) => (
+                <button
+                  className="secondary"
+                  key={file.id}
+                  disabled={busy}
+                  onClick={() => void openMessageAttachment(file)}
+                >
+                  <FileImage size={16} />
+                  {file.file_name}
+                </button>
+              ))}
+            </div>
+          )}
           {error && (
             <p role="alert" className="form-error">
               {error}
             </p>
           )}
+          <NoticeEngagement
+            title={opened.title}
+            body={opened.body}
+            notice={opened.notice_id}
+            version={opened.version}
+            admin={workspace.person.role === "admin"}
+          />
           <button
             className="primary wide"
             disabled={busy || opened.acknowledged}
@@ -1659,7 +3518,22 @@ export default function ConnectedApp() {
             <CheckCheck size={18} />
             {opened.acknowledged ? "Ciência confirmada" : "Li e estou ciente"}
           </button>
-          {workspace?.person.role === "admin" && <button className="secondary wide" disabled={busy} onClick={() => { if (window.confirm("Arquivar este comunicado? Ele sairá da equipe e ficará disponível no histórico administrativo.")) void archiveMessage("notice", opened.notice_id, true); }}>Arquivar comunicado</button>}
+          {workspace?.person.role === "admin" && (
+            <button
+              className="secondary wide"
+              disabled={busy}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Excluir este comunicado da equipe? O conteúdo e a auditoria permanecerão no arquivo administrativo.",
+                  )
+                )
+                  void archiveMessage("notice", opened.notice_id, true);
+              }}
+            >
+              Excluir da equipe e manter histórico
+            </button>
+          )}
         </Dialog>
       )}
       {compose && (
@@ -1672,8 +3546,17 @@ export default function ConnectedApp() {
           <form className="form" onSubmit={publish}>
             <label>
               Tipo de mensagem
-              <select name="message_kind" defaultValue={workspace.person.role === "gerente" ? "alert" : "notice"}>
-                {workspace.person.role !== "gerente" && <option value="notice">Comunicado com confirmação de ciência</option>}
+              <select
+                name="message_kind"
+                defaultValue={
+                  workspace.person.role === "gerente" ? "alert" : "notice"
+                }
+              >
+                {workspace.person.role !== "gerente" && (
+                  <option value="notice">
+                    Comunicado com confirmação de ciência
+                  </option>
+                )}
                 <option value="alert">Alerta com notificação push</option>
               </select>
             </label>
@@ -1687,47 +3570,44 @@ export default function ConnectedApp() {
             </label>
             <label className="checkbox-label">
               <input name="send_push" type="checkbox" />
-              Enviar também como notificação push {" "}<span className="field-hint">Alertas sempre enviam push. Para comunicado, esta opção é adicional.</span>
+              Enviar também como notificação push{" "}
+              <span className="field-hint">
+                Alertas sempre enviam push. Para comunicado, esta opção é
+                adicional.
+              </span>
             </label>
             <label>
-              Anexos (PDF, JPG, PNG ou WebP, até 10 MB cada)
-              <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple onChange={(event) => setMessageFiles(Array.from(event.currentTarget.files ?? []))} />
+              Anexos (PDF, JPG, PNG ou WebP)
+              <input
+                type="file"
+                accept="application/pdf,image/jpeg,image/png,image/webp"
+                multiple
+                onChange={(event) =>
+                  setMessageFiles(Array.from(event.currentTarget.files ?? []))
+                }
+              />
             </label>
-            {messageFiles.length > 0 && <div className="attachment-list" aria-live="polite">{messageFiles.map((file, index) => <span className="badge" key={`${file.name}-${index}`}>{file.name}</span>)}<button type="button" className="text-button" onClick={() => setMessageFiles([])}>Limpar anexos</button></div>}
-            <fieldset>
-              <legend>Quem receberá</legend>
-              <label>
-                Segmentação
-                <select name="target_mode" defaultValue="all">
-                  <option value="all">Todas as lojas da minha abrangência</option>
-                  <option value="region">Uma regional</option>
-                  <option value="stores">Selecionar lojas</option>
-                </select>
-              </label>
-              <label>
-                Filtrar primeiro por atributo
-                <select value={composeSegmentBy} onChange={(event) => { setComposeSegmentBy(event.currentTarget.value); setComposeSegmentValues([]); }}>
-                  <option value="">Todas as lojas da abrangência</option>
-                  {segmentOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-                </select>
-              </label>
-              {composeSegmentBy && <label>
-                Depois selecione os valores
-                <select multiple value={composeSegmentValues} onChange={(event) => setComposeSegmentValues(Array.from(event.currentTarget.selectedOptions, (option) => option.value))}>
-                  {segmentValuesFor(workspace.stores, composeSegmentBy).map((value) => <option key={value} value={value}>{value}</option>)}
-                </select>
-                <span className="field-hint">A lista será reduzida a {filterStores(workspace.stores, composeSegmentBy, composeSegmentValues).length} lojas e {filterStores(workspace.stores, composeSegmentBy, composeSegmentValues).reduce((total, store) => total + (store.team_count ?? 0), 0)} pessoas elegíveis.</span>
-              </label>}
-              <label>
-                Regional (usada quando a segmentação for por regional)
-                <select name="target_region" defaultValue="">
-                  <option value="">Selecione uma regional</option>
-                  {availableRegions.map((region) => <option key={region} value={region}>{region}</option>)}
-                </select>
-              </label>
-              <StorePicker stores={filterStores(workspace.stores, composeSegmentBy, composeSegmentValues)} selected={composeStores} onChange={setComposeStores} />
-              <p className="field-hint">A seleção respeita sua abrangência de acesso. Marque lojas apenas ao escolher “Selecionar lojas”.</p>
-            </fieldset>
+            {messageFiles.length > 0 && (
+              <div className="attachment-list" aria-live="polite">
+                {messageFiles.map((file, index) => (
+                  <span className="badge" key={`${file.name}-${index}`}>
+                    {file.name}
+                  </span>
+                ))}
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => setMessageFiles([])}
+                >
+                  Limpar anexos
+                </button>
+              </div>
+            )}
+            <CommunicationTargets
+              stores={workspace.stores}
+              onChange={setComposeStores}
+            />
+
             <label className="checkbox-label">
               <input name="urgent" type="checkbox" />
               Destacar como importante
@@ -1735,7 +3615,10 @@ export default function ConnectedApp() {
             <label>
               Programar envio (opcional)
               <input name="schedule_at" type="datetime-local" />
-              <span className="field-hint">Deixe em branco para enviar agora. O horário segue o fuso deste dispositivo.</span>
+              <span className="field-hint">
+                Deixe em branco para enviar agora. O horário segue o fuso deste
+                dispositivo.
+              </span>
             </label>
             {error && (
               <p role="alert" className="form-error">
@@ -1746,28 +3629,86 @@ export default function ConnectedApp() {
               Publicar ou programar
             </button>
           </form>
+          <ScheduledMessages />
         </Dialog>
       )}
       {passwordTarget && (
-        <Dialog title="Senha temporária" close={() => {
-          if (busy) return;
-          setTemporaryPassword("");
-          setPasswordTarget(null);
-          setError("");
-        }}>
+        <Dialog
+          title="Senha temporária"
+          close={() => {
+            if (busy) return;
+            setTemporaryPassword("");
+            setPasswordTarget(null);
+            setError("");
+          }}
+        >
           <div className="form">
-            <p><strong>{passwordTarget.display_name}</strong> · Chapa {passwordTarget.login_chapa}</p>
-            {temporaryPassword ? <>
-              <p>Copie agora. A senha só aparece nesta tela e deverá ser trocada no próximo acesso.</p>
-              <label>Senha temporária<input readOnly value={temporaryPassword} autoComplete="off" /></label>
-              <a className="primary" href={`https://wa.me/?text=${encodeURIComponent(`Seu acesso ao EO\nChapa: ${passwordTarget.login_chapa}\nSenha temporária: ${temporaryPassword}\nTroque a senha no primeiro acesso: https://app-eo.vercel.app/`)}`} target="_blank" rel="noopener noreferrer">Compartilhar no WhatsApp</a>
-              <button className="secondary" onClick={() => void navigator.clipboard.writeText(`Seu acesso ao EO\nChapa: ${passwordTarget.login_chapa}\nSenha temporária: ${temporaryPassword}\nhttps://app-eo.vercel.app/`).catch(() => setError("Selecione e copie a senha manualmente."))}>Copiar dados de acesso</button>
-              {passwordTarget.id === workspace.person.id && <button className="primary" onClick={() => void signout()}>Guardei a senha, sair agora</button>}
-            </> : <>
-              <p>A senha atual será substituída. No próximo acesso, a pessoa terá de definir uma nova senha.</p>
-              <button className="primary" disabled={busy} onClick={() => void issueTemporaryPassword(passwordTarget)}>{busy ? "Gerando…" : "Gerar senha temporária"}</button>
-            </>}
-            {error && <p className="form-error" role="alert">{error}</p>}
+            <p>
+              <strong>{passwordTarget.display_name}</strong> · Chapa{" "}
+              {passwordTarget.login_chapa}
+            </p>
+            {temporaryPassword ? (
+              <>
+                <p>
+                  Copie agora. A senha só aparece nesta tela e deverá ser
+                  trocada no próximo acesso.
+                </p>
+                <label>
+                  Senha temporária
+                  <input
+                    readOnly
+                    value={temporaryPassword}
+                    autoComplete="off"
+                  />
+                </label>
+                <a
+                  className="primary"
+                  href={`https://wa.me/?text=${encodeURIComponent(`Seu acesso ao EO\nChapa: ${passwordTarget.login_chapa}\nSenha temporária: ${temporaryPassword}\nTroque a senha no primeiro acesso: https://app-eo.vercel.app/`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Compartilhar no WhatsApp
+                </a>
+                <button
+                  className="secondary"
+                  onClick={() =>
+                    void navigator.clipboard
+                      .writeText(
+                        `Seu acesso ao EO\nChapa: ${passwordTarget.login_chapa}\nSenha temporária: ${temporaryPassword}\nhttps://app-eo.vercel.app/`,
+                      )
+                      .catch(() =>
+                        setError("Selecione e copie a senha manualmente."),
+                      )
+                  }
+                >
+                  Copiar dados de acesso
+                </button>
+                {passwordTarget.id === workspace.person.id && (
+                  <button className="primary" onClick={() => void signout()}>
+                    Guardei a senha, sair agora
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <p>
+                  A senha atual será substituída. No próximo acesso, a pessoa
+                  terá de definir uma nova senha.
+                </p>
+                <button
+                  className="primary"
+                  disabled={busy}
+                  onClick={() => void issueTemporaryPassword(passwordTarget)}
+                >
+                  {busy ? "Gerando…" : "Gerar senha temporária"}
+                </button>
+              </>
+            )}
+            {error && (
+              <p className="form-error" role="alert">
+                {error}
+              </p>
+            )}
           </div>
         </Dialog>
       )}
@@ -1795,7 +3736,9 @@ export default function ConnectedApp() {
                 readOnly
               />
             </label>
-            <p className="field-hint">A chapa identifica o login e não pode ser alterada.</p>
+            <p className="field-hint">
+              A chapa identifica o login e não pode ser alterada.
+            </p>
             <label>
               Perfil
               <select name="role" defaultValue={editingMember.role}>
@@ -1805,7 +3748,37 @@ export default function ConnectedApp() {
                 <option value="admin">Administrador</option>
               </select>
             </label>
-            <fieldset><legend>Lojas autorizadas</legend><p className="field-hint">A seleção substitui os vínculos desta pessoa, inclusive os importados. Sem lojas, o perfil comum fica sem abrangência operacional. Administradores têm todas as lojas.</p><StorePicker stores={workspace.stores} selected={editStores} onChange={setEditStores} /></fieldset>
+            <label>
+              Unidade
+              <select
+                name="unit_type"
+                defaultValue={
+                  (editingMember as LivePerson & { unit_type?: string })
+                    .unit_type ??
+                  (editingMember.stores.length ? "loja" : "administracao")
+                }
+              >
+                <option value="loja">Loja</option>
+                <option value="ec">Escritório Central (EC)</option>
+                <option value="cda">
+                  Centro de Distribuição Araçariguama (CDA)
+                </option>
+                <option value="administracao">Administração</option>
+              </select>
+            </label>
+            <fieldset>
+              <legend>Lojas autorizadas</legend>
+              <p className="field-hint">
+                A seleção substitui os vínculos desta pessoa, inclusive os
+                importados. Sem lojas, o perfil comum fica sem abrangência
+                operacional. Administradores têm todas as lojas.
+              </p>
+              <StorePicker
+                stores={workspace.stores}
+                selected={editStores}
+                onChange={setEditStores}
+              />
+            </fieldset>
             {error && (
               <p className="form-error" role="alert">
                 {error}
@@ -1816,40 +3789,177 @@ export default function ConnectedApp() {
             </button>
           </form>
           <div className="form">
-            <button className="secondary" disabled={busy} onClick={() => {
-              if (window.confirm(`${editingMember.active ? "Arquivar" : "Reativar"} o acesso de ${editingMember.display_name}?`)) void toggleMember(editingMember);
-            }}>{editingMember.active ? "Arquivar usuário" : "Reativar usuário"}</button>
-            {editingMember.active && editingMember.login_chapa && <button className="secondary" disabled={busy} onClick={() => {
-              setError("");
-              setTemporaryPassword("");
-              setPasswordTarget(editingMember);
-            }}>Gerar senha temporária</button>}
+            <button
+              className="secondary"
+              disabled={busy}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `${editingMember.active ? "Arquivar" : "Reativar"} o acesso de ${editingMember.display_name}?`,
+                  )
+                )
+                  void toggleMember(editingMember);
+              }}
+            >
+              {editingMember.active ? "Arquivar usuário" : "Reativar usuário"}
+            </button>
+            {editingMember.active && editingMember.login_chapa && (
+              <button
+                className="secondary"
+                disabled={busy}
+                onClick={() => {
+                  setError("");
+                  setTemporaryPassword("");
+                  setPasswordTarget(editingMember);
+                }}
+              >
+                Gerar senha temporária
+              </button>
+            )}
           </div>
         </Dialog>
       )}
-      {templateChoice && <Dialog title="Como deseja baixar o modelo?" close={() => setTemplateChoice(false)}>
-        <p>Escolha se a planilha deve vir limpa para uma nova carga ou preenchida com a base atualmente ativa.</p>
-        <div className="form-grid">
-          <a className="primary template-download" href="/modelo-importacao-administrativa-eo.xlsx" download="Modelo-importacao-administrativa-EO.xlsx" onClick={() => setTemplateChoice(false)}>Baixar modelo em branco</a>
-          <button className="secondary" type="button" disabled={busy} onClick={() => { setTemplateChoice(false); downloadCurrentModel(); }}>Baixar com dados atuais</button>
-        </div>
-      </Dialog>}
-      {managedStore && <Dialog title={`Gerenciar loja ${managedStore.code}`} close={()=>setManagedStore(null)}><form className="form" onSubmit={(e)=>{e.preventDefault();void saveManagedStore(managedStore);}}>
-        <label>Código<input value={managedStore.code} required maxLength={20} onChange={(e)=>setManagedStore({...managedStore,code:e.target.value})} /></label>
-        <label>Nome<input value={managedStore.name} required minLength={2} maxLength={120} onChange={(e)=>setManagedStore({...managedStore,name:e.target.value})} /></label>
-        <label>Regional<input value={managedStore.region} maxLength={120} onChange={(e)=>setManagedStore({...managedStore,region:e.target.value})} /></label>
-        <p className="field-hint">Arquivar preserva o histórico e os vínculos, e remove a loja da operação ativa. Reativar restaura sua disponibilidade.</p>
-        <button className="primary" disabled={busy}>Salvar alterações</button>
-        <button className="secondary" type="button" disabled={busy} onClick={()=>{if(window.confirm(`${managedStore.active ? "Arquivar" : "Reativar"} esta loja? O histórico será preservado.`))void saveManagedStore({...managedStore,active:!managedStore.active});}}>{managedStore.active ? "Arquivar loja" : "Reativar loja"}</button>
-        {error && <p className="form-error" role="alert">{error}</p>}
-      </form></Dialog>}
-      {editingStore && <Dialog title={`Editar loja ${String(editingStore.COD ?? "")}`} close={() => setEditingStore(null)}>
-        <form className="form" onSubmit={(event) => void saveStoreEdits(event)}>
-          {Object.entries(editingStore).filter(([key]) => key !== "__id").map(([key, value]) => <label key={key}>{key}<input name={key} defaultValue={String(value ?? "")} maxLength={500} /></label>)}
-          <p className="field-hint">COD, LOJA e gerente são validados. A atualização preserva o vínculo da loja e registra quem alterou os dados.</p>
-          <button className="primary" disabled={busy}>{busy ? "Salvando…" : "Salvar alterações"}</button>
-        </form>
-      </Dialog>}
+      {templateChoice && (
+        <Dialog
+          title="Como deseja baixar o modelo?"
+          close={() => setTemplateChoice(false)}
+        >
+          <p>
+            Escolha se a planilha deve vir limpa para uma nova carga ou
+            preenchida com a base atualmente ativa.
+          </p>
+          <div className="form-grid">
+            <a
+              className="primary template-download"
+              href="/modelo-importacao-administrativa-eo.xlsx"
+              download="Modelo-importacao-administrativa-EO.xlsx"
+              onClick={() => setTemplateChoice(false)}
+            >
+              Baixar modelo em branco
+            </a>
+            <button
+              className="secondary"
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setTemplateChoice(false);
+                downloadCurrentModel();
+              }}
+            >
+              Baixar com dados atuais
+            </button>
+          </div>
+        </Dialog>
+      )}
+      {managedStore && (
+        <Dialog
+          title={`Gerenciar loja ${managedStore.code}`}
+          close={() => setManagedStore(null)}
+        >
+          <form
+            className="form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void saveManagedStore(managedStore);
+            }}
+          >
+            <label>
+              Código
+              <input
+                value={managedStore.code}
+                required
+                maxLength={20}
+                onChange={(e) =>
+                  setManagedStore({ ...managedStore, code: e.target.value })
+                }
+              />
+            </label>
+            <label>
+              Nome
+              <input
+                value={managedStore.name}
+                required
+                minLength={2}
+                maxLength={120}
+                onChange={(e) =>
+                  setManagedStore({ ...managedStore, name: e.target.value })
+                }
+              />
+            </label>
+            <label>
+              Regional
+              <input
+                value={managedStore.region}
+                maxLength={120}
+                onChange={(e) =>
+                  setManagedStore({ ...managedStore, region: e.target.value })
+                }
+              />
+            </label>
+            <p className="field-hint">
+              Arquivar preserva o histórico e os vínculos, e remove a loja da
+              operação ativa. Reativar restaura sua disponibilidade.
+            </p>
+            <button className="primary" disabled={busy}>
+              Salvar alterações
+            </button>
+            <button
+              className="secondary"
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `${managedStore.active ? "Arquivar" : "Reativar"} esta loja? O histórico será preservado.`,
+                  )
+                )
+                  void saveManagedStore({
+                    ...managedStore,
+                    active: !managedStore.active,
+                  });
+              }}
+            >
+              {managedStore.active ? "Arquivar loja" : "Reativar loja"}
+            </button>
+            {error && (
+              <p className="form-error" role="alert">
+                {error}
+              </p>
+            )}
+          </form>
+        </Dialog>
+      )}
+      {editingStore && (
+        <Dialog
+          title={`Editar loja ${String(editingStore.COD ?? "")}`}
+          close={() => setEditingStore(null)}
+        >
+          <form
+            className="form"
+            onSubmit={(event) => void saveStoreEdits(event)}
+          >
+            {Object.entries(editingStore)
+              .filter(([key]) => key !== "__id")
+              .map(([key, value]) => (
+                <label key={key}>
+                  {key}
+                  <input
+                    name={key}
+                    defaultValue={String(value ?? "")}
+                    maxLength={500}
+                  />
+                </label>
+              ))}
+            <p className="field-hint">
+              COD, LOJA e gerente são validados. A atualização preserva o
+              vínculo da loja e registra quem alterou os dados.
+            </p>
+            <button className="primary" disabled={busy}>
+              {busy ? "Salvando…" : "Salvar alterações"}
+            </button>
+          </form>
+        </Dialog>
+      )}
       {future && (
         <Dialog title={future} close={() => setFuture("")}>
           <p>

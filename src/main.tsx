@@ -1,3 +1,4 @@
+import { StorageNotice } from "./components/StorageNotice";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
@@ -10,5 +11,8 @@ const demo =
   import.meta.env.DEV &&
   new URLSearchParams(location.search).get("demo") === "1";
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>{demo ? <App /> : <ConnectedApp />}</React.StrictMode>,
+  <React.StrictMode>
+    {demo ? <App /> : <ConnectedApp />}
+    <StorageNotice />
+  </React.StrictMode>,
 );

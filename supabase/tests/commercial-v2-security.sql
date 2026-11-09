@@ -1,0 +1,41 @@
+begin;
+create temporary table commercial_fixtures(kind text primary key,id uuid default gen_random_uuid());
+insert into commercial_fixtures(kind) values('admin'),('person'),('outside'),('director'),('store'),('otherstore');
+grant select on commercial_fixtures to authenticated;
+insert into auth.users(id,email) select id,id||'@example.invalid' from commercial_fixtures where kind in ('admin','person','outside','director');
+insert into public.eo_profiles(id,display_name,role) select id,'Teste comercial',case when kind='admin' then 'admin' when kind='director' then 'diretor' else 'gerente' end from commercial_fixtures where kind in ('admin','person','outside','director');
+insert into public.eo_stores(id,code,name,region) select id,left(id::text,20),'Loja teste comercial',kind from commercial_fixtures where kind in ('store','otherstore');
+insert into public.eo_store_members(user_id,store_id) select p.id,s.id from commercial_fixtures p cross join commercial_fixtures s where (p.kind in ('person','director') and s.kind='store') or (p.kind='outside' and s.kind='otherstore');
+set local role authenticated;
+select set_config('request.jwt.claim.sub',(select id::text from commercial_fixtures where kind='person'),true);
+do $$
+declare sid uuid:=(select id from commercial_fixtures where kind='store'); product uuid; sess uuid; scan uuid; denied boolean;
+begin
+ product:=public.eo_save_product_request(sid,'Solicitação de teste','{"fabric":"Algodão"}',gen_random_uuid());
+ perform public.eo_product_update(product,null,null,true);
+ denied:=false;begin perform public.eo_product_update(product,'Atendido','OK');exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'FAIL: gerente tratou pedido';end if;
+ sess:=public.eo_assortment_session(sid);
+ scan:=public.eo_begin_assortment_session(sess,'123456',gen_random_uuid());
+ denied:=false;begin perform public.eo_assortment_session_update(sess,'submitted');exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: enviou rascunho incompleto';end if;
+ perform public.eo_save_assortment(scan,'{"PP":0}');perform public.eo_assortment_session_update(sess,'submitted');
+ denied:=false;begin perform public.eo_save_assortment(scan,'{"PP":2}');exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: alterou contagem enviada';end if;
+ perform set_config('request.jwt.claim.sub',(select id::text from commercial_fixtures where kind='director'),true);
+ if public.eo_commercial_page('product',current_date-1,current_date+1,sid)->>'total'<>'1' then raise exception 'FAIL: histórico unidade';end if;
+ perform set_config('request.jwt.claim.sub',(select id::text from commercial_fixtures where kind='admin'),true);
+ denied:=false;begin perform public.eo_product_update(product,'Atendido','');exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: conclusão sem justificativa';end if;
+ perform public.eo_product_update(product,'Atendido','Produto disponibilizado');
+ perform public.eo_assortment_session_update(sess,'validated');
+ sess:=public.eo_assortment_session(sid,'demand','Lista autorizada',array['99999']);
+ denied:=false;begin perform public.eo_begin_assortment_session(sess,'88888',gen_random_uuid());exception when raise_exception then denied:=true;end;if not denied then raise exception 'FAIL: aceitou item fora da lista';end if;
+ perform set_config('request.jwt.claim.sub',(select id::text from commercial_fixtures where kind='outside'),true);
+ if public.eo_commercial_page('product',current_date-1,current_date+1,sid)->>'total'<>'0' then raise exception 'FAIL: vazamento entre unidades';end if;
+end; $$;
+reset role;
+-- Transferência remove acesso mesmo a pedidos anteriormente criados pela pessoa.
+delete from public.eo_store_members where user_id=(select id from commercial_fixtures where kind='person');
+set local role authenticated;
+select set_config('request.jwt.claim.sub',(select id::text from commercial_fixtures where kind='person'),true);
+do $$ begin if public.eo_commercial_page('product',current_date-1,current_date+1)->>'total'<>'0' then raise exception 'FAIL: ex gerente manteve histórico';end if;end; $$;
+reset role;
+rollback;
+select 'PASSOU: comercial v2, unidade, status, sessão e lista autorizada' as resultado;

@@ -6,3 +6,16 @@ node_modules
 /android/
 /ios/
 /dist/
+
+/output/
+/tmp/
+/.agents/
+/.codex/
+/.git/
+.env*
+*.p8
+AGENTS.md
+MEMORIA.md
+.identity*.sql
+/scripts/provision-apple-review-demo.sql
+/supabase/.temp/

@@ -1,6 +1,9 @@
 name: EO | Compilar app no GitHub
 
 on:
+  push:
+    tags:
+      - "eo-ios-*"
   workflow_dispatch:
     inputs:
       platform:
@@ -17,7 +20,7 @@ permissions:
 
 jobs:
   android_preview:
-    if: github.event_name == 'push' || inputs.platform == 'android'
+    if: github.event_name == 'workflow_dispatch' && inputs.platform == 'android'
     name: Preview Android
     concurrency:
       group: eo-native-preview-${{ github.ref }}-android
@@ -74,7 +77,7 @@ jobs:
           retention-days: 1
 
   ios_simulator_preview:
-    if: github.event_name == 'push' || inputs.platform == 'ios'
+    if: github.event_name == 'workflow_dispatch' && inputs.platform == 'ios'
     name: Preview iOS Simulator
     concurrency:
       group: eo-native-preview-${{ github.ref }}-ios
@@ -144,7 +147,7 @@ jobs:
           retention-days: 1
 
   ios_testflight:
-    if: github.event_name == 'workflow_dispatch' && inputs.platform == 'ios-testflight'
+    if: (github.event_name == 'workflow_dispatch' && inputs.platform == 'ios-testflight') || startsWith(github.ref, 'refs/tags/eo-ios-')
     name: Build and upload iOS to TestFlight
     concurrency:
       group: eo-testflight-${{ github.ref }}

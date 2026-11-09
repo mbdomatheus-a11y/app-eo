@@ -1,135 +1,617 @@
 /* EO: escala única, superfícies claras e controles com espaço para crescer. */
 :root {
-  --eo-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --eo-font:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   --eo-accent: #fbf2a3;
   --eo-accent-ink: #34352b;
   font-family: var(--eo-font);
   font-size: 16px;
 }
-:root[data-eo-font="sans"] { --eo-font: Arial, Helvetica, sans-serif; }
-:root[data-eo-text="large"] { font-size: 18px; }
-:root[data-eo-accent="blue"] { --eo-accent: #dbeafe; --eo-accent-ink: #184d89; }
-:root[data-eo-accent="green"] { --eo-accent: #dcefe4; --eo-accent-ink: #245b40; }
-body { font-family: var(--eo-font); -webkit-font-smoothing: antialiased; }
-button, a { touch-action: manipulation; }
-button { user-select: none; }
-.eo-portal { color: #282b32; font-family: var(--eo-font); font-size: 1rem; line-height: 1.5; }
-.eo-portal :is(h1,h2,h3,button,input,textarea,select), .eo-signin :is(h1,h2,h3,button,input,textarea,select) { font-family: var(--eo-font); }
-.eo-portal .main-shell { min-height: 100dvh; }
-.eo-portal main { max-width: 1680px; margin-inline: auto; padding: 36px clamp(22px,3vw,48px) 32px; }
-.eo-portal .page-heading { margin-bottom: 28px; }
-.eo-portal .page-heading h1 { font-size: clamp(1.75rem,2.7vw,2.3rem); font-weight: 700; letter-spacing: -.045em; line-height: 1.2; }
-.eo-portal .page-heading p, .eo-portal .panel > p { font-size: .9375rem; line-height: 1.6; }
-.eo-portal .eyebrow { font-size: .6875rem; letter-spacing: .1em; font-weight: 650; }
-.eo-portal .panel { padding: clamp(20px,2.4vw,32px); border-radius: 22px; box-shadow: 0 3px 16px #24283204; min-width: 0; }
-.eo-portal h2, .eo-portal .panel h2 { font-size: 1.25rem; letter-spacing: -.025em; font-weight: 650; line-height: 1.35; }
-.eo-portal h3, .eo-portal .panel h3 { font-size: 1.0625rem; letter-spacing: -.015em; }
-.eo-portal .topbar { height: 80px; padding-inline: clamp(22px,3vw,48px); border-bottom: 1px solid #e4e5e9; }
-.eo-portal .breadcrumb { font-size: .8125rem; color: #626872; }
-.eo-portal .top-actions { gap: 10px; min-width: 0; }
-.eo-portal .top-actions .icon-button { width: 44px; height: 44px; }
-.eo-portal .top-actions .badge { font-size: .6875rem; }
-.eo-portal .sidebar { width: 264px; padding: 28px 18px 18px; overflow-y: auto; scrollbar-gutter: stable; }
-.eo-portal .brand { gap: 12px; padding: 0 12px; margin-bottom: 32px; }
-.eo-brand-icon { display: block; flex-shrink: 0; width: 42px; height: 42px; border-radius: 12px; }
-.eo-portal .brand-copy { font-size: .5625rem; letter-spacing: .14em; }
-.eo-portal .workspace { margin-bottom: 28px; padding: 15px 13px; border-radius: 16px; }
-.eo-portal .workspace b { font-size: .875rem; }
-.eo-portal .workspace div > span { font-size: .75rem; margin-top: 3px; }
-.eo-portal .nav-label { font-size: .625rem; }
-.eo-portal .nav-item { min-height: 48px; font-size: .875rem; padding: 12px 14px; margin-block: 4px; border-radius: 13px; line-height: 1.4; }
-.eo-portal .nav-item.active, .eo-portal .mobile-nav button.active { background: var(--eo-accent); color: var(--eo-accent-ink); }
-.eo-portal .sidebar-version { font-size: .6875rem; }
-.eo-portal .primary, .eo-portal .dark-button { background: var(--eo-accent); color: var(--eo-accent-ink); }
-.eo-portal :is(.primary,.secondary,.dark-button) { min-height: 44px; font-size: .875rem; padding: 11px 17px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
-.eo-portal .text-button { font-size: .875rem; min-height: 40px; }
-.eo-portal .tabs { border: 0; padding: 5px; background: #eaecef; gap: 4px; border-radius: 14px; }
-.eo-portal .tabs button { font-size: .8125rem; min-height: 42px; padding: 10px 16px; }
-.eo-portal .admin-tabs { display: flex; overflow-x: auto; width: 100%; scrollbar-width: thin; margin-bottom: 24px; }
-.eo-portal .admin-tabs button { flex: 0 0 auto; }
-.eo-portal .admin-grid, .eo-portal .admin-stores-layout { min-width: 0; align-items: start; grid-template-columns: minmax(0,1fr); }
-.admin-stores-layout { display: grid; gap: 22px; }
-.admin-section-heading { display: flex; gap: 20px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
-.admin-section-heading p { margin-top: 6px; color: #626872; font-size: .9375rem; }
-.eo-portal .store-directory h2 { margin-bottom: 24px; }
-.form-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,180px),1fr)); gap: 18px 16px; margin-block: 20px; min-width: 0; align-items: end; }
-.form-grid > label, .eo-portal .form > label { display: flex; flex-direction: column; gap: 8px; min-width: 0; color: #454b56; font-size: .8125rem; font-weight: 600; }
-.form-grid > label:first-child { grid-column: span 2; }
-.form-grid :is(input,select), .eo-portal .form :is(input:not([type="checkbox"]),select,textarea) { display: block; width: 100%; min-width: 0; max-width: 100%; min-height: 46px; padding: 11px 13px; background: #fff; border: 1px solid #d6d9df; border-radius: 11px; color: #282b32; font-size: 1rem; font-weight: 400; line-height: 1.4; box-shadow: none; }
-.form-grid select { text-overflow: ellipsis; }
-.form-grid input::placeholder { color: #797f88; }
-.form-grid :is(input,select):focus-visible { outline: 2px solid #315d9a; outline-offset: 2px; border-color: #315d9a; }
-.eo-portal .field-hint { color: #626872; font-size: .8125rem; line-height: 1.6; margin-block: 10px 16px; }
-.eo-portal .form { gap: 20px; margin-top: 22px; }
-.eo-portal .form > label.checkbox-label { flex-direction: row; align-items: center; }
-.eo-portal .pagination { font-size: .8125rem; padding-top: 12px; }
-.data-viewport { min-width: 0; }
-.eo-portal .table-wrap { max-width: 100%; max-height: 65dvh; overflow: auto; scrollbar-gutter: stable; scrollbar-width: auto; scrollbar-color: #a4abb5 #eef0f3; border: 1px solid #e0e3e8; border-radius: 14px; overscroll-behavior: contain; }
-.eo-portal .table-wrap::-webkit-scrollbar { width: 12px; height: 12px; }
-.eo-portal .table-wrap::-webkit-scrollbar-thumb { background: #a4abb5; border: 3px solid #eef0f3; border-radius: 8px; }
-.eo-portal .table-wrap::-webkit-scrollbar-track { background: #eef0f3; }
-.eo-portal .table-wrap table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .875rem; }
-.eo-portal .table-wrap th { position: sticky; top: 0; z-index: 1; background: #f3f4f6; color: #545c68; font-size: .75rem; font-weight: 650; padding: 14px 16px; border-bottom: 1px solid #e0e3e8; }
-.eo-portal .table-wrap td { font-size: .875rem; padding: 16px; color: #3e4550; line-height: 1.5; border-bottom: 1px solid #eff0f3; }
-.eo-portal .table-wrap :is(td,th) { white-space: nowrap; }
-.eo-portal .table-wrap :is(.text-button,.secondary) { font-size: .8125rem; min-height: 40px; }
-.table-navigation { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: #f3f4f6; border: 1px solid #e0e3e8; border-radius: 12px; margin-bottom: 10px; font-size: .75rem; color: #626872; }
-.table-navigation button { display: grid; place-items: center; width: 44px; height: 44px; background: #fff; border: 1px solid #dde1e7; border-radius: 10px; }
-.table-navigation input { flex: 1; min-width: 40px; accent-color: #677080; }
-.table-navigation button:disabled { opacity: .35; }
-.eo-portal .eo-tile { padding: 20px; min-height: 140px; border-radius: 20px; }
-.eo-portal .eo-tile strong { font-size: 1rem; }
-.eo-portal .eo-tile small { font-size: .8125rem; }
-.eo-portal .eo-attention { background: var(--eo-accent); color: var(--eo-accent-ink); }
-.eo-portal .notice-card h3 { font-size: 1.0625rem; }
-.eo-portal .notice-card > p { font-size: .9375rem; }
-.eo-portal .notice-bottom > span, .eo-portal .section-heading p { font-size: .8125rem; }
-.eo-portal .badge { font-size: .75rem; }
-.eo-portal footer { font-size: .75rem; gap: 12px; flex-wrap: wrap; }
-.eo-portal dialog { width: min(600px,calc(100vw - 32px)); max-height: calc(100dvh - 40px); overflow-y: auto; padding: 28px; border: 1px solid #e0e3e8; border-radius: 24px; box-shadow: 0 28px 100px #1b25332e; }
-.eo-portal dialog::backdrop { background: #20293666; backdrop-filter: blur(3px); }
-.eo-portal .modal-head h2 { font-size: 1.375rem; }
-.eo-portal .modal-head .icon-button { min-width: 44px; min-height: 44px; }
-.eo-more-menu { display: grid; gap: 6px; margin-top: 16px; }
-.eo-more-menu button { display: flex; align-items: center; gap: 14px; padding: 15px; text-align: left; border-radius: 12px; min-height: 54px; font-size: 1rem; }
-.eo-more-menu button span { flex: 1; }
-.eo-more-menu button[aria-current="page"] { background: var(--eo-accent); color: var(--eo-accent-ink); }
-@media(hover:hover) and (pointer:fine) {
-  .eo-portal .table-wrap tbody tr:hover { background: #f8f9fb; }
-  .eo-more-menu button:hover { background: #f3f4f6; }
+:root[data-eo-font="sans"] {
+  --eo-font: Arial, Helvetica, sans-serif;
 }
-@media(max-width:1100px) {
-  .eo-portal .admin-grid { grid-template-columns: minmax(0,1fr); }
-  .eo-portal .main-shell { margin-left: 220px; }
-  .eo-portal .sidebar { width: 220px; padding-inline: 12px; }
-  .eo-portal .topbar { padding-inline: 24px; }
+:root[data-eo-text="large"] {
+  font-size: 18px;
 }
-@media(max-width:760px) {
-  .eo-portal .sidebar { display: none; }
-  .eo-portal .main-shell { margin-left: 0; }
-  .eo-portal main { padding: 24px 18px calc(110px + env(safe-area-inset-bottom)); }
-  .eo-portal .topbar { height: 72px; padding: 0 16px; }
-  .eo-portal .breadcrumb { font-size: .75rem; max-width: 40%; }
-  .eo-portal .top-actions > .badge { display: none; }
-  .eo-portal .top-actions { gap: 2px; }
-  .eo-portal .mobile-nav { display: flex; position: fixed; inset: auto 0 0; z-index: 30; justify-content: space-around; gap: 5px; background: #fffffff5; border-top: 1px solid #e0e3e8; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); backdrop-filter: blur(12px); }
-  .eo-portal .mobile-nav button { display: flex; flex-direction: column; justify-content: center; align-items: center; flex: 1; gap: 5px; min-height: 54px; padding: 5px; font-size: .6875rem; border-radius: 12px; color: #626872; }
-  .form-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px 12px; }
-  .form-grid > label:first-child { grid-column: 1 / -1; }
-  .eo-portal .panel { padding: 20px 16px; }
-  .eo-portal .table-wrap td { padding: 13px; }
-  .eo-portal .admin-tabs { max-width: 100%; }
-  .eo-portal .page-heading h1 { font-size: 1.75rem; }
-  .eo-portal dialog { padding: 22px; border-radius: 22px; }
-  .eo-portal .eo-overview { grid-template-columns: minmax(0,1fr); }
-  .eo-portal .eo-attention { flex-wrap: wrap; }
+:root[data-eo-accent="blue"] {
+  --eo-accent: #dbeafe;
+  --eo-accent-ink: #184d89;
 }
-@media(max-width:350px) {
-  .form-grid { grid-template-columns: minmax(0,1fr); }
-  .form-grid > label:first-child { grid-column: auto; }
-  .eo-portal .breadcrumb { display: none; }
-  .eo-portal .top-actions { margin-left: auto; }
+:root[data-eo-accent="green"] {
+  --eo-accent: #dcefe4;
+  --eo-accent-ink: #245b40;
 }
-@media(prefers-reduced-motion:reduce) {
-  .eo-portal *, .eo-portal *::before, .eo-portal *::after { scroll-behavior: auto; transition: none; animation: none; }
+body {
+  font-family: var(--eo-font);
+  -webkit-font-smoothing: antialiased;
+}
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+button,
+a {
+  touch-action: manipulation;
+}
+button {
+  user-select: none;
+}
+.eo-portal {
+  color: #282b32;
+  font-family: var(--eo-font);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+.eo-portal :is(h1, h2, h3, button, input, textarea, select),
+.eo-signin :is(h1, h2, h3, button, input, textarea, select) {
+  font-family: var(--eo-font);
+}
+.eo-portal .main-shell {
+  min-height: 100dvh;
+}
+.eo-portal main {
+  max-width: 1680px;
+  margin-inline: auto;
+  padding: 22px clamp(18px, 2.4vw, 36px) 24px;
+}
+.eo-portal .page-heading {
+  margin-bottom: 18px;
+}
+.eo-portal .page-heading h1 {
+  font-size: clamp(1.75rem, 2.7vw, 2.3rem);
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  line-height: 1.2;
+}
+.eo-portal .page-heading p,
+.eo-portal .panel > p {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+.eo-portal .eyebrow {
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  font-weight: 650;
+}
+.eo-portal .panel {
+  padding: clamp(16px, 1.6vw, 22px);
+  border-radius: 20px;
+  box-shadow: 0 3px 16px #24283204;
+  min-width: 0;
+}
+.eo-portal h2,
+.eo-portal .panel h2 {
+  font-size: 1.25rem;
+  letter-spacing: -0.025em;
+  font-weight: 650;
+  line-height: 1.35;
+}
+.eo-portal h3,
+.eo-portal .panel h3 {
+  font-size: 1.0625rem;
+  letter-spacing: -0.015em;
+}
+.eo-portal .topbar {
+  height: 68px;
+  padding-inline: clamp(18px, 2.4vw, 36px);
+  border-bottom: 1px solid #e4e5e9;
+}
+.eo-portal .breadcrumb {
+  font-size: 0.8125rem;
+  color: #626872;
+}
+.eo-portal .top-actions {
+  gap: 10px;
+  min-width: 0;
+}
+.eo-portal .top-actions .icon-button {
+  width: 44px;
+  height: 44px;
+}
+.eo-portal .top-actions .badge {
+  font-size: 0.6875rem;
+}
+.eo-portal .sidebar {
+  width: 264px;
+  padding: 28px 18px 18px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.eo-portal .brand {
+  gap: 12px;
+  padding: 0 12px;
+  margin-bottom: 32px;
+}
+.eo-brand-icon {
+  display: block;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+}
+.eo-portal .brand-copy {
+  font-size: 0.5625rem;
+  letter-spacing: 0.14em;
+}
+.eo-portal .workspace {
+  margin-bottom: 28px;
+  padding: 15px 13px;
+  border-radius: 16px;
+}
+.eo-portal .workspace b {
+  font-size: 0.875rem;
+}
+.eo-portal .workspace div > span {
+  font-size: 0.75rem;
+  margin-top: 3px;
+}
+.eo-portal .nav-label {
+  font-size: 0.625rem;
+}
+.eo-portal .nav-item {
+  min-height: 48px;
+  font-size: 0.875rem;
+  padding: 12px 14px;
+  margin-block: 4px;
+  border-radius: 13px;
+  line-height: 1.4;
+}
+.eo-portal .nav-item.active,
+.eo-portal .mobile-nav button.active {
+  background: var(--eo-accent);
+  color: var(--eo-accent-ink);
+}
+.eo-portal .sidebar-version {
+  font-size: 0.6875rem;
+}
+.eo-portal .primary,
+.eo-portal .dark-button {
+  background: var(--eo-accent);
+  color: var(--eo-accent-ink);
+}
+.eo-portal :is(.primary, .secondary, .dark-button) {
+  min-height: 44px;
+  font-size: 0.875rem;
+  padding: 11px 17px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.eo-portal .text-button {
+  font-size: 0.875rem;
+  min-height: 40px;
+}
+.eo-portal .tabs {
+  border: 0;
+  padding: 5px;
+  background: #eaecef;
+  gap: 4px;
+  border-radius: 14px;
+}
+.eo-portal .tabs button {
+  font-size: 0.8125rem;
+  min-height: 42px;
+  padding: 10px 16px;
+}
+.eo-portal .admin-tabs {
+  display: flex;
+  overflow-x: auto;
+  width: 100%;
+  scrollbar-width: thin;
+  margin-bottom: 24px;
+}
+.eo-portal .admin-tabs button {
+  flex: 0 0 auto;
+}
+.eo-portal .admin-grid,
+.eo-portal .admin-stores-layout {
+  min-width: 0;
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+}
+.admin-stores-layout {
+  display: grid;
+  gap: 22px;
+}
+.admin-section-heading {
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.admin-section-heading p {
+  margin-top: 6px;
+  color: #626872;
+  font-size: 0.9375rem;
+}
+.eo-portal .store-directory h2 {
+  margin-bottom: 24px;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 18px 16px;
+  margin-block: 20px;
+  min-width: 0;
+  align-items: end;
+}
+.form-grid > label,
+.eo-portal .form > label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  color: #454b56;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.form-grid > label:first-child {
+  grid-column: span 2;
+}
+.form-grid :is(input, select),
+.eo-portal .form :is(input:not([type="checkbox"]), select, textarea) {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 46px;
+  padding: 11px 13px;
+  background: #fff;
+  border: 1px solid #d6d9df;
+  border-radius: 11px;
+  color: #282b32;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.4;
+  box-shadow: none;
+}
+.form-grid select {
+  text-overflow: ellipsis;
+}
+.form-grid input::placeholder {
+  color: #797f88;
+}
+.form-grid :is(input, select):focus-visible {
+  outline: 2px solid #315d9a;
+  outline-offset: 2px;
+  border-color: #315d9a;
+}
+.eo-portal .field-hint {
+  color: #626872;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  margin-block: 10px 16px;
+}
+.eo-portal .form {
+  gap: 20px;
+  margin-top: 22px;
+}
+.eo-portal .form > label.checkbox-label {
+  flex-direction: row;
+  align-items: center;
+}
+.eo-portal .pagination {
+  font-size: 0.8125rem;
+  padding-top: 12px;
+}
+.data-viewport {
+  min-width: 0;
+}
+.eo-portal .table-wrap {
+  max-width: 100%;
+  max-height: 65dvh;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  scrollbar-color: #a4abb5 #eef0f3;
+  border: 1px solid #e0e3e8;
+  border-radius: 14px;
+  overscroll-behavior: contain;
+}
+.eo-portal .table-wrap::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+.eo-portal .table-wrap::-webkit-scrollbar-thumb {
+  background: #a4abb5;
+  border: 3px solid #eef0f3;
+  border-radius: 8px;
+}
+.eo-portal .table-wrap::-webkit-scrollbar-track {
+  background: #eef0f3;
+}
+.eo-portal .table-wrap table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.875rem;
+}
+.eo-portal .table-wrap th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f3f4f6;
+  color: #545c68;
+  font-size: 0.75rem;
+  font-weight: 650;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e0e3e8;
+}
+.eo-portal .table-wrap td {
+  font-size: 0.875rem;
+  padding: 16px;
+  color: #3e4550;
+  line-height: 1.5;
+  border-bottom: 1px solid #eff0f3;
+}
+.eo-portal .table-wrap :is(td, th) {
+  white-space: nowrap;
+}
+.eo-portal .table-wrap :is(.text-button, .secondary) {
+  font-size: 0.8125rem;
+  min-height: 40px;
+}
+.table-navigation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: #f3f4f6;
+  border: 1px solid #e0e3e8;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  font-size: 0.75rem;
+  color: #626872;
+}
+.table-navigation button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  background: #fff;
+  border: 1px solid #dde1e7;
+  border-radius: 10px;
+}
+.table-navigation input {
+  flex: 1;
+  min-width: 40px;
+  accent-color: #677080;
+}
+.table-navigation button:disabled {
+  opacity: 0.35;
+}
+.eo-portal .eo-tile {
+  padding: 20px;
+  min-height: 140px;
+  border-radius: 20px;
+}
+.eo-portal .eo-tile strong {
+  font-size: 1rem;
+}
+.eo-portal .eo-tile small {
+  font-size: 0.8125rem;
+}
+.eo-portal .eo-attention {
+  background: var(--eo-accent);
+  color: var(--eo-accent-ink);
+}
+.eo-portal .notice-card h3 {
+  font-size: 1.0625rem;
+}
+.eo-portal .notice-card > p {
+  font-size: 0.9375rem;
+}
+.eo-portal .notice-bottom > span,
+.eo-portal .section-heading p {
+  font-size: 0.8125rem;
+}
+.eo-portal .badge {
+  font-size: 0.75rem;
+}
+.eo-portal footer {
+  font-size: 0.75rem;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.eo-portal dialog {
+  width: min(900px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 22px;
+  border: 1px solid #e0e3e8;
+  border-radius: 24px;
+  box-shadow: 0 28px 100px #1b25332e;
+}
+.eo-portal dialog::backdrop {
+  background: #20293666;
+  backdrop-filter: blur(3px);
+}
+.eo-portal .modal-head h2 {
+  font-size: 1.375rem;
+}
+.eo-portal .modal-head .icon-button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.eo-more-menu {
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+}
+.eo-more-menu button {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 15px;
+  text-align: left;
+  border-radius: 12px;
+  min-height: 54px;
+  font-size: 1rem;
+}
+.eo-more-menu button span {
+  flex: 1;
+}
+.eo-more-menu button[aria-current="page"] {
+  background: var(--eo-accent);
+  color: var(--eo-accent-ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  .eo-portal .table-wrap tbody tr:hover {
+    background: #f8f9fb;
+  }
+  .eo-more-menu button:hover {
+    background: #f3f4f6;
+  }
+}
+@media (max-width: 1100px) {
+  .eo-portal .admin-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .eo-portal .main-shell {
+    margin-left: 220px;
+  }
+  .eo-portal .sidebar {
+    width: 220px;
+    padding-inline: 12px;
+  }
+  .eo-portal .topbar {
+    padding-inline: 24px;
+  }
+}
+@media (max-width: 760px) {
+  .eo-portal .sidebar {
+    display: none;
+  }
+  .eo-portal .main-shell {
+    margin-left: 0;
+  }
+  .eo-portal main {
+    padding: 24px 18px calc(110px + env(safe-area-inset-bottom));
+  }
+  .eo-portal .topbar {
+    height: 72px;
+    padding: 0 16px;
+  }
+  .eo-portal .breadcrumb {
+    font-size: 0.75rem;
+    max-width: 40%;
+  }
+  .eo-portal .top-actions > .badge {
+    display: none;
+  }
+  .eo-portal .top-actions {
+    gap: 2px;
+  }
+  .eo-portal .mobile-nav {
+    display: flex;
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 30;
+    justify-content: space-around;
+    gap: 5px;
+    background: #fffffff5;
+    border-top: 1px solid #e0e3e8;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    backdrop-filter: blur(12px);
+  }
+  .eo-portal .mobile-nav button {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    flex: 1;
+    gap: 5px;
+    min-height: 54px;
+    padding: 5px;
+    font-size: 0.6875rem;
+    border-radius: 12px;
+    color: #626872;
+  }
+  .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 12px;
+  }
+  .form-grid > label:first-child {
+    grid-column: 1 / -1;
+  }
+  .eo-portal .panel {
+    padding: 20px 16px;
+  }
+  .eo-portal .table-wrap td {
+    padding: 13px;
+  }
+  .eo-portal .admin-tabs {
+    max-width: 100%;
+  }
+  .eo-portal .page-heading h1 {
+    font-size: 1.75rem;
+  }
+  .eo-portal dialog {
+    padding: 22px;
+    border-radius: 22px;
+  }
+  .eo-portal .eo-overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .eo-portal .eo-attention {
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 350px) {
+  .form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .form-grid > label:first-child {
+    grid-column: auto;
+  }
+  .eo-portal .breadcrumb {
+    display: none;
+  }
+  .eo-portal .top-actions {
+    margin-left: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .eo-portal *,
+  .eo-portal *::before,
+  .eo-portal *::after {
+    scroll-behavior: auto;
+    transition: none;
+    animation: none;
+  }
+}
+
+/* Compacto sem reduzir áreas de toque ou bloquear zoom. */
+.eo-portal :is(.commercial-panel, .commercial-form, .operations-panel, .form) {
+  gap: 12px;
+}
+.eo-portal :is(.commercial-panel, .operations-panel) label {
+  min-width: 0;
+}
+.eo-portal button:active {
+  opacity: 0.78;
+}
+@media (pointer: coarse) {
+  .eo-portal :is(input, textarea, select) {
+    font-size: max(16px, 1rem);
+  }
+  .eo-portal button {
+    min-height: 44px;
+  }
+}
+@media (max-width: 600px) {
+  .eo-portal dialog {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    padding: 16px;
+  }
+  .eo-portal .topbar {
+    height: 62px;
+  }
+  .eo-portal main {
+    padding-inline: 14px;
+  }
 }
