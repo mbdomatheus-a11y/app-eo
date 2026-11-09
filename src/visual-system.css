@@ -615,3 +615,29 @@ button {
     padding-inline: 14px;
   }
 }
+
+/* Ações administrativas com alvos separados, sem links colados. */
+.eo-portal .people-actions-cell {
+  min-width: 250px;
+  width: 280px;
+}
+.eo-portal .people-row-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-items: stretch;
+}
+.eo-portal .people-row-actions .text-button {
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid #dfe2e7;
+  border-radius: 10px;
+  background: #f8f9fb;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.25;
+  font-size: 12px;
+}
+.eo-portal .people-row-actions .text-button:hover {
+  background: #eef0f4;
+}

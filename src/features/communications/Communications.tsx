@@ -1,3 +1,4 @@
+import { Bell, X } from "lucide-react";
 import { CalendarAction } from "../checklists/CalendarAction";
 import { useEffect, useState } from "react";
 import { rpc, type Store } from "../../services/supabase";
@@ -267,6 +268,14 @@ export function CommunicationInbox({
     const timer = setInterval(() => void load(), 60000);
     return () => clearInterval(timer);
   }, []);
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, [open]);
   async function mark(action: string, item?: InboxItem) {
     try {
       await rpc("eo_inbox_mark", {
@@ -291,11 +300,21 @@ export function CommunicationInbox({
           void load();
         }}
       >
-        🔔 {rows.filter((r) => !r.read_at).length}
+        <Bell size={19} aria-hidden="true" />
+        <span>{rows.filter((r) => !r.read_at).length}</span>
       </button>
       {open && (
         <section className="communication-panel">
-          <h3>Notificações</h3>
+          <div className="communication-panel-heading">
+            <h3>Notificações</h3>
+            <button
+              type="button"
+              aria-label="Fechar notificações"
+              onClick={() => setOpen(false)}
+            >
+              <X size={18} />
+            </button>
+          </div>
           <div className="communication-actions">
             <button onClick={() => void mark("read")}>
               Marcar todas como lidas

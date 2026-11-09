@@ -2965,75 +2965,77 @@ export default function ConnectedApp() {
                                     ? "Aguardando primeiro acesso"
                                     : "Ativo"}
                               </td>
-                              <td>
-                                {p.active && p.login_chapa && (
-                                  <button
-                                    className="text-button"
-                                    disabled={busy}
-                                    onClick={() => {
-                                      setError("");
-                                      setTemporaryPassword("");
-                                      setPasswordTarget(p);
-                                    }}
-                                  >
-                                    Senha temporária
-                                  </button>
-                                )}
-                                {p.id !== workspace.person.id && (
-                                  <>
+                              <td className="people-actions-cell">
+                                <div className="people-row-actions">
+                                  {p.active && p.login_chapa && (
                                     <button
                                       className="text-button"
                                       disabled={busy}
                                       onClick={() => {
                                         setError("");
+                                        setTemporaryPassword("");
+                                        setPasswordTarget(p);
+                                      }}
+                                    >
+                                      Senha temporária
+                                    </button>
+                                  )}
+                                  {p.id !== workspace.person.id && (
+                                    <>
+                                      <button
+                                        className="text-button"
+                                        disabled={busy}
+                                        onClick={() => {
+                                          setError("");
 
-                                        setEditStores(p.stores);
-                                        setEditingMember(p);
-                                      }}
-                                    >
-                                      Editar
-                                    </button>
-                                    <button
-                                      className="text-button"
-                                      disabled={busy}
-                                      onClick={() => {
-                                        if (
-                                          window.confirm(
-                                            `${p.active ? "Arquivar" : "Reativar"} o acesso de ${p.display_name}?`,
-                                          )
-                                        )
-                                          void toggleMember(p);
-                                      }}
-                                    >
-                                      {p.active ? "Arquivar" : "Reativar"}
-                                    </button>
-                                    {p.login_chapa !== "330023" && (
+                                          setEditStores(p.stores);
+                                          setEditingMember(p);
+                                        }}
+                                      >
+                                        Editar
+                                      </button>
                                       <button
                                         className="text-button"
                                         disabled={busy}
                                         onClick={() => {
                                           if (
                                             window.confirm(
-                                              `Excluir o acesso de ${p.display_name}? O histórico e a auditoria serão preservados.`,
+                                              `${p.active ? "Arquivar" : "Reativar"} o acesso de ${p.display_name}?`,
                                             )
                                           )
-                                            void act(async () => {
-                                              await rpc(
-                                                "eo_admin_delete_person",
-                                                { p_user: p.id },
-                                              );
-                                              await searchPeople();
-                                              setMessage(
-                                                "Acesso excluído. Histórico preservado.",
-                                              );
-                                            });
+                                            void toggleMember(p);
                                         }}
                                       >
-                                        Excluir usuário
+                                        {p.active ? "Arquivar" : "Reativar"}
                                       </button>
-                                    )}
-                                  </>
-                                )}
+                                      {p.login_chapa !== "330023" && (
+                                        <button
+                                          className="text-button"
+                                          disabled={busy}
+                                          onClick={() => {
+                                            if (
+                                              window.confirm(
+                                                `Excluir o acesso de ${p.display_name}? O histórico e a auditoria serão preservados.`,
+                                              )
+                                            )
+                                              void act(async () => {
+                                                await rpc(
+                                                  "eo_admin_delete_person",
+                                                  { p_user: p.id },
+                                                );
+                                                await searchPeople();
+                                                setMessage(
+                                                  "Acesso excluído. Histórico preservado.",
+                                                );
+                                              });
+                                          }}
+                                        >
+                                          Excluir usuário
+                                        </button>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           ))}

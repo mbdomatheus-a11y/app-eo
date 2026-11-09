@@ -76,3 +76,63 @@
 .communication-panel textarea {
   min-height: 90px;
 }
+
+/* O painel tem largura própria, independente da largura do sino. */
+.communication-inbox {
+  flex: 0 0 auto;
+}
+.communication-inbox > button {
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 12px;
+}
+.communication-inbox > .communication-panel {
+  position: fixed;
+  top: 76px;
+  right: 16px;
+  width: min(440px, calc(100vw - 32px));
+  min-width: 0;
+  max-width: none;
+  box-sizing: border-box;
+  max-height: calc(100dvh - 96px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  z-index: 1000;
+  text-align: left;
+}
+.communication-panel article {
+  min-width: 0;
+}
+.communication-panel article > button:first-child {
+  width: 100%;
+  text-align: left;
+  white-space: normal;
+}
+@media (max-width: 640px) {
+  .communication-inbox > .communication-panel {
+    top: 70px;
+    right: 12px;
+    width: calc(100vw - 24px);
+    max-height: calc(100dvh - 88px);
+  }
+}
+
+.communication-inbox > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.communication-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.communication-panel-heading h3 {
+  margin: 0;
+}
+.communication-panel-heading button {
+  min-width: 44px;
+  min-height: 44px;
+}
