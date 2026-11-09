@@ -53,4 +53,9 @@
 
 ## Publicação
 
-Em andamento. Atualizar com commit, endereço do site e estado real da compilação.
+- Código integrado: commit d696109, enviado à main do repositório mbdomatheus-a11y/app-eo.
+- Site publicado em https://app-eo.vercel.app/, deployment dpl_9rT4wkDJRrMWLnzSykAY8z7j4hYR, estado READY. HTTP 200, termos e privacidade acessíveis, bundle com agenda e relatório de checklist conferido.
+- Política do navegador permite somente ao próprio site solicitar câmera, microfone e localização, mediante autorização explícita de Matheus e consentimento do usuário.
+- Tag eo-ios-20261109-integrated enviada para acionar uma compilação iOS/TestFlight. Conclusão e disponibilidade na Apple ainda não confirmadas. A ferramenta de navegador permanece limitada por cota de uso; não foi contornada para observar a execução anterior bloqueada.
+- Abrir https://github.com/mbdomatheus-a11y/app-eo/actions/workflows/eo-mobile-build.yml para acompanhar a execução da tag. Aguardar sucesso do envio e processamento Apple antes de procurar a nova versão no TestFlight.
+- Android não foi compilado nesta rodada; fonte atualizada, compilação manual disponível, FCM adiado.
