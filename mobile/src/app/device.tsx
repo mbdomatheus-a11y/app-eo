@@ -1,3 +1,4 @@
+import Constants from "expo-constants";
 import {
   createSoundChannels,
   soundChannel,
@@ -135,7 +136,9 @@ export default function DeviceScreen() {
         <Section title="Avisos e alertas" />
         <Card>
           <Badge success={app.pushGranted} warning={!app.pushGranted}>
-            {app.pushGranted ? "Permissão concedida" : "Permissão pendente"}
+            {app.pushGranted
+              ? "Permissão do iOS/Android concedida"
+              : "Permissão pendente"}
           </Badge>
           <Text style={s.small}>
             {app.pushRegistered
@@ -236,7 +239,17 @@ export default function DeviceScreen() {
         />
         <View style={{ paddingVertical: 8 }}>
           <Text style={[s.small, { color: C.muted }]}>
-            EO · {Updates.runtimeVersion ?? "Desenvolvimento"}
+            EO · Versão {Constants.nativeAppVersion ?? "desenvolvimento"} ·
+            Compilação {Constants.nativeBuildVersion ?? "local"}
+          </Text>
+          <Text style={[s.small, { color: C.muted }]}>
+            Atualização interna:{" "}
+            {Updates.updateId?.slice(0, 8) ?? "incluída na instalação"}
+          </Text>
+          <Text style={[s.small, { color: C.muted }]}>
+            Ícone e assinatura push mudam somente ao instalar uma nova
+            compilação pelo TestFlight. Buscar atualização não troca esses
+            recursos. Runtime: {Updates.runtimeVersion ?? "Desenvolvimento"}
           </Text>
         </View>
       </Page>

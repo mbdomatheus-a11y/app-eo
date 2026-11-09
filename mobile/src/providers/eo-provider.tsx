@@ -1,3 +1,4 @@
+import { retryPushToken } from "../features/push-registration";
 import { createSoundChannels } from "../features/notification-sound";
 import {
   createContext,
@@ -45,7 +46,10 @@ Notifications.setNotificationHandler({
 
 async function devicePushToken(projectId: string): Promise<string> {
   try {
-    return (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+    return await retryPushToken(
+      async () =>
+        (await Notifications.getExpoPushTokenAsync({ projectId })).data,
+    );
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
     if (/aps[-_ ]?environment|aps[-_ ]?enviroment|entitlement/i.test(message))

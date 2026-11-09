@@ -59,3 +59,15 @@
 - Tag eo-ios-20261109-integrated enviada para acionar uma compilação iOS/TestFlight. Conclusão e disponibilidade na Apple ainda não confirmadas. A ferramenta de navegador permanece limitada por cota de uso; não foi contornada para observar a execução anterior bloqueada.
 - Abrir https://github.com/mbdomatheus-a11y/app-eo/actions/workflows/eo-mobile-build.yml para acompanhar a execução da tag. Aguardar sucesso do envio e processamento Apple antes de procurar a nova versão no TestFlight.
 - Android não foi compilado nesta rodada; fonte atualizada, compilação manual disponível, FCM adiado.
+
+
+## Diagnóstico dos prints iOS, 09/11/2026
+
+Os prints exibem interface anterior sem identificação de registro remoto. Permissão concedida é apenas autorização local; aps-environment ausente significa que o binário instalado não foi assinado para APNs. Nenhum registro no servidor é consequência dessa falha, não uma solicitação para cadastrar telefone. Falha de rede é independente.
+
+1. TestFlight > EO: conferir número da compilação instalada e comparar com a nova compilação disponível. Abrir a área de versões anteriores se necessário. Não remover o app antes de garantir credenciais e uma versão nova disponível.
+2. GitHub > Actions > EO | Compilar app no GitHub: conferir execução da tag eo-ios-20261109-integrated e o passo de assinatura. Só há envio se a validação APS production e o upload terminarem com sucesso. Configurar .p8 no Expo não altera a assinatura de um aplicativo já instalado.
+3. Se a execução falhou, corrigir a primeira falha real do log antes de iniciar outra compilação. Não remover o bloqueio de entitlements. O App ID com.appeo.mobile precisa ter Push Notifications ativo e o perfil App Store usado precisa autorizar aps-environment production.
+4. Se envio concluiu, App Store Connect > EO > TestFlight: aguardar processamento, resolver conformidade se solicitada e associar ao grupo interno. Depois instalar esse build pelo TestFlight.
+5. Na versão nova, ativar notificações e conferir Aparelho registrado no servidor antes do teste remoto. Teste local não prova integração remota. Ícone novo também só chega ao instalar esse binário, nunca por OTA.
+6. Código agora mostra versão nativa/compilação/updateId e repete uma única vez a obtenção do token em queda transitória de rede; não repete erro de assinatura nem envio de push. Essa melhoria ainda requer distribuição compatível, não foi alegada instalada nos aparelhos dos prints.
