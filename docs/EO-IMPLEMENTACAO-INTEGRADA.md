@@ -71,3 +71,12 @@ Os prints exibem interface anterior sem identificação de registro remoto. Perm
 4. Se envio concluiu, App Store Connect > EO > TestFlight: aguardar processamento, resolver conformidade se solicitada e associar ao grupo interno. Depois instalar esse build pelo TestFlight.
 5. Na versão nova, ativar notificações e conferir Aparelho registrado no servidor antes do teste remoto. Teste local não prova integração remota. Ícone novo também só chega ao instalar esse binário, nunca por OTA.
 6. Código agora mostra versão nativa/compilação/updateId e repete uma única vez a obtenção do token em queda transitória de rede; não repete erro de assinatura nem envio de push. Essa melhoria ainda requer distribuição compatível, não foi alegada instalada nos aparelhos dos prints.
+
+
+## Correção da amostra de assinatura
+
+Print posterior confirmou que consulta Push e capability passaram, mas o pacote artificial EOProbe falhou no export com conflicting provisioning settings. Esse pacote era montado manualmente, sem o arquivo de provisionamento e todos os metadados de um archive Xcode real, portanto seu resultado não comprovava a capacidade de assinar o EO.
+
+O preflight agora valida somente as entradas: equipe, método App Store Connect, modo automático sem mapa de perfis manuais, entitlements production e ausência de depuração. Não declara assinatura comprovada antes de existir o aplicativo real. A validação obrigatória do IPA e do embedded.mobileprovision permanece antes de altool: APNs production nos dois, correspondência e codesign --verify. Se o archive ou export real falhar, a execução continua falhando e não envia nada.
+
+Seis testes cobrem configuração válida, mistura manual/automático, equipe errada, APNs ausente, outro app e depuração. Execução real em macOS/Apple ainda precisa ser conferida; Windows não executa Xcode.
