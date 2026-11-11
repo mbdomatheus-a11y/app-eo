@@ -32,5 +32,7 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      # Testes da raiz importam arquivos de mobile/, cujo tsconfig estende o do Expo.
+      - run: npm ci --prefix mobile --ignore-scripts --legacy-peer-deps
       - run: npm test
       - run: npm run build

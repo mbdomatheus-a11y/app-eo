@@ -803,12 +803,15 @@ export function EOProvider({ children }: { children: ReactNode }) {
   const sendTestPush = useCallback(
     () =>
       act(async () => {
-        if (workspace?.person.role !== "admin")
-          throw new Error("Somente o administrador pode enviar um teste.");
-        if (!pushGranted)
-          throw new Error(
-            "Ative as notificações e registre este aparelho primeiro.",
-          );
+        if (!pushGranted) {
+          // Pede a permissão aqui mesmo em vez de só recusar o teste.
+          const permission = await Notifications.requestPermissionsAsync({
+            ios: { allowAlert: true, allowBadge: true, allowSound: true },
+          });
+          setPushGranted(permission.granted);
+          if (!permission.granted)
+            throw new Error("Permita as notificações do EO nos Ajustes do iPhone e tente de novo.");
+        }
         const projectId =
           Constants.easConfig?.projectId ??
           Constants.expoConfig?.extra?.eas?.projectId;
@@ -826,10 +829,10 @@ export function EOProvider({ children }: { children: ReactNode }) {
           "send-test-push",
           { body: {} },
         );
-        if (invokeError)
-          throw new Error(
-            "Não foi possível enviar o teste. Confira o projeto EAS, a permissão e a Edge Function.",
-          );
+        if (invokeError) {
+          reportarErro(invokeError, false, { origem: "push_teste" });
+          throw new Error("Não foi possível enviar o teste agora. O erro foi registrado para análise.");
+        }
         if (!data?.devices)
           throw new Error(
             "Nenhum aparelho seu está registrado para receber o teste.",

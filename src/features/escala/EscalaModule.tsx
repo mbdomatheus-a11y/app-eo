@@ -239,7 +239,9 @@ export function EscalaModule({ workspace }: { workspace: Workspace }) {
 
       {!aberta && (
         <>
-          <div className="escala-lojas">
+          {!(lojas.length === 1 && !busca) && (
+          <details className="escala-lojas" open={!loja}>
+            <summary>{loja ? `Loja ${loja.codigo} ${loja.nome} (trocar)` : "Escolha a loja"}</summary>
             <label>
               Loja
               <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Código ou nome da loja" />
@@ -254,7 +256,8 @@ export function EscalaModule({ workspace }: { workspace: Workspace }) {
                 </li>
               ))}
             </ul>
-          </div>
+          </details>
+          )}
           {loja && contexto && (
             <div className="escala-semanas">
               <div className="escala-semanas-top">

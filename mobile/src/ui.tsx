@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { Store } from "./types";
 import {
   Pressable,
@@ -50,14 +50,14 @@ export function Page({
     </ScrollView>
   );
 }
-export function Brand({ compact = false }: { compact?: boolean }) {
+export function Brand({ compact = false, large = false }: { compact?: boolean; large?: boolean }) {
   return (
-    <View style={s.brand}>
-      <Text style={[s.brandMark, compact && s.brandMarkSmall]}>
-        eo<Text style={s.brandDot}>•</Text>
+    <View style={[s.brand, large && { gap: 14 }]}>
+      <Text style={[s.brandMark, compact && s.brandMarkSmall, large && s.brandMarkLarge]}>
+        eo<Text style={[s.brandDot, large && { fontSize: 40 }]}>•</Text>
       </Text>
       {!compact && (
-        <Text style={s.brandName}>
+        <Text style={[s.brandName, large && s.brandNameLarge]}>
           EXCELÊNCIA{"\n"}
           <Text style={s.brandNameStrong}>OPERACIONAL</Text>
         </Text>
@@ -359,6 +359,16 @@ export function StorePicker({
   );
   const addFiltered = () =>
     onChange([...new Set([...selected, ...filtered.map((store) => store.id)])]);
+  const unica = stores.length === 1 ? stores[0] : null;
+  useEffect(() => {
+    if (unica && (selected.length !== 1 || selected[0] !== unica.id)) onChange([unica.id]);
+  }, [unica?.id]);
+  if (unica)
+    return (
+      <Text style={s.small}>
+        Loja: {unica.code} {unica.name}
+      </Text>
+    );
   return (
     <View style={{ gap: 9 }}>
       <Button
@@ -417,36 +427,19 @@ export function StorePicker({
               />
             ))}
           </ScrollView>
-          <Button
-            title={`Selecionar todas as lojas (${stores.length})`}
-            secondary
-            onPress={() =>
-              onChange([
-                ...new Set([...selected, ...stores.map((store) => store.id)]),
-              ])
-            }
-          />
-          <Button
-            title={`Adicionar lojas do filtro (${filtered.length})`}
-            secondary
-            disabled={!filtered.length}
-            onPress={addFiltered}
-          />
-          <Button
-            title="Remover lojas do filtro"
-            secondary
-            disabled={!filtered.length}
-            onPress={() => {
-              const ids = new Set(filtered.map((store) => store.id));
-              onChange(selected.filter((id) => !ids.has(id)));
-            }}
-          />
-          <Button
-            title="Limpar seleção"
-            secondary
-            disabled={!selected.length}
-            onPress={() => onChange([])}
-          />
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Button
+                title={query || uf || region ? `Todas do filtro (${filtered.length})` : `Todas (${stores.length})`}
+                secondary
+                disabled={!filtered.length}
+                onPress={addFiltered}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Button title="Nenhuma" secondary disabled={!selected.length} onPress={() => onChange([])} />
+            </View>
+          </View>
           <Choice
             label={
               descending
@@ -602,6 +595,8 @@ export const s = StyleSheet.create({
     letterSpacing: -5,
   },
   brandMarkSmall: { fontSize: 30, lineHeight: 34 },
+  brandMarkLarge: { fontSize: 76, lineHeight: 84, letterSpacing: -9 },
+  brandNameLarge: { fontSize: 14, lineHeight: 20, letterSpacing: 2 },
   brandDot: { color: C.yellowStrong, fontSize: 22, letterSpacing: 0 },
   brandName: {
     fontSize: 8,

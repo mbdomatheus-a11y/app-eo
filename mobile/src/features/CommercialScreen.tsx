@@ -100,6 +100,10 @@ export function CommercialScreen({
       .includes(storeSearch.toLocaleLowerCase("pt-BR")),
   );
   const currentStore = workspace.stores.find((x) => x.id === store);
+  const lojaUnica = workspace.stores.length === 1 ? workspace.stores[0] : null;
+  useEffect(() => {
+    if (lojaUnica && store !== lojaUnica.id) setStore(lojaUnica.id);
+  }, [lojaUnica?.id, store]);
   async function perform(work: () => Promise<void>) {
     if (locked.current) return;
     locked.current = true;
@@ -246,6 +250,7 @@ export function CommercialScreen({
           <Text style={s.body}>{message}</Text>
         </Card>
       )}
+      {lojaUnica ? null : (
       <Card>
         <Heading title="Loja" />
         <Button
@@ -309,6 +314,7 @@ export function CommercialScreen({
           </>
         )}
       </Card>
+      )}
       {!report && mode === "product" && (
         <Card>
           <Heading title="O que está faltando?" />

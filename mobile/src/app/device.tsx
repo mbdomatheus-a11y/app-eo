@@ -161,14 +161,12 @@ export default function DeviceScreen() {
             disabled={busy}
             onPress={() => void localNotice()}
           />
-          {app.workspace?.person.role === "admin" && (
-            <Button
-              title="Testar push pelo servidor"
-              secondary
-              disabled={app.busy}
-              onPress={() => void app.sendTestPush()}
-            />
-          )}
+          <Button
+            title="Enviar notificação de teste para este aparelho"
+            secondary
+            disabled={app.busy}
+            onPress={() => void app.sendTestPush()}
+          />
         </Card>
         <Section title="Câmera" />
         <ActionRow

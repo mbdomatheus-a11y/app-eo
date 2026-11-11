@@ -26,6 +26,7 @@ import { router, useNavigation } from "expo-router";
 import { usePreventRemove } from "expo-router/react-navigation";
 import { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Linking,
   Pressable,
@@ -95,7 +96,7 @@ export function LoginScreen({ openPrivacy }: { openPrivacy: () => void }) {
       }}
     >
       <View style={{ gap: 25 }}>
-        <Brand />
+        <Brand large />
         <View style={{ gap: 9 }}>
           <Badge warning>PLATAFORMA EO</Badge>
           <Text style={s.title}>
@@ -151,11 +152,17 @@ export function LoginScreen({ openPrivacy }: { openPrivacy: () => void }) {
           segurança; ative Face ID no Perfil após entrar.
         </Text>
         <Button
-          title={app.busy ? "Acessando…" : "Entrar no EO"}
+          title={app.busy ? "Entrando…" : "Entrar no EO"}
           icon="→"
           disabled={app.busy}
           onPress={() => void login()}
         />
+        {app.busy && (
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 }}>
+            <ActivityIndicator color={C.dark} />
+            <Text style={s.small}>Conferindo seu acesso…</Text>
+          </View>
+        )}
         <Text style={[s.small, { textAlign: "center" }]}>
           Precisa de acesso ou redefinir a senha? Fale com a administração.
         </Text>
@@ -184,7 +191,8 @@ export function LoadingScreen({
 }) {
   return (
     <View style={s.centered}>
-      <Brand compact />
+      <Brand large />
+      {configured && !error ? <ActivityIndicator size="large" color={C.dark} style={{ marginTop: 18 }} /> : null}
       <Text style={s.strong}>
         {configured ? "Carregando seu espaço" : "Conexão em preparação"}
       </Text>
