@@ -236,7 +236,7 @@ export function ChangePasswordScreen() {
           title={loja ? `Crie a senha da loja (${loja})` : "Crie sua senha pessoal"}
           detail={loja ? "Troque a senha padrão para continuar." : "A senha temporária precisa ser trocada antes de continuar."}
         />
-        {loja && (
+        {loja && !app.hasLoginPassword && (
           <Field
             label="Senha atual (padrão)"
             value={current}
@@ -255,11 +255,16 @@ export function ChangePasswordScreen() {
           placeholder="Mínimo de 12 caracteres"
         />
         {loja &&
-          storePasswordRules(loja, password).map((r) => (
-            <Text key={r.id} style={[s.small, { color: r.ok ? C.dark : C.muted }]}>
-              {r.ok ? "✓" : "○"} {r.label}
-            </Text>
-          ))}
+          storePasswordRules(loja, password).map((r) => {
+            const ok = password.length > 0 && r.ok;
+            const cor = ok ? C.green : password.length ? C.red : C.lightMuted;
+            return (
+              <View key={r.id} style={{ flexDirection: "row", alignItems: "center", gap: 8 }} accessibilityLabel={`${r.label}: ${ok ? "atendido" : "pendente"}`}>
+                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: cor }} />
+                <Text style={[s.small, { color: ok ? C.green : C.muted }]}>{r.label}</Text>
+              </View>
+            );
+          })}
         <Field
           label="Confirme a senha"
           value={confirm}

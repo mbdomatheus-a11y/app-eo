@@ -13,6 +13,7 @@ import {
 import type { Session } from "@supabase/supabase-js";
 import { AppState, Linking, Platform } from "react-native";
 import { normalizeStoreUser, storePasswordRules } from "../features/store-access";
+import { reportarErro } from "./error-reporter";
 import * as Crypto from "expo-crypto";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
@@ -52,6 +53,7 @@ async function devicePushToken(projectId: string): Promise<string> {
         (await Notifications.getExpoPushTokenAsync({ projectId })).data,
     );
   } catch (cause) {
+    reportarErro(cause, false, { origem: "push_token" });
     const message = cause instanceof Error ? cause.message : String(cause);
     if (/aps[-_ ]?environment|aps[-_ ]?enviroment|entitlement/i.test(message))
       throw new Error(
@@ -121,6 +123,7 @@ type ContextValue = {
   clearFeedback: () => void;
   login: (chapa: string, password: string) => Promise<Result>;
   storeUser: string | null;
+  hasLoginPassword: boolean;
   requestStoreReset: (user: string) => Promise<Result>;
   changeTemporaryPassword: (
     password: string,
@@ -208,6 +211,9 @@ export function EOProvider({ children }: { children: ReactNode }) {
   const [passwordMode, setPasswordMode] = useState(false);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [storeUser, setStoreUser] = useState<string | null>(null);
+  // Senha digitada no login da loja, só em memória, para não pedir de novo na troca obrigatória.
+  const loginPassword = useRef("");
+  const [hasLoginPassword, setHasLoginPassword] = useState(false);
   const [visibleModules, setVisibleModules] = useState<VisibleModule[] | null>(
     null,
   );
@@ -346,13 +352,14 @@ export function EOProvider({ children }: { children: ReactNode }) {
           p_platform: Platform.OS,
         });
         if (active) setPushRegistered(true);
-      } catch {
+      } catch (cause) {
+        reportarErro(cause, false, { origem: "push_registro" });
         if (active) setPushRegistered(false);
       }
     };
     void Notifications.getExpoPushTokenAsync({ projectId })
       .then(({ data }) => register(data))
-      .catch(() => undefined);
+      .catch((cause) => reportarErro(cause, false, { origem: "push_token_auto" }));
     const subscription = Notifications.addPushTokenListener(() => {
       void Notifications.getExpoPushTokenAsync({ projectId })
         .then(({ data }) => register(data))
@@ -875,6 +882,8 @@ export function EOProvider({ children }: { children: ReactNode }) {
             refresh_token: data.refresh_token,
           });
           if (sessionError) throw new Error("Não foi possível abrir a sessão.");
+          loginPassword.current = password;
+          setHasLoginPassword(true);
           return;
         }
         if (!/^\d{1,20}$/.test(normalized))
@@ -922,7 +931,7 @@ export function EOProvider({ children }: { children: ReactNode }) {
           const broken = storePasswordRules(storeUser, password).filter((r) => !r.ok);
           if (broken.length) throw new Error(`Falta: ${broken.map((r) => r.label.toLowerCase()).join(", ")}.`);
           const { error: fnError } = await supabase!.functions.invoke("acesso-loja", {
-            body: { acao: "trocar-senha", senha_atual: current, nova_senha: password, origem: Platform.OS },
+            body: { acao: "trocar-senha", senha_atual: current || loginPassword.current, nova_senha: password, origem: Platform.OS },
           });
           if (fnError) {
             let msg = "Não foi possível trocar a senha.";
@@ -934,6 +943,8 @@ export function EOProvider({ children }: { children: ReactNode }) {
             }
             throw new Error(msg);
           }
+          loginPassword.current = "";
+          setHasLoginPassword(false);
           setPasswordMode(false);
           await refresh();
           return;
@@ -1360,6 +1371,7 @@ export function EOProvider({ children }: { children: ReactNode }) {
       clearFeedback,
       login,
       storeUser,
+      hasLoginPassword,
       requestStoreReset,
       changeTemporaryPassword,
       signout,
@@ -1420,6 +1432,7 @@ export function EOProvider({ children }: { children: ReactNode }) {
       clearFeedback,
       login,
       storeUser,
+      hasLoginPassword,
       requestStoreReset,
       changeTemporaryPassword,
       signout,

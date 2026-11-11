@@ -4,6 +4,7 @@ import "./contact-refresh.css";
 
 type Request = {
   required: boolean;
+  motivo?: string | null;
   phone: string | null;
   requested_at: string | null;
 };
@@ -99,6 +100,16 @@ export function ContactRefreshAdmin() {
   );
 }
 
+export function formatarTelefone(valor: string) {
+  const d = valor.replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "").slice(0, 11);
+  if (d.length <= 2) return d.length ? `(${d}` : "";
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+export const telefoneValido = (valor: string) =>
+  /^[1-9][0-9]([2-5][0-9]{7}|9[0-9]{8})$/.test(valor.replace(/\D/g, ""));
+
 export function ContactUpdateGate({ onComplete, onSignOut }: GateProps) {
   const [request, setRequest] = useState<Request | null>(null);
   const [phone, setPhone] = useState("");
@@ -114,7 +125,7 @@ export function ContactUpdateGate({ onComplete, onSignOut }: GateProps) {
       if (!mounted.current) return;
       setRequest(result);
       setError("");
-      if (!requiredRef.current) setPhone(result.phone ?? "");
+      if (!requiredRef.current) setPhone(formatarTelefone(result.phone ?? ""));
       requiredRef.current = result.required;
     } catch (error) {
       if (mounted.current) setError(errorMessage(error));
@@ -145,7 +156,8 @@ export function ContactUpdateGate({ onComplete, onSignOut }: GateProps) {
       window.clearInterval(timer);
     };
   }, [load]);
-  const visible = request === null || request.required;
+  // Só cobre a tela quando a confirmação é obrigatória; consultando ou com erro, o portal segue livre.
+  const visible = Boolean(request?.required);
   useEffect(() => {
     if (visible && !dialog.current?.open) dialog.current?.showModal();
     else if (!visible) dialog.current?.close();
@@ -154,6 +166,7 @@ export function ContactUpdateGate({ onComplete, onSignOut }: GateProps) {
     setBusy(true);
     setError("");
     try {
+      if (!telefoneValido(phone)) throw new Error("Digite DDD e número, por exemplo (11) 98765-4321.");
       await rpc("eo_save_my_phone", { p_phone: phone });
       setRequest({ required: false, phone, requested_at: null });
       requiredRef.current = false;
@@ -171,7 +184,7 @@ export function ContactUpdateGate({ onComplete, onSignOut }: GateProps) {
       aria-labelledby="contact-update-title"
       onCancel={(event) => event.preventDefault()}
     >
-      <h2 id="contact-update-title">Atualize seu telefone</h2>
+      <h2 id="contact-update-title">Confirme seu telefone</h2>
       {loading ? (
         <p role="status">Consultando seu cadastro…</p>
       ) : request ? (
@@ -182,9 +195,12 @@ export function ContactUpdateGate({ onComplete, onSignOut }: GateProps) {
           }}
         >
           <p>
-            A administração solicitou a atualização do seu contato. Salve seu
-            telefone para continuar. Este é um contato declarado por você, sem
-            verificação por SMS.
+            {request.motivo === "vencido"
+              ? "Já se passaram 60 dias: confirme se o telefone continua o mesmo."
+              : request.motivo === "administracao"
+                ? "A administração pediu a atualização do seu contato."
+                : "Confirme o seu telefone com DDD para continuar."}{" "}
+            Contato declarado por você, sem verificação por SMS.
           </p>
           <label htmlFor="contact-phone">Telefone com DDD</label>
           <input
@@ -194,14 +210,14 @@ export function ContactUpdateGate({ onComplete, onSignOut }: GateProps) {
             inputMode="tel"
             autoComplete="tel"
             value={phone}
-            maxLength={40}
+            maxLength={15}
             required
             disabled={busy}
-            onChange={(event) => setPhone(event.target.value)}
-            placeholder="(11) 99999-9999"
+            onChange={(event) => setPhone(formatarTelefone(event.target.value))}
+            placeholder="(11) 98765-4321"
           />
-          <button disabled={busy}>
-            {busy ? "Salvando…" : "Salvar e continuar"}
+          <button disabled={busy || !telefoneValido(phone)}>
+            {busy ? "Salvando…" : "Salvar e confirmar"}
           </button>
         </form>
       ) : (

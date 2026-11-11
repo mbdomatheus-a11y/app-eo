@@ -1,3 +1,4 @@
+import { PhoneUpdateCard } from "../features/ContactRefresh";
 import Constants from "expo-constants";
 import {
   createSoundChannels,
@@ -201,28 +202,7 @@ export default function DeviceScreen() {
           onPress={() => void calendar()}
         />
         <Section title="Telefone" />
-        <Card>
-          <Field
-            label="Telefone com DDD"
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-            placeholder="(11) 99999-9999"
-          />
-          <Button
-            title="Abrir discador"
-            secondary
-            disabled={busy}
-            onPress={() =>
-              void run(async () => {
-                const digits = phone.replace(/\D/g, "");
-                if (digits.length < 8 || digits.length > 15)
-                  throw new Error("Digite um telefone válido com DDD.");
-                await Linking.openURL(`tel:${digits}`);
-              })
-            }
-          />
-        </Card>
+        <PhoneUpdateCard />
         <Section title="Preferências" />
         <ActionRow
           title="Ajustes do aparelho"
