@@ -17,3 +17,6 @@ verify_jwt = true
 
 [functions.transcribe-audio]
 verify_jwt = true
+
+[functions.acesso-loja]
+verify_jwt = false

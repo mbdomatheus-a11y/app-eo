@@ -131,3 +131,18 @@
 .selection-actions, .pagination { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 14px 0; }
 .pagination { justify-content: space-between; font-size: 13px; }
 .store-picker .registration-store-list { max-height: 360px; overflow: auto; }
+
+/* Contas de loja e regras de senha (11/11/2026) */
+.password-rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 0.9rem; color: var(--muted, #6c707a); }
+.password-rules li.ok { color: var(--good, #3f7d5c); font-weight: 600; }
+.auth-forgot { margin-top: 8px; }
+.store-accounts-summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.store-accounts-summary span { background: var(--surface-2, #efede9); border-radius: 999px; padding: 4px 12px; }
+.store-accounts-filters, .store-accounts-pager, .store-accounts-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.store-accounts-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.store-accounts-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 10px 12px; border: 1px solid var(--border, #cbc7bf); border-radius: 10px; }
+.store-accounts-list small { display: block; color: var(--muted, #6c707a); }
+.module-access-list { list-style: none; padding: 0; margin: 8px 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.module-access-list button { width: 100%; text-align: left; display: grid; gap: 2px; }
+.module-access-list small { color: var(--muted, #6c707a); }
+.module-access-audience { display: grid; gap: 6px; }

@@ -4,6 +4,14 @@ import { ChecklistReport } from "./features/checklists/ChecklistReport";
 import { BusinessUnits } from "./features/identity/BusinessUnits";
 import { SoundSettings } from "./features/communications/SoundSettings";
 import { ModuleAccess } from "./features/module-access/ModuleAccess";
+import { StoreAccounts } from "./features/identity/StoreAccounts";
+import {
+  normalizeStoreUser,
+  storeChangePassword,
+  storePasswordRules,
+  storeRequestReset,
+  storeSignIn,
+} from "./features/identity/store-access";
 import { ReportsHub } from "./features/reports/ReportsHub";
 import { MoodReminderBanner } from "./features/operations/MoodReminderBanner";
 import { SuccessToast } from "./components/SuccessToast";
@@ -375,6 +383,9 @@ export default function ConnectedApp() {
     [opened, setOpened] = useState<LiveNotice | null>(null);
   const [compose, setCompose] = useState(false),
     [more, setMore] = useState(false),
+    [storeUser, setStoreUser] = useState<string | null>(null),
+    [forgotOpen, setForgotOpen] = useState(false),
+    [newPassword, setNewPassword] = useState(""),
     [passwordMode, setPasswordMode] = useState(
       () => new URLSearchParams(location.search).get("set-password") === "1",
     );
@@ -588,9 +599,12 @@ export default function ConnectedApp() {
     setLoading(true);
     setError("");
     try {
-      const status = await rpc<{ must_change_password: boolean }>(
-        "eo_password_status",
-      );
+      const status = await rpc<{
+        must_change_password: boolean;
+        conta_loja?: boolean;
+        usuario_loja?: string | null;
+      }>("eo_password_status");
+      setStoreUser(status.conta_loja ? (status.usuario_loja ?? null) : null);
       if (status.must_change_password) {
         setPasswordMode(true);
         return;
@@ -661,8 +675,13 @@ export default function ConnectedApp() {
     await act(async () => {
       if (!supabase) return;
       const chapa = String(data.get("chapa")).trim();
+      const lojaUser = normalizeStoreUser(chapa);
+      if (lojaUser) {
+        await storeSignIn(lojaUser, String(data.get("password")), "web");
+        return;
+      }
       if (!/^\d{1,20}$/.test(chapa))
-        throw new Error("Informe sua chapa numérica.");
+        throw new Error("Informe sua chapa numérica ou o usuário da loja (ex.: ger006).");
       const { error: e } = await supabase.auth.signInWithPassword({
         email: `app-${chapa}@login.app-eo.invalid`,
         password: String(data.get("password")),
@@ -687,6 +706,18 @@ export default function ConnectedApp() {
     const data = new FormData(e.currentTarget);
     await act(async () => {
       const password = String(data.get("password"));
+      if (storeUser) {
+        if (password !== data.get("confirm")) throw new Error("As senhas não coincidem.");
+        const broken = storePasswordRules(storeUser, password).filter((r) => !r.ok);
+        if (broken.length) throw new Error(`Falta: ${broken.map((r) => r.label.toLowerCase()).join(", ")}.`);
+        await storeChangePassword(String(data.get("current")), password, "web");
+        setPasswordMode(false);
+        setNewPassword("");
+        history.replaceState({}, "", location.pathname);
+        setMessage("Senha da loja atualizada.");
+        await refresh();
+        return;
+      }
       if (password.length < 12 || password !== data.get("confirm"))
         throw new Error(
           "As senhas devem coincidir e ter pelo menos 12 caracteres.",
@@ -1496,15 +1527,16 @@ export default function ConnectedApp() {
           <p>Use sua chapa e a senha individual.</p>
           <form className="form" onSubmit={login}>
             <label>
-              Chapa
+              Chapa ou usuário da loja
               <input
                 name="chapa"
                 type="text"
-                inputMode="numeric"
-                pattern="[0-9]{1,20}"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 autoComplete="username"
                 required
-                placeholder="Ex.: 123456"
+                placeholder="Ex.: 123456 ou ger006"
               />
             </label>
             <label>
@@ -1526,9 +1558,46 @@ export default function ConnectedApp() {
               <ArrowRight size={17} />
             </button>
           </form>
+          <button
+            type="button"
+            className="text-button"
+            aria-expanded={forgotOpen}
+            onClick={() => setForgotOpen(!forgotOpen)}
+          >
+            Esqueci a senha
+          </button>
+          {forgotOpen && (
+            <form
+              className="form auth-forgot"
+              onSubmit={(ev) => {
+                ev.preventDefault();
+                const user = normalizeStoreUser(
+                  String(new FormData(ev.currentTarget).get("user") ?? ""),
+                );
+                void act(async () => {
+                  if (!user)
+                    throw new Error(
+                      "Contas por chapa: procure a administração. Contas de loja: informe o usuário (ex.: ger006).",
+                    );
+                  const r = await storeRequestReset(user, "web");
+                  setForgotOpen(false);
+                  setMessage(r.mensagem);
+                });
+              }}
+            >
+              <label>
+                Usuário da loja
+                <input name="user" autoCapitalize="none" placeholder="Ex.: ger006" required />
+              </label>
+              <button className="primary" type="submit" disabled={busy}>
+                Pedir redefinição ao administrador
+              </button>
+            </form>
+          )}
+          {message && <p role="status">{message}</p>}
           <p className="auth-hint">
-            Precisa de acesso ou redefinir a senha? Procure a administração. A
-            liberação é individual.
+            Contas de loja: usuário gerNNN@pernambucanas.com.br. Contas
+            individuais: procure a administração.
           </p>
           <a className="auth-privacy-link" href="/termos.html">
             Termos de uso
@@ -1548,8 +1617,15 @@ export default function ConnectedApp() {
     return (
       <div className="auth-shell">
         <section className="auth-card">
-          <h2>Defina sua senha</h2>
+          <h2>{storeUser ? `Crie a senha da loja (${storeUser})` : "Defina sua senha"}</h2>
+          {storeUser && <p>Primeiro acesso ou senha redefinida: troque a senha padrão para continuar.</p>}
           <form className="form" onSubmit={changePassword}>
+            {storeUser && (
+              <label>
+                Senha atual (padrão)
+                <input name="current" type="password" autoComplete="current-password" required />
+              </label>
+            )}
             <label>
               Nova senha
               <input
@@ -1558,8 +1634,19 @@ export default function ConnectedApp() {
                 autoComplete="new-password"
                 minLength={12}
                 required
+                aria-describedby={storeUser ? "store-password-rules" : undefined}
+                onChange={(ev) => setNewPassword(ev.target.value)}
               />
             </label>
+            {storeUser && (
+              <ul id="store-password-rules" className="password-rules" aria-live="polite">
+                {storePasswordRules(storeUser, newPassword).map((r) => (
+                  <li key={r.id} className={r.ok ? "ok" : ""}>
+                    {r.ok ? "✓" : "○"} {r.label}
+                  </li>
+                ))}
+              </ul>
+            )}
             <label>
               Confirme a senha
               <input
@@ -2202,6 +2289,12 @@ export default function ConnectedApp() {
                 <details className="panel">
                   <summary>Visibilidade dos módulos</summary>
                   <ModuleAccess onChanged={() => void refresh()} />
+                </details>
+              )}
+              {tab === "people" && (
+                <details className="panel" open>
+                  <summary>Contas de loja (gerNNN)</summary>
+                  <StoreAccounts />
                 </details>
               )}
               {tab === "stores" && (
