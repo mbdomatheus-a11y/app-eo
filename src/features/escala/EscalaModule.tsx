@@ -38,6 +38,8 @@ export function EscalaModule({ workspace }: { workspace: Workspace }) {
   const [erro, setErro] = useState("");
   const [busy, setBusy] = useState(false);
   const frame = useRef<HTMLIFrameElement>(null);
+  const area = useRef<HTMLDivElement>(null);
+  const [cheia, setCheia] = useState(false);
   const htmlAtivo = useRef<HtmlAtivo | undefined>(undefined);
   const versoes = useRef(new Map<string, number | null>());
   const fila = useRef<Promise<void>>(Promise.resolve());
@@ -166,6 +168,32 @@ export function EscalaModule({ workspace }: { workspace: Workspace }) {
     return () => window.removeEventListener("message", onMessage);
   }, [contexto, aberta, salvar]);
 
+  useEffect(() => {
+    const sair = () => {
+      if (!document.fullscreenElement) setCheia(false);
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCheia(false);
+    };
+    document.addEventListener("fullscreenchange", sair);
+    window.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("fullscreenchange", sair);
+      window.removeEventListener("keydown", esc);
+    };
+  }, []);
+
+  async function alternarTelaCheia() {
+    if (cheia) {
+      if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined);
+      setCheia(false);
+      return;
+    }
+    setCheia(true);
+    // Tela cheia do navegador quando existir (computador e Android); no iPhone fica o modo foco.
+    await area.current?.requestFullscreen?.().catch(() => undefined);
+  }
+
   async function publicar(arquivo: File) {
     setBusy(true);
     setErro("");
@@ -263,11 +291,24 @@ export function EscalaModule({ workspace }: { workspace: Workspace }) {
       )}
 
       {aberta && (
-        <div className="escala-frame-wrap">
+        <div ref={area} className={`escala-frame-wrap${cheia ? " escala-cheia" : ""}`}>
           <div className="escala-frame-bar">
-            <button onClick={() => { setAberta(null); if (loja) void carregarLoja(loja); }}>Voltar à lista</button>
+            <button
+              onClick={() => {
+                if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+                setCheia(false);
+                setAberta(null);
+                if (loja) void carregarLoja(loja);
+              }}
+            >
+              Voltar à lista
+            </button>
             <span>{aberta.rotulo}</span>
+            <button className="primary escala-cheia-botao" aria-pressed={cheia} onClick={() => void alternarTelaCheia()}>
+              {cheia ? "Sair da tela cheia" : "Tela cheia"}
+            </button>
           </div>
+          {cheia && status && <p role="status" className="escala-status">{status}</p>}
           <iframe ref={frame} title="Escala de colaboradores" src="/ferramentas/escala.html" sandbox={SANDBOX} referrerPolicy="no-referrer" />
         </div>
       )}

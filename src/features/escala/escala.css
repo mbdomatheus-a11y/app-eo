@@ -13,3 +13,8 @@
 .escala-frame-wrap { display: grid; gap: 8px; }
 .escala-frame-bar { display: flex; gap: 12px; align-items: center; }
 .escala-frame-wrap iframe { width: 100%; height: calc(100vh - 180px); min-height: 640px; border: 1px solid var(--border, #cbc7bf); border-radius: 12px; background: #fff; }
+.escala-cheia-botao { margin-left: auto; }
+.escala-cheia { position: fixed; inset: 0; z-index: 1000; background: var(--bg, #fefefe); padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+.escala-cheia iframe { flex: 1; height: auto; min-height: 0; border-radius: 8px; }
+.escala-frame-wrap:fullscreen { background: #fefefe; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+.escala-frame-wrap:fullscreen iframe { flex: 1; height: auto; min-height: 0; }
