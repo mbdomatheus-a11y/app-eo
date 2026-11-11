@@ -1,5 +1,9 @@
 // Preparação do HTML da Escala para o portal e regras puras do módulo (testáveis).
 export const ESCALA_STORAGE_KEY = "escalaColaboradores.v1";
+// Lê a chave que o HTML usa para guardar o estado; versões futuras podem mudar o nome.
+export function chaveArmazenamento(html: string) {
+  return /var STORAGE_KEY\s*=\s*"([^"]{1,80})"/.exec(html)?.[1] ?? ESCALA_STORAGE_KEY;
+}
 export const STORE_DATA_PLACEHOLDER = "var STORE_DATA = (window.__EO && window.__EO.storeData) || {};";
 const STORE_DATA_RE = /^var STORE_DATA = (\{.*\});[ \t]*$/m;
 

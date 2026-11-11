@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filtrarPorPeriodo, lotesPorLoja, prepararEscalaHtml, resumoDoEstado, segundaDaSemana, STORE_DATA_PLACEHOLDER } from "./escala-html";
+import { chaveArmazenamento, filtrarPorPeriodo, lotesPorLoja, prepararEscalaHtml, resumoDoEstado, segundaDaSemana, STORE_DATA_PLACEHOLDER } from "./escala-html";
 
 const html = `<!doctype html><html><head></head><body><script>
 var X = 1;
@@ -19,6 +19,10 @@ describe("escala no portal", () => {
   it("aceita HTML já preparado e recusa arquivo sem base", () => {
     expect(prepararEscalaHtml(prepararEscalaHtml(html).html).linhas).toEqual([]);
     expect(() => prepararEscalaHtml("<html><body>x</body></html>")).toThrow();
+  });
+  it("usa a chave de armazenamento declarada no HTML", () => {
+    expect(chaveArmazenamento('var STORAGE_KEY = "escalaColaboradores.v2";')).toBe("escalaColaboradores.v2");
+    expect(chaveArmazenamento("sem chave")).toBe("escalaColaboradores.v1");
   });
   it("não divide loja entre lotes", () => {
     const linhas = [..."aaab"].map((c, i) => ({ loja_codigo: c, chapa: String(i), nome: "Nome", cargo: null, departamento: null, jornada_diaria_min: null, situacao: null }));

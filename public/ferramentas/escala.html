@@ -16,11 +16,25 @@
   var parentWin = window.parent;
   var memoria = {};
   var timer = null;
-  function enviarSalvar(chave, valor) {
+  var pendente = null;
+  function enviarAgora() {
     clearTimeout(timer);
-    timer = setTimeout(function () {
-      parentWin.postMessage({ type: "eo-escala-salvar", key: chave, value: valor }, "*");
-    }, 1500);
+    if (!pendente) return;
+    parentWin.postMessage({ type: "eo-escala-salvar", key: pendente.k, value: pendente.v }, "*");
+    pendente = null;
+  }
+  function enviarSalvar(chave, valor) {
+    pendente = { k: chave, v: valor };
+    clearTimeout(timer);
+    timer = setTimeout(enviarAgora, 1200);
+  }
+  // document.open apaga os ouvintes da janela; por isso são instalados de novo depois de carregar o HTML.
+  function instalarOuvintes() {
+    window.addEventListener("pagehide", enviarAgora);
+    document.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") enviarAgora(); });
+    window.addEventListener("message", function (ev) {
+      if (ev.source === parentWin && ev.data && ev.data.type === "eo-escala-enviar-agora") enviarAgora();
+    });
   }
   var armazenamento = {
     getItem: function (k) { return Object.prototype.hasOwnProperty.call(memoria, k) ? memoria[k] : null; },
@@ -43,6 +57,7 @@
     document.open();
     document.write(d.html);
     document.close();
+    instalarOuvintes();
   });
   parentWin.postMessage({ type: "eo-escala-pronto" }, "*");
 })();

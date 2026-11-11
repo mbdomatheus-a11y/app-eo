@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { rpc, type Workspace } from "../../services/supabase";
 import {
-  ESCALA_STORAGE_KEY,
+  chaveArmazenamento,
   chaveLoja,
   filtrarPorPeriodo,
   lotesPorLoja,
@@ -157,12 +157,13 @@ export function EscalaModule({ workspace }: { workspace: Workspace }) {
             storeData: { [chave]: rows },
             loja: chave,
             state: aberta.estado,
-            storageKey: ESCALA_STORAGE_KEY,
+            storageKey: chaveArmazenamento(htmlAtivo.current.conteudo),
           },
           "*",
         );
       }
-      if (d?.type === "eo-escala-salvar" && d.key === ESCALA_STORAGE_KEY && typeof d.value === "string") salvar(d.value);
+      const chave = htmlAtivo.current ? chaveArmazenamento(htmlAtivo.current.conteudo) : null;
+      if (d?.type === "eo-escala-salvar" && d.key === chave && typeof d.value === "string") salvar(d.value);
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
@@ -294,7 +295,11 @@ export function EscalaModule({ workspace }: { workspace: Workspace }) {
         <div ref={area} className={`escala-frame-wrap${cheia ? " escala-cheia" : ""}`}>
           <div className="escala-frame-bar">
             <button
-              onClick={() => {
+              onClick={async () => {
+                // Pede ao planejamento o envio do que ainda estava aguardando e espera a gravação terminar.
+                frame.current?.contentWindow?.postMessage({ type: "eo-escala-enviar-agora" }, "*");
+                await new Promise((r) => setTimeout(r, 400));
+                await fila.current;
                 if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
                 setCheia(false);
                 setAberta(null);
