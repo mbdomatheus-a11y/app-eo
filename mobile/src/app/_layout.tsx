@@ -3,7 +3,8 @@ import { DeviceSecurity } from "../providers/device-security";
 import { useEffect } from "react";
 import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
-import { Redirect, Stack, useSegments } from "expo-router";
+import { Redirect, Stack, useSegments, type ErrorBoundaryProps } from "expo-router";
+import { Text, View, Pressable } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { EOProvider, useEO } from "../providers/eo-provider";
 import { RouteFrame } from "../navigation/route-screens";
@@ -144,5 +145,18 @@ export default function RootLayout() {
         </DeviceSecurity>
       </EOProvider>
     </SafeAreaProvider>
+  );
+}
+
+// Erro de tela não fecha mais o app: mostra a mensagem e permite tentar de novo.
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  return (
+    <View style={{ flex: 1, justifyContent: "center", padding: 24, gap: 14, backgroundColor: C.canvas }}>
+      <Text style={{ fontSize: 20, fontWeight: "700", color: C.ink }}>Algo deu errado nesta tela</Text>
+      <Text style={{ color: C.muted }}>Tire um print e envie ao administrador. Detalhe: {String(error?.message ?? error).slice(0, 300)}</Text>
+      <Pressable accessibilityRole="button" onPress={() => void retry()} style={{ backgroundColor: C.dark, padding: 14, borderRadius: 12 }}>
+        <Text style={{ color: "#fff", fontWeight: "700", textAlign: "center" }}>Tentar novamente</Text>
+      </Pressable>
+    </View>
   );
 }

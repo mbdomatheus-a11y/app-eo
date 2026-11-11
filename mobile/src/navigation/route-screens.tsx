@@ -585,45 +585,10 @@ export function MoodRoute() {
   );
 }
 export function ManagementRoute() {
-  const app = useEO();
-  useEffect(() => {
-    if (app.workspace?.person.role === "admin") void app.loadAdmin("stores");
-  }, [app.workspace?.person.id]);
-  if (app.workspace?.person.role !== "admin") return <Redirect href="/" />;
-  return (
-    <RouteFrame tabs>
-      <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-        <MenuItem
-          title="Gerenciar módulos"
-          detail="Todos ou pessoas escolhidas"
-          icon="square.grid.2x2"
-          onPress={() => router.push("/module-access" as never)}
-        />
-      </View>
-      <Button
-        title="Gerenciar unidades EC, CDA e Administração"
-        secondary
-        onPress={() => router.push("/units" as never)}
-      />
-      <ManagementScreen
-        open={(tab: AdminTab) => {
-          void app.loadAdmin(tab);
-          router.push(
-            (tab === "stores"
-              ? "/stores"
-              : tab === "people"
-                ? "/people"
-                : tab === "audit"
-                  ? "/audit"
-                  : tab === "reports"
-                    ? "/notice-reports"
-                    : "/archive") as never,
-          );
-        }}
-      />
-    </RouteFrame>
-  );
+  // Gestão fica só no site (decisão de 11/11/2026).
+  return <Redirect href="/" />;
 }
+
 export function ProfileRoute() {
   return (
     <RouteFrame tabs>
@@ -681,68 +646,30 @@ export function ComposeRoute() {
   );
 }
 export function StoresRoute() {
-  const app = useEO();
-  useEffect(() => {
-    if (app.workspace?.person.role === "admin") void app.loadAdmin("stores");
-  }, [app.workspace?.person.id]);
-  if (app.workspace?.person.role !== "admin") return <Redirect href="/" />;
-  return (
-    <RouteFrame>
-      <StoresScreen />
-    </RouteFrame>
-  );
+  // Gestão fica só no site (decisão de 11/11/2026).
+  return <Redirect href="/" />;
 }
+
 export function PeopleRoute() {
-  const app = useEO();
-  useEffect(() => {
-    if (app.workspace?.person.role === "admin") void app.loadAdmin("people");
-  }, [app.workspace?.person.id]);
-  if (app.workspace?.person.role !== "admin") return <Redirect href="/" />;
-  return (
-    <RouteFrame>
-      <PeopleScreen
-        register={() => router.push("/people/new" as never)}
-        edit={(id) =>
-          router.push({ pathname: "/people/[id]", params: { id } } as never)
-        }
-      />
-    </RouteFrame>
-  );
+  // Gestão fica só no site (decisão de 11/11/2026).
+  return <Redirect href="/" />;
 }
+
 export function RegisterPersonRoute() {
-  const app = useEO();
-  if (app.workspace?.person.role !== "admin") return <Redirect href="/" />;
-  return (
-    <RouteFrame>
-      <RegisterPersonScreen done={() => router.back()} />
-    </RouteFrame>
-  );
+  // Gestão fica só no site (decisão de 11/11/2026).
+  return <Redirect href="/" />;
 }
+
 export function EditPersonRoute() {
-  const app = useEO();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  useEffect(() => {
-    if (id && app.workspace?.person.role === "admin") void app.loadPerson(id);
-  }, [id, app.workspace?.person.id]);
-  if (app.workspace?.person.role !== "admin") return <Redirect href="/" />;
-  return (
-    <RouteFrame>
-      <EditPersonScreen id={id ?? ""} back={() => router.back()} />
-    </RouteFrame>
-  );
+  // Gestão fica só no site (decisão de 11/11/2026).
+  return <Redirect href="/" />;
 }
+
 export function AuditRoute() {
-  const app = useEO();
-  useEffect(() => {
-    if (app.workspace?.person.role === "admin") void app.loadAdmin("audit");
-  }, [app.workspace?.person.id]);
-  if (app.workspace?.person.role !== "admin") return <Redirect href="/" />;
-  return (
-    <RouteFrame>
-      <AuditScreen />
-    </RouteFrame>
-  );
+  // Gestão fica só no site (decisão de 11/11/2026).
+  return <Redirect href="/" />;
 }
+
 export function ReportsRoute() {
   return (
     <RouteFrame>
@@ -767,16 +694,10 @@ export function ReportsRoute() {
   );
 }
 export function ModuleAccessRoute() {
-  const app = useEO();
-  if (app.workspace?.person.role !== "admin") return <Redirect href="/" />;
-  return (
-    <RouteFrame>
-      <Page>
-        <ModuleAccess onChanged={() => void app.refresh()} />
-      </Page>
-    </RouteFrame>
-  );
+  // Gestão fica só no site (decisão de 11/11/2026).
+  return <Redirect href="/" />;
 }
+
 export function NoticeReportsRoute() {
   const app = useEO();
   useEffect(() => {
@@ -790,14 +711,6 @@ export function NoticeReportsRoute() {
   );
 }
 export function ArchiveRoute() {
-  const app = useEO();
-  useEffect(() => {
-    if (app.workspace?.person.role === "admin") void app.loadAdmin("archive");
-  }, [app.workspace?.person.id]);
-  if (app.workspace?.person.role !== "admin") return <Redirect href="/" />;
-  return (
-    <RouteFrame tabs>
-      <ArchiveScreen />
-    </RouteFrame>
-  );
+  // Gestão fica só no site (decisão de 11/11/2026).
+  return <Redirect href="/" />;
 }

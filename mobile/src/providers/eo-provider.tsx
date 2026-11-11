@@ -12,6 +12,7 @@ import {
 } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { AppState, Linking, Platform } from "react-native";
+import { normalizeStoreUser, storePasswordRules } from "../features/store-access";
 import * as Crypto from "expo-crypto";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
@@ -119,9 +120,12 @@ type ContextValue = {
   reportData: NoticeReport | null;
   clearFeedback: () => void;
   login: (chapa: string, password: string) => Promise<Result>;
+  storeUser: string | null;
+  requestStoreReset: (user: string) => Promise<Result>;
   changeTemporaryPassword: (
     password: string,
     confirmation: string,
+    current?: string,
   ) => Promise<Result>;
   signout: () => Promise<Result>;
   refresh: () => Promise<void>;
@@ -203,6 +207,7 @@ export function EOProvider({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [passwordMode, setPasswordMode] = useState(false);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [storeUser, setStoreUser] = useState<string | null>(null);
   const [visibleModules, setVisibleModules] = useState<VisibleModule[] | null>(
     null,
   );
@@ -365,9 +370,12 @@ export function EOProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError("");
     try {
-      const status = await rpc<{ must_change_password: boolean }>(
-        "eo_password_status",
-      );
+      const status = await rpc<{
+        must_change_password: boolean;
+        conta_loja?: boolean;
+        usuario_loja?: string | null;
+      }>("eo_password_status");
+      setStoreUser(status.conta_loja ? (status.usuario_loja ?? null) : null);
       if (status.must_change_password) {
         setPasswordMode(true);
         return;
@@ -851,8 +859,30 @@ export function EOProvider({ children }: { children: ReactNode }) {
       act(async () => {
         if (!supabase) throw new Error("A conexão ainda não foi configurada.");
         const normalized = chapa.trim();
+        const lojaUser = normalizeStoreUser(normalized);
+        if (lojaUser) {
+          const { data, error: fnError } = await supabase.functions.invoke("acesso-loja", {
+            body: { acao: "entrar", usuario: lojaUser, senha: password, origem: Platform.OS },
+          });
+          if (fnError) {
+            let msg = "Usuário ou senha inválidos.";
+            try {
+              const parsed = await (fnError as { context?: Response }).context?.json();
+              if (parsed?.error) msg = parsed.error;
+            } catch {
+              /* mensagem genérica */
+            }
+            throw new Error(msg);
+          }
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: data.access_token,
+            refresh_token: data.refresh_token,
+          });
+          if (sessionError) throw new Error("Não foi possível abrir a sessão.");
+          return;
+        }
         if (!/^\d{1,20}$/.test(normalized))
-          throw new Error("Informe sua chapa numérica.");
+          throw new Error("Informe sua chapa ou o usuário da loja (ex.: ger006).");
         const { error: authError } = await supabase.auth.signInWithPassword({
           email: `app-${normalized}@login.app-eo.invalid`,
           password,
@@ -874,9 +904,44 @@ export function EOProvider({ children }: { children: ReactNode }) {
     return { ok: !authError };
   }, []);
 
-  const changeTemporaryPassword = useCallback(
-    (password: string, confirmation: string) =>
+  const requestStoreReset = useCallback(
+    (user: string) =>
       act(async () => {
+        const lojaUser = normalizeStoreUser(user);
+        if (!lojaUser)
+          throw new Error("Contas por chapa: procure a administração. Loja: digite o usuário (ex.: ger006) no campo acima.");
+        const { error: fnError } = await supabase!.functions.invoke("acesso-loja", {
+          body: { acao: "solicitar-reset", usuario: lojaUser, origem: Platform.OS },
+        });
+        if (fnError) throw new Error("Não foi possível enviar o pedido. Tente novamente.");
+      }, "Pedido enviado ao administrador. Quando aprovado, a senha volta ao padrão da loja."),
+    [act],
+  );
+
+  const changeTemporaryPassword = useCallback(
+    (password: string, confirmation: string, current = "") =>
+      act(async () => {
+        if (storeUser) {
+          if (password !== confirmation) throw new Error("As senhas não coincidem.");
+          const broken = storePasswordRules(storeUser, password).filter((r) => !r.ok);
+          if (broken.length) throw new Error(`Falta: ${broken.map((r) => r.label.toLowerCase()).join(", ")}.`);
+          const { error: fnError } = await supabase!.functions.invoke("acesso-loja", {
+            body: { acao: "trocar-senha", senha_atual: current, nova_senha: password, origem: Platform.OS },
+          });
+          if (fnError) {
+            let msg = "Não foi possível trocar a senha.";
+            try {
+              const parsed = await (fnError as { context?: Response }).context?.json();
+              if (parsed?.error) msg = parsed.error;
+            } catch {
+              /* mensagem genérica */
+            }
+            throw new Error(msg);
+          }
+          setPasswordMode(false);
+          await refresh();
+          return;
+        }
         if (password.length < 12 || password !== confirmation)
           throw new Error(
             "As senhas devem coincidir e ter pelo menos 12 caracteres.",
@@ -891,8 +956,8 @@ export function EOProvider({ children }: { children: ReactNode }) {
           );
         setPasswordMode(false);
         await supabase!.auth.signOut({ scope: "local" });
-      }, "Senha alterada. Entre novamente com sua chapa."),
-    [act],
+      }, "Senha alterada."),
+    [act, storeUser, refresh],
   );
 
   const acknowledge = useCallback(
@@ -1298,6 +1363,8 @@ export function EOProvider({ children }: { children: ReactNode }) {
       saveStore,
       clearFeedback,
       login,
+      storeUser,
+      requestStoreReset,
       changeTemporaryPassword,
       signout,
       refresh,
@@ -1356,6 +1423,8 @@ export function EOProvider({ children }: { children: ReactNode }) {
       saveStore,
       clearFeedback,
       login,
+      storeUser,
+      requestStoreReset,
       changeTemporaryPassword,
       signout,
       refresh,

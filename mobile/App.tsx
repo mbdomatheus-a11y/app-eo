@@ -35,6 +35,7 @@ import {
   View,
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
+import { storePasswordRules } from "./src/features/store-access";
 import { useEO } from "./src/providers/eo-provider";
 import {
   ActionRow,
@@ -110,16 +111,15 @@ export function LoginScreen({ openPrivacy }: { openPrivacy: () => void }) {
         <View>
           <Text style={s.strong}>Acesse sua conta</Text>
           <Text style={[s.small, { marginTop: 5 }]}>
-            Entre com sua chapa e senha individual.
+            Entre com sua chapa ou com o usuário da loja (ex.: ger006).
           </Text>
         </View>
         <Field
-          label="Chapa"
+          label="Chapa ou usuário da loja"
           value={chapa}
           onChangeText={setChapa}
-          keyboardType="number-pad"
-          maxLength={20}
-          placeholder="Número da chapa"
+          maxLength={40}
+          placeholder="Chapa ou ger006"
           autoComplete="username"
           textContentType="username"
           autoCapitalize="none"
@@ -135,8 +135,14 @@ export function LoginScreen({ openPrivacy }: { openPrivacy: () => void }) {
           autoCorrect={false}
           placeholder="Sua senha"
         />
+        <Button
+          title="Esqueci a senha"
+          secondary
+          disabled={app.busy}
+          onPress={() => void app.requestStoreReset(chapa)}
+        />
         <Choice
-          label="Lembrar minha chapa neste aparelho"
+          label="Lembrar meu acesso neste aparelho"
           selected={remember}
           onPress={() => setRemember(!remember)}
         />
@@ -219,15 +225,27 @@ export function ChangePasswordScreen() {
   const app = useEO();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [current, setCurrent] = useState("");
+  const loja = app.storeUser;
   return (
     <Page contentStyle={{ flexGrow: 1, justifyContent: "center" }}>
       <Brand />
       <Card>
         <Badge warning>PRIMEIRO ACESSO</Badge>
         <Heading
-          title="Crie sua senha pessoal"
-          detail="A senha temporária precisa ser trocada antes de continuar."
+          title={loja ? `Crie a senha da loja (${loja})` : "Crie sua senha pessoal"}
+          detail={loja ? "Troque a senha padrão para continuar." : "A senha temporária precisa ser trocada antes de continuar."}
         />
+        {loja && (
+          <Field
+            label="Senha atual (padrão)"
+            value={current}
+            onChangeText={setCurrent}
+            secureTextEntry
+            autoComplete="current-password"
+            placeholder="Senha padrão da loja"
+          />
+        )}
         <Field
           label="Nova senha"
           value={password}
@@ -236,6 +254,12 @@ export function ChangePasswordScreen() {
           autoComplete="new-password"
           placeholder="Mínimo de 12 caracteres"
         />
+        {loja &&
+          storePasswordRules(loja, password).map((r) => (
+            <Text key={r.id} style={[s.small, { color: r.ok ? C.dark : C.muted }]}>
+              {r.ok ? "✓" : "○"} {r.label}
+            </Text>
+          ))}
         <Field
           label="Confirme a senha"
           value={confirm}
@@ -247,7 +271,7 @@ export function ChangePasswordScreen() {
         <Button
           title={app.busy ? "Salvando…" : "Salvar nova senha"}
           disabled={app.busy}
-          onPress={() => void app.changeTemporaryPassword(password, confirm)}
+          onPress={() => void app.changeTemporaryPassword(password, confirm, current)}
         />
       </Card>
     </Page>

@@ -40,20 +40,6 @@ export default function TabLayout() {
           md="apps"
         />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger
-        name="management"
-        hidden={app.workspace?.person.role !== "admin"}
-        disableAutomaticContentInsets
-      >
-        <NativeTabs.Trigger.Label>Gestão</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          sf={{
-            default: "slider.horizontal.3",
-            selected: "slider.horizontal.3",
-          }}
-          md="tune"
-        />
-      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile" disableAutomaticContentInsets>
         <NativeTabs.Trigger.Label>Perfil</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
