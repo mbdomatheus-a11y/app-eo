@@ -83,6 +83,7 @@ import { readOrgWorkbook } from "./core/xlsx-reader";
 import { createXlsx } from "./core/xlsx-writer";
 import NativeExperience from "./mobile/NativeExperience";
 import { SalesReports } from "./features/sales/SalesReports";
+import { EscalaModule } from "./features/escala/EscalaModule";
 import { OperationsPanel } from "./features/operations/OperationsPanel";
 
 type Page =
@@ -91,6 +92,7 @@ type Page =
   | "modules"
   | "admin"
   | "sales"
+  | "escala"
   | "diary"
   | "mood"
   | "checklists"
@@ -1725,6 +1727,7 @@ export default function ConnectedApp() {
     { id: "modules" as const, label: "Aplicativos", icon: Grid2X2 },
     { id: "agenda" as const, label: "Agenda de ações", icon: CalendarDays },
     { id: "sales" as const, label: "Vendas", icon: Building2 },
+    { id: "escala" as const, label: "Escala", icon: CalendarDays },
     { id: "product" as const, label: "Pedir produto", icon: Grid2X2 },
     { id: "assortment" as const, label: "Sortimento", icon: ClipboardCheck },
     { id: "diary" as const, label: "Diário de vendas", icon: Mic },
@@ -1741,7 +1744,6 @@ export default function ConnectedApp() {
   );
   const planned = [
     { title: "Cartazeamento", icon: FileImage },
-    { title: "Escala da equipe", icon: CalendarDays },
     { title: "Fotos e evidências", icon: Upload },
   ];
   return (
@@ -2075,6 +2077,7 @@ export default function ConnectedApp() {
             />
           )}
           {page === "sales" && <SalesReports workspace={workspace} />}
+          {page === "escala" && <EscalaModule workspace={workspace} />}
           {page === "diary" && <OperationsPanel workspace={workspace} />}
           {page === "mood" && (
             <OperationsPanel workspace={workspace} initialTab="mood" />
@@ -2145,6 +2148,18 @@ export default function ConnectedApp() {
                       </span>
                       <strong>Vendas</strong>
                       <small>Semana, mês e ano</small>
+                    </button>
+                  )}
+                  {visibleModules.includes("escala") && (
+                    <button
+                      className="eo-tile"
+                      onClick={() => setPage("escala")}
+                    >
+                      <span className="eo-tile-icon" data-tone="green">
+                        <CalendarDays size={21} />
+                      </span>
+                      <strong>Escala</strong>
+                      <small>5x2 e 6x1 por semana, mês e ano</small>
                     </button>
                   )}
                   {visibleModules.includes("diary") && (

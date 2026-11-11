@@ -1,0 +1,15 @@
+.escala-module { display: grid; gap: 16px; }
+.escala-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-end; }
+.escala-head h2 { margin: 0; }
+.escala-head p { margin: 4px 0 0; color: var(--muted, #6c707a); }
+.escala-publish { display: grid; gap: 4px; font-size: 0.9rem; }
+.escala-status { background: var(--surface-2, #efede9); padding: 8px 12px; border-radius: 10px; }
+.escala-lojas ul, .escala-lista { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 8px; }
+.escala-lojas ul { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); max-height: 320px; overflow: auto; }
+.escala-lojas button, .escala-lista button { width: 100%; text-align: left; display: grid; gap: 2px; padding: 10px 12px; }
+.escala-lojas small, .escala-lista small, .escala-semanas h3 small { color: var(--muted, #6c707a); font-weight: 400; display: block; }
+.escala-semanas-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: center; }
+.escala-vazio { color: var(--muted, #6c707a); padding: 12px; }
+.escala-frame-wrap { display: grid; gap: 8px; }
+.escala-frame-bar { display: flex; gap: 12px; align-items: center; }
+.escala-frame-wrap iframe { width: 100%; height: calc(100vh - 180px); min-height: 640px; border: 1px solid var(--border, #cbc7bf); border-radius: 12px; background: #fff; }

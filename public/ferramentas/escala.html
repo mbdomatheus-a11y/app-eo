@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Escala de Colaboradores</title>
+<style>body{font:15px system-ui,sans-serif;color:#4A4E58;background:#FEFEFE;display:grid;place-items:center;min-height:100vh;margin:0}</style>
+</head>
+<body>
+<p id="eo-carregando">Carregando a escala da sua loja...</p>
+<script>
+/* Ponte do portal EO. Esta página roda isolada (sandbox sem mesma origem): não enxerga a sessão do
+   portal e não acessa a rede (CSP connect-src 'none'). Recebe do portal o HTML publicado, os
+   colaboradores da loja e o estado salvo; devolve cada alteração para o portal gravar no banco. */
+(function () {
+  var parentWin = window.parent;
+  var memoria = {};
+  var timer = null;
+  function enviarSalvar(chave, valor) {
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      parentWin.postMessage({ type: "eo-escala-salvar", key: chave, value: valor }, "*");
+    }, 1500);
+  }
+  var armazenamento = {
+    getItem: function (k) { return Object.prototype.hasOwnProperty.call(memoria, k) ? memoria[k] : null; },
+    setItem: function (k, v) { memoria[k] = String(v); enviarSalvar(k, String(v)); },
+    removeItem: function (k) { delete memoria[k]; },
+    clear: function () { memoria = {}; },
+    key: function (i) { return Object.keys(memoria)[i] || null; },
+    get length() { return Object.keys(memoria).length; }
+  };
+  try { Object.defineProperty(window, "localStorage", { value: armazenamento, configurable: true }); } catch (e) {}
+  try { Object.defineProperty(window, "sessionStorage", { value: armazenamento, configurable: true }); } catch (e) {}
+  try { Object.defineProperty(window, "showDirectoryPicker", { value: undefined, configurable: true }); } catch (e) {}
+  window.addEventListener("message", function (ev) {
+    if (ev.source !== parentWin) return;
+    var d = ev.data || {};
+    if (d.type !== "eo-escala-carregar" || typeof d.html !== "string") return;
+    window.__EO = { storeData: d.storeData || {}, loja: d.loja || null };
+    memoria = {};
+    if (d.state && d.storageKey) memoria[d.storageKey] = JSON.stringify(d.state);
+    document.open();
+    document.write(d.html);
+    document.close();
+  });
+  parentWin.postMessage({ type: "eo-escala-pronto" }, "*");
+})();
+</script>
+</body>
+</html>
