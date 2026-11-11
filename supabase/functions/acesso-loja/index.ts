@@ -3,7 +3,7 @@
 // direto pelo Auth, então todo login passa aqui, onde os erros são contados e a conta bloqueia no 3º erro.
 // NUNCA trocar ACESSO_LOJA_PEPPER sem redefinir todas as contas de loja (as senhas deixariam de valer).
 // Ações sem sessão: entrar, solicitar-reset. Com sessão da conta de loja: trocar-senha.
-// Com sessão de admin: provisionar, redefinir.
+// Com sessão de admin: provisionar, redefinir. Agendador do banco: provisionar-pendentes.
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 
 const url = Deno.env.get("SUPABASE_URL")!;
@@ -154,11 +154,14 @@ Deno.serve(async (req) => {
     return json({ ok: true });
   }
 
-  const adminUser = await exigirAdmin(req);
-  if (!adminUser) return json({ error: "Ação não autorizada." }, 403);
+  // provisionar-pendentes: chamado pelo pg_cron do banco, sem sessão e sem segredo. É seguro por desenho:
+  // só cria a conta padrão de loja ativa que ainda não tem conta (o mesmo que o admin faria) e devolve só contagens.
+  const automatico = acao === "provisionar-pendentes";
+  const adminUser = automatico ? null : await exigirAdmin(req);
+  if (!automatico && !adminUser) return json({ error: "Ação não autorizada." }, 403);
 
-  if (acao === "provisionar") {
-    const limite = Math.min(Math.max(Number(input.limite ?? 25), 1), 40);
+  if (acao === "provisionar" || automatico) {
+    const limite = automatico ? 40 : Math.min(Math.max(Number(input.limite ?? 25), 1), 40);
     const [{ data: lojas, error: e1 }, { data: contas, error: e2 }] = await Promise.all([
       admin.from("lojas").select("id,code,name").eq("active", true),
       admin.from("acesso_contas_loja").select("loja_id"),
@@ -199,7 +202,7 @@ Deno.serve(async (req) => {
     if (!conta) return json({ error: "Conta de loja não encontrada." }, 404);
     if (!(await gravarSenha(conta.perfil_id, conta.usuario, senhaPadrao(conta.usuario)))) return json({ error: "Não foi possível redefinir." }, 503);
     const solicitacao = input.solicitacao_id ? Number(input.solicitacao_id) : null;
-    const { error } = await admin.rpc("acesso_loja_marcar_padrao", { p_perfil: conta.perfil_id, p_admin: adminUser.id, p_solicitacao: solicitacao });
+    const { error } = await admin.rpc("acesso_loja_marcar_padrao", { p_perfil: conta.perfil_id, p_admin: adminUser!.id, p_solicitacao: solicitacao });
     if (error) return json({ error: "Senha redefinida, mas o registro falhou. Tente novamente." }, 503);
     return json({ ok: true, usuario: conta.usuario });
   }
