@@ -103,10 +103,11 @@ jobs:
       - name: Conferir segredos obrigatorios
         run: |
           faltando=""
-          for v in ANDROID_UPLOAD_KEYSTORE_B64 ANDROID_UPLOAD_KEYSTORE_PASSWORD ANDROID_UPLOAD_KEY_ALIAS ANDROID_UPLOAD_KEY_PASSWORD GOOGLE_SERVICES_JSON_B64; do
+          for v in ANDROID_UPLOAD_KEYSTORE_B64 ANDROID_UPLOAD_KEYSTORE_PASSWORD ANDROID_UPLOAD_KEY_ALIAS ANDROID_UPLOAD_KEY_PASSWORD; do
             [ -n "${!v}" ] || faltando="$faltando $v"
           done
           if [ -n "$faltando" ]; then echo "::error::Segredos ausentes no GitHub:$faltando (ver docs/ANDROID-PLAY.md)"; exit 1; fi
+          if [ -z "$GOOGLE_SERVICES_JSON_B64" ]; then echo "::warning::Sem GOOGLE_SERVICES_JSON_B64: o app sai sem push no Android ate o Firebase ser configurado."; fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -126,11 +127,12 @@ jobs:
 
       - name: Firebase e numero da versao Android
         run: |
-          echo "$GOOGLE_SERVICES_JSON_B64" | base64 -d > google-services.json
+          firebase=""
+          if [ -n "$GOOGLE_SERVICES_JSON_B64" ]; then echo "$GOOGLE_SERVICES_JSON_B64" | base64 -d > google-services.json; firebase="1"; fi
           code=$((1000 + GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT))
           echo "VERSION_CODE=$code" >> "$GITHUB_ENV"
           cp app.json app.json.versionado
-          node -e "const f='app.json';const a=JSON.parse(require('fs').readFileSync(f));a.expo.android=a.expo.android||{};a.expo.android.googleServicesFile='./google-services.json';a.expo.android.versionCode=Number(process.argv[1]);require('fs').writeFileSync(f,JSON.stringify(a,null,2))" "$code"
+          node -e "const f='app.json';const a=JSON.parse(require('fs').readFileSync(f));a.expo.android=a.expo.android||{};if(process.argv[2])a.expo.android.googleServicesFile='./google-services.json';a.expo.android.versionCode=Number(process.argv[1]);require('fs').writeFileSync(f,JSON.stringify(a,null,2))" "$code" "$firebase"
           echo "versionCode $code"
 
       - name: Generate Expo Android project
