@@ -11,6 +11,7 @@ on:
         type: choice
         options:
           - android
+          - android-play
           - ios
           - ios-testflight
         required: true
@@ -75,6 +76,126 @@ jobs:
           path: mobile/android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 1
+
+  android_play:
+    if: github.event_name == 'workflow_dispatch' && inputs.platform == 'android-play'
+    name: Android para a Play (AAB assinado)
+    concurrency:
+      group: eo-android-play-${{ github.ref }}
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      ANDROID_UPLOAD_KEYSTORE_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_B64 }}
+      ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+      ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+      ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+      GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
+      PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Conferir segredos obrigatorios
+        run: |
+          faltando=""
+          for v in ANDROID_UPLOAD_KEYSTORE_B64 ANDROID_UPLOAD_KEYSTORE_PASSWORD ANDROID_UPLOAD_KEY_ALIAS ANDROID_UPLOAD_KEY_PASSWORD GOOGLE_SERVICES_JSON_B64; do
+            [ -n "${!v}" ] || faltando="$faltando $v"
+          done
+          if [ -n "$faltando" ]; then echo "::error::Segredos ausentes no GitHub:$faltando (ver docs/ANDROID-PLAY.md)"; exit 1; fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Setup Java for Android
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Firebase e numero da versao Android
+        run: |
+          echo "$GOOGLE_SERVICES_JSON_B64" | base64 -d > google-services.json
+          code=$((1000 + GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT))
+          echo "VERSION_CODE=$code" >> "$GITHUB_ENV"
+          cp app.json app.json.versionado
+          node -e "const f='app.json';const a=JSON.parse(require('fs').readFileSync(f));a.expo.android=a.expo.android||{};a.expo.android.googleServicesFile='./google-services.json';a.expo.android.versionCode=Number(process.argv[1]);require('fs').writeFileSync(f,JSON.stringify(a,null,2))" "$code"
+          echo "versionCode $code"
+
+      - name: Generate Expo Android project
+        env:
+          CI: '1'
+        run: npx expo prebuild --clean --platform android
+
+      - name: Restaurar app.json versionado (preserva fingerprint OTA)
+        run: mv app.json.versionado app.json
+
+      - name: Assinatura de upload
+        run: |
+          echo "$ANDROID_UPLOAD_KEYSTORE_B64" | base64 -d > android/app/eo-upload.keystore
+          cat >> android/gradle.properties <<EOF
+          EO_UPLOAD_STORE_FILE=eo-upload.keystore
+          EOF
+          node - <<'EOF'
+          const fs = require('fs');
+          const f = 'android/app/build.gradle';
+          let g = fs.readFileSync(f, 'utf8');
+          const release = `
+                  release {
+                      storeFile file(project.property('EO_UPLOAD_STORE_FILE'))
+                      storePassword System.getenv('ANDROID_UPLOAD_KEYSTORE_PASSWORD')
+                      keyAlias System.getenv('ANDROID_UPLOAD_KEY_ALIAS')
+                      keyPassword System.getenv('ANDROID_UPLOAD_KEY_PASSWORD')
+                  }`;
+          if (!/signingConfigs\s*\{/.test(g)) throw new Error('signingConfigs nao encontrado');
+          g = g.replace(/signingConfigs\s*\{/, (m) => m + release);
+          const bt = g.indexOf('buildTypes');
+          const rel = g.indexOf('release {', bt);
+          const fim = g.indexOf('signingConfig signingConfigs.debug', rel);
+          if (bt < 0 || rel < 0 || fim < 0) throw new Error('buildTypes.release nao encontrado');
+          g = g.slice(0, fim) + 'signingConfig signingConfigs.release' + g.slice(fim + 'signingConfig signingConfigs.debug'.length);
+          fs.writeFileSync(f, g);
+          EOF
+
+      - name: Compilar AAB assinado
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew \
+            --no-daemon \
+            --max-workers=2 \
+            -Dorg.gradle.jvmargs='-Xmx3g -XX:MaxMetaspaceSize=1536m -Dfile.encoding=UTF-8' \
+            bundleRelease
+          rm -f app/eo-upload.keystore
+
+      - name: Guardar AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: eo-android-aab-${{ env.VERSION_CODE }}
+          path: mobile/android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Enviar ao teste interno da Play
+        if: env.PLAY_SERVICE_ACCOUNT_JSON != ''
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.appeo.mobile
+          releaseFiles: mobile/android/app/build/outputs/bundle/release/*.aab
+          track: internal
+          status: completed
 
   ios_simulator_preview:
     if: github.event_name == 'workflow_dispatch' && inputs.platform == 'ios'
