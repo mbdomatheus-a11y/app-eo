@@ -10,6 +10,9 @@ import { EOProvider, useEO } from "../providers/eo-provider";
 import { RouteFrame } from "../navigation/route-screens";
 import { LoadingScreen } from "../../App";
 import { C } from "../ui";
+import { instalarRelatorioDeErros, reportarErro } from "../providers/error-reporter";
+
+instalarRelatorioDeErros();
 
 function RootNavigation() {
   const app = useEO();
@@ -150,6 +153,9 @@ export default function RootLayout() {
 
 // Erro de tela não fecha mais o app: mostra a mensagem e permite tentar de novo.
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  useEffect(() => {
+    reportarErro(error, true, { origem: "tela" });
+  }, [error]);
   return (
     <View style={{ flex: 1, justifyContent: "center", padding: 24, gap: 14, backgroundColor: C.canvas }}>
       <Text style={{ fontSize: 20, fontWeight: "700", color: C.ink }}>Algo deu errado nesta tela</Text>

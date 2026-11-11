@@ -370,27 +370,23 @@ export function EOProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError("");
     try {
-      const status = await rpc<{
-        must_change_password: boolean;
-        conta_loja?: boolean;
-        usuario_loja?: string | null;
-      }>("eo_password_status");
+      // Abertura em uma chamada só (status, contexto, módulos e avisos).
+      const inicio = await rpc<{
+        status: { must_change_password: boolean; conta_loja?: boolean; usuario_loja?: string | null };
+        context?: Workspace;
+        modules?: VisibleModule[];
+        feed?: LiveNotice[];
+      }>("eo_app_inicio");
+      const status = inicio.status;
       setStoreUser(status.conta_loja ? (status.usuario_loja ?? null) : null);
       if (status.must_change_password) {
         setPasswordMode(true);
         return;
       }
       setPasswordMode(false);
-      const [ctx, modules] = await Promise.all([
-        rpc<Workspace>("eo_context"),
-        rpc<VisibleModule[]>("eo_my_modules"),
-      ]);
-      const noticesAllowed =
-        ctx.person.role === "admin" ||
-        modules.find((x) => x.id === "notices")?.visible !== false;
-      const feed = noticesAllowed
-        ? ((await rpc<LiveNotice[]>("eo_feed")) ?? [])
-        : [];
+      const ctx = inicio.context as Workspace;
+      const modules = inicio.modules ?? [];
+      const feed = inicio.feed ?? [];
       if (current !== epoch.current) return;
       setVisibleModules(modules);
       setWorkspace(ctx);

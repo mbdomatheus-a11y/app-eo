@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Alert, AppState, Platform, Text, View } from "react-native";
+import { reportarErro } from "./error-reporter";
 import * as SecureStore from "expo-secure-store";
 import { useEO } from "./eo-provider";
 import { Brand, Button, C, s } from "../ui";
@@ -18,6 +19,8 @@ export function DeviceSecurity({ children }: { children: ReactNode }) {
   const [locked, setLocked] = useState(true);
   const [working, setWorking] = useState(false);
   const busy = useRef(false);
+  const [aviso, setAviso] = useState("");
+  const tentouAuto = useRef(false);
   const currentUser = useRef(user); currentUser.current = user;
   useEffect(() => {
     let alive = true;
@@ -42,9 +45,13 @@ export function DeviceSecurity({ children }: { children: ReactNode }) {
     busy.current = true; setWorking(true);
     try {
       const value = await SecureStore.getItemAsync(keyFor(user), options);
-      if (currentUser.current === user && value === user) setLocked(false);
-      else Alert.alert("Entre com sua senha", "A proteção do aparelho mudou. Entre novamente para reativar a biometria.");
-    } catch { Alert.alert("EO bloqueado", "Não foi possível confirmar sua identidade. Tente novamente ou entre com sua senha."); }
+      if (currentUser.current === user && value === user) { setLocked(false); setAviso(""); }
+      else setAviso("A proteção do aparelho mudou. Entre com sua senha para reativar a biometria.");
+    } catch (error) {
+      // Sem alerta nativo aqui: alerta logo após o Face ID já causou travamento no iPhone.
+      reportarErro(error, false, { origem: "biometria" });
+      setAviso("Não foi possível confirmar sua identidade. Toque em Desbloquear de novo ou entre com sua senha.");
+    }
     finally { busy.current = false; setWorking(false); }
   };
   const configure = async (active: boolean) => {
@@ -74,5 +81,14 @@ export function DeviceSecurity({ children }: { children: ReactNode }) {
     }
   };
   const blocked = owner !== user || (Boolean(user) && enabled && locked);
-  return <Context.Provider value={{ enabled, configure }}>{blocked ? <View style={[s.screen, s.centered]}><Brand /><View style={{ height: 20 }} /><Text style={s.title}>{owner !== user ? "Protegendo seu acesso" : "Seu espaço está protegido"}</Text><Text style={[s.detail, { textAlign: "center" }]}>Use {Platform.OS === "ios" ? "Face ID ou Touch ID" : "a biometria do aparelho"} para continuar na sua sessão.</Text>{owner === user && <><Button title={working ? "Confirmando…" : "Desbloquear EO"} disabled={working} onPress={() => void unlock()} /><Button title="Entrar com minha senha" secondary disabled={working || app.busy} onPress={() => void passwordLogin()} /></>}</View> : children}</Context.Provider>;
+  // Pede o Face ID sozinho uma vez por bloqueio, com folga para a tela assentar.
+  useEffect(() => {
+    if (!(owner === user && enabled && locked)) { tentouAuto.current = false; return; }
+    if (tentouAuto.current) return;
+    const t = setTimeout(() => {
+      if (AppState.currentState === "active" && !busy.current) { tentouAuto.current = true; void unlock(); }
+    }, 700);
+    return () => clearTimeout(t);
+  }, [owner, user, enabled, locked]);
+  return <Context.Provider value={{ enabled, configure }}>{blocked ? <View style={[s.screen, s.centered]}><Brand /><View style={{ height: 20 }} /><Text style={s.title}>{owner !== user ? "Protegendo seu acesso" : "Seu espaço está protegido"}</Text><Text style={[s.detail, { textAlign: "center" }]}>Use {Platform.OS === "ios" ? "Face ID ou Touch ID" : "a biometria do aparelho"} para continuar na sua sessão.</Text>{aviso ? <Text style={[s.detail, { textAlign: "center", color: C.ink }]}>{aviso}</Text> : null}{owner === user && <><Button title={working ? "Confirmando…" : "Desbloquear EO"} disabled={working} onPress={() => void unlock()} /><Button title="Entrar com minha senha" secondary disabled={working || app.busy} onPress={() => void passwordLogin()} /></>}</View> : children}</Context.Provider>;
 }
