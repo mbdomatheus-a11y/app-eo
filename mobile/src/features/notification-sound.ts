@@ -22,7 +22,8 @@ export async function createSoundChannels() {
       {
         name: `EO · ${option.label}`,
         importance: Notifications.AndroidImportance.MAX,
-        sound: option.value,
+        // Android só aceita nome de recurso com sublinhado (eo_soft); o valor salvo continua eo-soft.wav.
+        sound: option.value === "default" ? "default" : option.value.replace("eo-", "eo_"),
         vibrationPattern: [0, 250, 200, 250],
       },
     );

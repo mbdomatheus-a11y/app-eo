@@ -11,7 +11,12 @@
       "buildNumber": "19",
       "supportsTablet": true,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleDevelopmentRegion": "pt-BR",
+        "CFBundleLocalizations": [
+          "pt-BR"
+        ],
+        "CFBundleAllowMixedLocalizations": true
       },
       "icon": "./assets/eo-icon.png",
       "entitlements": {
@@ -21,7 +26,6 @@
     "android": {
       "package": "com.appeo.mobile",
       "versionCode": 19,
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/eo-adaptive-foreground.png",
@@ -42,9 +46,9 @@
         {
           "mode": "production",
           "sounds": [
-            "./assets/sounds/eo-soft.wav",
-            "./assets/sounds/eo-bell.wav",
-            "./assets/sounds/eo-alert.wav"
+            "./assets/sounds/eo_soft.wav",
+            "./assets/sounds/eo_bell.wav",
+            "./assets/sounds/eo_alert.wav"
           ]
         }
       ],
