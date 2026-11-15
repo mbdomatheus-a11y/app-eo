@@ -1,5 +1,31 @@
+import {
+  offlineEngine,
+  rawRpc,
+  resetEOClient,
+  authStorageKey,
+  deliveryMessage,
+} from "../services/supabase";
+import {
+  beginSessionLogin,
+  closeStoredSession,
+  readStoredSession,
+} from "../services/session-storage";
+import { isTransportError, type OfflineStatus } from "../offline/engine";
+import {
+  beginNativeInteraction,
+  nativeInteractionDeadline,
+} from "./native-interactions";
+import { IconOverridesProvider } from "../features/app-icon-context";
+import {
+  normalizeModuleIcons,
+  type ModuleIconOverrides,
+} from "../features/app-icons";
+import { withDeadline, ensureActive } from "../services/deadline";
 import { retryPushToken } from "../features/push-registration";
-import { createSoundChannels } from "../features/notification-sound";
+import {
+  createSoundChannels,
+  nativeSoundBundle,
+} from "../features/notification-sound";
 import {
   createContext,
   useCallback,
@@ -12,7 +38,10 @@ import {
 } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { AppState, Linking, Platform } from "react-native";
-import { normalizeStoreUser, storePasswordRules } from "../features/store-access";
+import {
+  normalizeStoreUser,
+  storePasswordRules,
+} from "../features/store-access";
 import { reportarErro } from "./error-reporter";
 import * as Crypto from "expo-crypto";
 import * as Notifications from "expo-notifications";
@@ -46,7 +75,41 @@ Notifications.setNotificationHandler({
   }),
 });
 
+async function requestPushPermission() {
+  const finish = beginNativeInteraction("notificacoes", 15000);
+  try {
+    return await withDeadline(
+      () =>
+        Notifications.requestPermissionsAsync({
+          ios: { allowAlert: true, allowBadge: true, allowSound: true },
+        }),
+      12000,
+      "A permissão de notificações não respondeu. Você pode continuar no app.",
+    );
+  } finally {
+    finish();
+  }
+}
+const tokenFlights = new Map<string, Promise<string>>();
 async function devicePushToken(projectId: string): Promise<string> {
+  let flight = tokenFlights.get(projectId);
+  if (!flight) {
+    flight = readDevicePushToken(projectId);
+    tokenFlights.set(projectId, flight);
+    void flight
+      .finally(() => {
+        if (tokenFlights.get(projectId) === flight)
+          tokenFlights.delete(projectId);
+      })
+      .catch(() => {});
+  }
+  return withDeadline(
+    () => flight!,
+    25000,
+    "O serviço de notificações demorou para responder. Tente novamente depois; o restante do app continua disponível.",
+  );
+}
+async function readDevicePushToken(projectId: string): Promise<string> {
   try {
     return await retryPushToken(
       async () =>
@@ -108,6 +171,10 @@ type ContextValue = {
   soundEnabled: boolean;
   pushGranted: boolean;
   pushRegistered: boolean;
+  pushBusy: boolean;
+  signingOut: boolean;
+  offline: OfflineStatus;
+  synchronize: () => Promise<void>;
   audit: AuditRow[];
   members: LivePerson[];
   error: string;
@@ -209,7 +276,16 @@ export function EOProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [passwordMode, setPasswordMode] = useState(false);
+  const [authClientEpoch, setAuthClientEpoch] = useState(0);
+  const [signingOut, setSigningOut] = useState(false);
+  const signingOutRef = useRef(false);
+  const [offline, setOffline] = useState(offlineEngine.status);
+  useEffect(
+    () => offlineEngine.subscribe(() => setOffline(offlineEngine.status)),
+    [],
+  );
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [moduleIcons, setModuleIcons] = useState<ModuleIconOverrides>({});
   const [storeUser, setStoreUser] = useState<string | null>(null);
   // Senha digitada no login da loja, só em memória, para não pedir de novo na troca obrigatória.
   const loginPassword = useRef("");
@@ -231,6 +307,10 @@ export function EOProvider({ children }: { children: ReactNode }) {
   const [soundEnabled, setSoundEnabledState] = useState(true);
   const [pushGranted, setPushGranted] = useState(false);
   const [pushRegistered, setPushRegistered] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const pushBusyRef = useRef(false);
+  const currentUser = useRef<string | undefined>(undefined);
+  currentUser.current = session?.user.id;
   const [more, setMore] = useState(false);
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [members, setMembers] = useState<LivePerson[]>([]);
@@ -246,6 +326,7 @@ export function EOProvider({ children }: { children: ReactNode }) {
   const [message, setMessage] = useState("");
   const epoch = useRef(0);
   const busyRef = useRef(false);
+  const actionGeneration = useRef(0);
 
   const clearFeedback = useCallback(() => {
     setError("");
@@ -258,15 +339,23 @@ export function EOProvider({ children }: { children: ReactNode }) {
     ): Promise<Result> => {
       if (busyRef.current) return { ok: false };
       busyRef.current = true;
+      const ticket = ++actionGeneration.current;
+      const owner = currentUser.current;
       setBusy(true);
       setError("");
       setMessage("");
       try {
         await work();
+        if (owner && currentUser.current !== owner) return { ok: false };
         if (success)
-          setMessage(typeof success === "function" ? success() : success);
+          setMessage(
+            deliveryMessage(
+              typeof success === "function" ? success() : success,
+            ),
+          );
         return { ok: true };
       } catch (cause) {
+        if (owner && currentUser.current !== owner) return { ok: false };
         setError(
           cause instanceof Error
             ? cause.message
@@ -274,8 +363,10 @@ export function EOProvider({ children }: { children: ReactNode }) {
         );
         return { ok: false };
       } finally {
-        busyRef.current = false;
-        setBusy(false);
+        if (ticket === actionGeneration.current) {
+          busyRef.current = false;
+          setBusy(false);
+        }
       }
     },
     [],
@@ -288,16 +379,48 @@ export function EOProvider({ children }: { children: ReactNode }) {
       setInitializing(false);
       return;
     }
-    void client.auth.getSession().then(({ data, error: authError }) => {
+    void (async () => {
+      try {
+        const local = await withDeadline(
+          () => readStoredSession(authStorageKey),
+          3000,
+          "Não foi possível ler a sessão local.",
+        );
+        if (local && alive) {
+          await offlineEngine.setIdentity(local.user.id);
+          if (alive) setSession(local);
+        }
+      } catch (cause) {
+        if (alive)
+          setError(
+            cause instanceof Error ? cause.message : "Falha ao abrir a sessão.",
+          );
+      } finally {
+        if (alive) setInitializing(false);
+      }
       if (!alive) return;
-      if (authError) setError("Não foi possível recuperar sua sessão segura.");
-      setSession(data.session);
-      setInitializing(false);
-    });
+      void withDeadline(
+        () => client.auth.getSession(),
+        8000,
+        "Tempo limite para conferir a sessão online.",
+      )
+        .then(({ data, error: authError }) => {
+          if (!alive || client !== supabase) return;
+          if (authError) {
+            if (!isTransportError(authError))
+              setError("Não foi possível confirmar a sessão online.");
+            return;
+          }
+          setSession(data.session);
+        })
+        .catch((cause) => {
+          if (alive) reportarErro(cause, false, { origem: "sessao_online" });
+        });
+    })();
     const {
       data: { subscription },
     } = client.auth.onAuthStateChange((_, next) => {
-      if (alive) setSession(next);
+      if (alive && client === supabase) setSession(next);
     });
     const appStateSubscription = AppState.addEventListener(
       "change",
@@ -313,7 +436,7 @@ export function EOProvider({ children }: { children: ReactNode }) {
       appStateSubscription.remove();
       void client.auth.stopAutoRefresh();
     };
-  }, []);
+  }, [authClientEpoch]);
 
   useEffect(() => {
     let alive = true;
@@ -347,9 +470,10 @@ export function EOProvider({ children }: { children: ReactNode }) {
     let active = true;
     const register = async (token: string) => {
       try {
-        await rpc("eo_register_push_device", {
+        await rpc("eo_register_push_device_v2", {
           p_token: token,
           p_platform: Platform.OS,
+          p_sound_bundle: nativeSoundBundle(),
         });
         if (active) setPushRegistered(true);
       } catch (cause) {
@@ -357,13 +481,12 @@ export function EOProvider({ children }: { children: ReactNode }) {
         if (active) setPushRegistered(false);
       }
     };
-    void Notifications.getExpoPushTokenAsync({ projectId })
-      .then(({ data }) => register(data))
-      .catch((cause) => reportarErro(cause, false, { origem: "push_token_auto" }));
     const subscription = Notifications.addPushTokenListener(() => {
-      void Notifications.getExpoPushTokenAsync({ projectId })
-        .then(({ data }) => register(data))
-        .catch(() => undefined);
+      void devicePushToken(projectId)
+        .then(register)
+        .catch((cause) =>
+          reportarErro(cause, false, { origem: "push_token_auto" }),
+        );
     });
     return () => {
       active = false;
@@ -371,57 +494,183 @@ export function EOProvider({ children }: { children: ReactNode }) {
     };
   }, [session?.user.id, pushGranted]);
 
+  const workspaceRef = useRef<Workspace | null>(null);
+  workspaceRef.current = workspace;
+  const refreshFlight = useRef<Promise<void> | null>(null);
+  const refreshOwner = useRef<string | null>(null);
   const refresh = useCallback(async () => {
-    if (!supabase || !session) return;
-    const current = ++epoch.current;
-    setLoading(true);
-    setError("");
+    if (!supabase || !session?.user.id) return;
+    if (refreshFlight.current && refreshOwner.current === session.user.id)
+      return refreshFlight.current;
+    refreshOwner.current = session.user.id;
+    const task = (async () => {
+      const current = ++epoch.current;
+      if (!workspaceRef.current) setLoading(true);
+      setError("");
+      try {
+        await offlineEngine.setIdentity(session.user.id);
+        if (
+          current !== epoch.current ||
+          currentUser.current !== session.user.id
+        )
+          return;
+        type Startup = {
+          status: {
+            must_change_password: boolean;
+            conta_loja?: boolean;
+            usuario_loja?: string | null;
+          };
+          context?: Workspace;
+          modules?: VisibleModule[];
+          feed?: LiveNotice[];
+          icons?: unknown;
+        };
+        const restore = offlineEngine.cached<Startup>("eo_app_inicio");
+        if (
+          !workspaceRef.current &&
+          restore?.context?.person.id === session.user.id &&
+          !restore.status.must_change_password
+        ) {
+          offlineEngine.markOffline();
+          setWorkspace(restore.context);
+          setVisibleModules(restore.modules ?? []);
+          setModuleIcons(normalizeModuleIcons(restore.icons));
+          setNotices(restore.feed ?? []);
+          setStoreUser(
+            restore.status.conta_loja
+              ? (restore.status.usuario_loja ?? null)
+              : null,
+          );
+          setLoading(false);
+        }
+        try {
+          const inicio = await withDeadline(
+            (signal) => rawRpc<Startup>("eo_app_inicio", {}, signal),
+            8000,
+            "Tempo limite de conexão. Seus dados locais continuam disponíveis.",
+          );
+          if (
+            current !== epoch.current ||
+            currentUser.current !== session.user.id
+          )
+            return;
+          const status = inicio.status;
+          setStoreUser(
+            status.conta_loja ? (status.usuario_loja ?? null) : null,
+          );
+          if (status.must_change_password) {
+            await offlineEngine.invalidateAccess();
+            setWorkspace(null);
+            workspaceRef.current = null;
+            setPasswordMode(true);
+            return;
+          }
+          setPasswordMode(false);
+          const ctx = inicio.context as Workspace;
+          if (ctx?.person?.id !== session.user.id)
+            throw new Error("Não foi possível validar o acesso.");
+          await offlineEngine.setScope(
+            JSON.stringify({
+              person: ctx.person.id,
+              role: ctx.person.role,
+              stores: ctx.stores.map((item) => item.id).sort(),
+              modules: inicio.modules ?? [],
+            }),
+          );
+          await offlineEngine.revalidate(session.user.id);
+          void offlineEngine
+            .remember("eo_app_inicio", {}, inicio)
+            .catch((cause) =>
+              reportarErro(cause, false, { origem: "cache_inicio" }),
+            );
+          void offlineEngine
+            .sync()
+            .catch((cause) =>
+              reportarErro(cause, false, { origem: "sincronizacao" }),
+            );
+          const modules = inicio.modules ?? [];
+          const feed = inicio.feed ?? [];
+          if (current !== epoch.current) return;
+          setVisibleModules(modules);
+          setWorkspace(ctx);
+          setModuleIcons(normalizeModuleIcons(inicio.icons));
+          setNotices(feed);
+          setMore(feed.length === 20);
+        } catch (cause) {
+          if (
+            current !== epoch.current ||
+            currentUser.current !== session.user.id
+          )
+            return;
+          if (
+            isTransportError(cause) ||
+            (cause instanceof Error && /Tempo limite/.test(cause.message))
+          ) {
+            offlineEngine.markOffline(
+              cause instanceof Error ? cause.message : "Sem conexão",
+            );
+            if (restore?.context) return;
+          } else {
+            await offlineEngine.invalidateAccess();
+            setWorkspace(null);
+            workspaceRef.current = null;
+          }
+          throw cause;
+        }
+      } catch (cause) {
+        if (current === epoch.current) {
+          if (!workspaceRef.current) setWorkspace(null);
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "Não foi possível carregar seu espaço.",
+          );
+        }
+      } finally {
+        if (current === epoch.current) setLoading(false);
+      }
+    })();
+    refreshFlight.current = task;
     try {
-      // Abertura em uma chamada só (status, contexto, módulos e avisos).
-      const inicio = await rpc<{
-        status: { must_change_password: boolean; conta_loja?: boolean; usuario_loja?: string | null };
-        context?: Workspace;
-        modules?: VisibleModule[];
-        feed?: LiveNotice[];
-      }>("eo_app_inicio");
-      const status = inicio.status;
-      setStoreUser(status.conta_loja ? (status.usuario_loja ?? null) : null);
-      if (status.must_change_password) {
-        setPasswordMode(true);
-        return;
-      }
-      setPasswordMode(false);
-      const ctx = inicio.context as Workspace;
-      const modules = inicio.modules ?? [];
-      const feed = inicio.feed ?? [];
-      if (current !== epoch.current) return;
-      setVisibleModules(modules);
-      setWorkspace(ctx);
-      setNotices(feed);
-      setMore(feed.length === 20);
-    } catch (cause) {
-      if (current === epoch.current) {
-        setWorkspace(null);
-        setError(
-          cause instanceof Error
-            ? cause.message
-            : "Não foi possível carregar seu espaço.",
-        );
-      }
+      await task;
     } finally {
-      if (current === epoch.current) setLoading(false);
+      if (refreshFlight.current === task) refreshFlight.current = null;
     }
-  }, [session]);
+  }, [session?.user.id]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (state) => {
-      if (state === "active" && session) void refresh();
+      if (
+        state === "active" &&
+        session &&
+        !pushBusyRef.current &&
+        nativeInteractionDeadline() <= Date.now()
+      )
+        void refresh();
     });
     return () => subscription.remove();
   }, [session, refresh]);
 
+  useEffect(() => {
+    if (!session?.user.id || passwordMode) return;
+    let alive = true;
+    const load = () => {
+      if (AppState.currentState !== "active") return;
+      void rpc("eo_module_icons")
+        .then((v) => {
+          if (alive) setModuleIcons(normalizeModuleIcons(v));
+        })
+        .catch(() => {});
+    };
+    const timer = setInterval(load, 60000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [session?.user.id, passwordMode]);
   const refreshOperational = useCallback(async () => {
     if (!session || passwordMode || visibleModules === null) return;
+    const owner = session.user.id;
     const [nextAlerts, nextChecklists, preferences] = await Promise.all([
       rpc<LiveAlert[]>("eo_alert_feed"),
       moduleVisible("checklists")
@@ -429,6 +678,7 @@ export function EOProvider({ children }: { children: ReactNode }) {
         : Promise.resolve([] as ChecklistRun[]),
       rpc<{ sound_enabled: boolean }>("eo_notification_preferences"),
     ]);
+    if (currentUser.current !== owner) return;
     setAlerts(nextAlerts ?? []);
     setChecklists(nextChecklists ?? []);
     setSoundEnabledState(preferences.sound_enabled);
@@ -698,9 +948,44 @@ export function EOProvider({ children }: { children: ReactNode }) {
     },
     [act, refreshOperational],
   );
+  const runPush = useCallback(
+    async (
+      work: (signal: AbortSignal) => Promise<void>,
+      success: string,
+    ): Promise<Result> => {
+      if (pushBusyRef.current) return { ok: false };
+      const user = currentUser.current;
+      pushBusyRef.current = true;
+      setPushBusy(true);
+      setError("");
+      setMessage("");
+      try {
+        await withDeadline(
+          work,
+          35000,
+          "O registro de notificações demorou para responder. Você pode continuar usando o EO e tentar novamente depois.",
+        );
+        if (currentUser.current === user) setMessage(success);
+        return { ok: true };
+      } catch (cause) {
+        reportarErro(cause, false, { origem: "push_operacao" });
+        if (currentUser.current === user)
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "Não foi possível concluir a notificação.",
+          );
+        return { ok: false };
+      } finally {
+        pushBusyRef.current = false;
+        setPushBusy(false);
+      }
+    },
+    [],
+  );
   const enablePush = useCallback(
     () =>
-      act(async () => {
+      runPush(async (signal) => {
         if (!Device.isDevice)
           throw new Error(
             "As notificações push precisam ser ativadas em um aparelho físico.",
@@ -714,52 +999,32 @@ export function EOProvider({ children }: { children: ReactNode }) {
           );
         await createSoundChannels();
         let permission = await Notifications.getPermissionsAsync();
-        if (!permission.granted)
-          permission = await Notifications.requestPermissionsAsync({
-            ios: { allowAlert: true, allowBadge: true, allowSound: true },
-          });
+        if (!permission.granted) permission = await requestPushPermission();
         setPushGranted(permission.granted);
         if (!permission.granted)
           throw new Error(
             "Permissão negada. Para ativar depois, permita notificações nas configurações do aparelho.",
           );
+        ensureActive(signal);
+        const user = currentUser.current;
         setPushRegistered(false);
         const token = await devicePushToken(projectId);
-        await rpc("eo_register_push_device", {
-          p_token: token,
-          p_platform: Platform.OS,
-        });
-        setPushRegistered(true);
+        ensureActive(signal);
+        if (currentUser.current !== user) return;
+        await rpc(
+          "eo_register_push_device_v2",
+          {
+            p_token: token,
+            p_platform: Platform.OS,
+            p_sound_bundle: nativeSoundBundle(),
+          },
+          signal,
+        );
+        ensureActive(signal);
+        if (currentUser.current === user) setPushRegistered(true);
       }, "Notificações do sistema ativadas neste aparelho."),
-    [act],
+    [runPush],
   );
-  const autoPushRegistration = useRef<string | null>(null);
-  useEffect(() => {
-    const user = workspace?.person.id;
-    if (!user) {
-      autoPushRegistration.current = null;
-      return;
-    }
-    if (
-      Platform.OS !== "ios" ||
-      !Device.isDevice ||
-      pushRegistered ||
-      autoPushRegistration.current === user
-    )
-      return;
-    let alive = true;
-    void Notifications.getPermissionsAsync()
-      .then((permission) => {
-        if (alive && permission.granted) {
-          autoPushRegistration.current = user;
-          void enablePush();
-        }
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [workspace?.person.id, pushGranted, pushRegistered, enablePush]);
   const captureChecklistPhoto = useCallback(
     (run: string, item: string) =>
       act(async () => {
@@ -802,15 +1067,15 @@ export function EOProvider({ children }: { children: ReactNode }) {
   );
   const sendTestPush = useCallback(
     () =>
-      act(async () => {
+      runPush(async (signal) => {
         if (!pushGranted) {
           // Pede a permissão aqui mesmo em vez de só recusar o teste.
-          const permission = await Notifications.requestPermissionsAsync({
-            ios: { allowAlert: true, allowBadge: true, allowSound: true },
-          });
+          const permission = await requestPushPermission();
           setPushGranted(permission.granted);
           if (!permission.granted)
-            throw new Error("Permita as notificações do EO nos Ajustes do iPhone e tente de novo.");
+            throw new Error(
+              "Permita as notificações do EO nos Ajustes do iPhone e tente de novo.",
+            );
         }
         const projectId =
           Constants.easConfig?.projectId ??
@@ -819,37 +1084,70 @@ export function EOProvider({ children }: { children: ReactNode }) {
           throw new Error(
             "Projeto de notificações não configurado nesta versão.",
           );
+        const user = currentUser.current;
         const token = await devicePushToken(projectId);
-        await rpc("eo_register_push_device", {
-          p_token: token,
-          p_platform: Platform.OS,
-        });
-        setPushRegistered(true);
+        ensureActive(signal);
+        if (currentUser.current !== user) return;
+        await rpc(
+          "eo_register_push_device_v2",
+          {
+            p_token: token,
+            p_platform: Platform.OS,
+            p_sound_bundle: nativeSoundBundle(),
+          },
+          signal,
+        );
+        ensureActive(signal);
+        if (currentUser.current === user) setPushRegistered(true);
         const { data, error: invokeError } = await supabase!.functions.invoke(
           "send-test-push",
-          { body: {} },
+          { body: {}, signal },
         );
         if (invokeError) {
-          reportarErro(invokeError, false, { origem: "push_teste" });
-          throw new Error("Não foi possível enviar o teste agora. O erro foi registrado para análise.");
+          let detail =
+            "Não foi possível enviar o teste agora. O erro foi registrado para análise.";
+          try {
+            const response = (invokeError as { context?: Response }).context;
+            const body = await response?.json();
+            if (typeof body?.error === "string")
+              detail = body.error.slice(0, 300);
+          } catch {
+            /* manter diagnóstico seguro */
+          }
+          reportarErro(new Error(detail), false, { origem: "push_teste" });
+          throw new Error(detail);
         }
+        ensureActive(signal);
         if (!data?.devices)
           throw new Error(
             "Nenhum aparelho seu está registrado para receber o teste.",
           );
+        if (!data.accepted) {
+          const detail =
+            data.note ||
+            "O provedor recusou o teste. Seu aparelho foi registrado, mas a notificação não foi aceita.";
+          reportarErro(new Error(detail), false, {
+            origem: "push_teste",
+            falhas: data.failures ?? {},
+          });
+          throw new Error(detail);
+        }
       }, "Teste encaminhado aos seus aparelhos registrados. O serviço não confirma a exibição no aparelho."),
-    [act, workspace?.person.role, pushGranted],
+    [runPush, pushGranted],
   );
 
   useEffect(() => {
     if (session?.user.id) void refresh();
     else {
       epoch.current++;
+      refreshFlight.current = null;
+      refreshOwner.current = null;
       peopleRequest.current++;
       setAdminStores([]);
       setPeopleTotal(0);
       setVisibleModules(null);
       setWorkspace(null);
+      setModuleIcons({});
       setNotices([]);
       setAlerts([]);
       setChecklists([]);
@@ -863,65 +1161,176 @@ export function EOProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     (chapa: string, password: string) =>
       act(async () => {
-        if (!supabase) throw new Error("A conexão ainda não foi configurada.");
-        const normalized = chapa.trim();
-        const lojaUser = normalizeStoreUser(normalized);
-        if (lojaUser) {
-          const { data, error: fnError } = await supabase.functions.invoke("acesso-loja", {
-            body: { acao: "entrar", usuario: lojaUser, senha: password, origem: Platform.OS },
-          });
-          if (fnError) {
-            let msg = "Usuário ou senha inválidos.";
-            try {
-              const parsed = await (fnError as { context?: Response }).context?.json();
-              if (parsed?.error) msg = parsed.error;
-            } catch {
-              /* mensagem genérica */
-            }
-            throw new Error(msg);
-          }
-          const { error: sessionError } = await supabase.auth.setSession({
-            access_token: data.access_token,
-            refresh_token: data.refresh_token,
-          });
-          if (sessionError) throw new Error("Não foi possível abrir a sessão.");
-          loginPassword.current = password;
-          setHasLoginPassword(true);
-          return;
-        }
-        if (!/^\d{1,20}$/.test(normalized))
-          throw new Error("Informe sua chapa ou o usuário da loja (ex.: ger006).");
-        const { error: authError } = await supabase.auth.signInWithPassword({
-          email: `app-${normalized}@login.app-eo.invalid`,
-          password,
-        });
-        if (authError)
-          throw new Error(
-            "Não foi possível entrar. Confira seus dados e se a conta já foi liberada.",
+        try {
+          await withDeadline(
+            async (signal) => {
+              if (!supabase)
+                throw new Error("A conexão ainda não foi configurada.");
+              await beginSessionLogin();
+              const normalized = chapa.trim();
+              const lojaUser = normalizeStoreUser(normalized);
+              if (lojaUser) {
+                const { data, error: fnError } =
+                  await supabase.functions.invoke("acesso-loja", {
+                    body: {
+                      acao: "entrar",
+                      usuario: lojaUser,
+                      senha: password,
+                      origem: Platform.OS,
+                    },
+                  });
+                if (fnError) {
+                  let msg = "Usuário ou senha inválidos.";
+                  try {
+                    const parsed = await (
+                      fnError as { context?: Response }
+                    ).context?.json();
+                    if (parsed?.error) msg = parsed.error;
+                  } catch {
+                    /* mensagem genérica */
+                  }
+                  throw new Error(msg);
+                }
+                ensureActive(signal);
+                const { error: sessionError } = await supabase.auth.setSession({
+                  access_token: data.access_token,
+                  refresh_token: data.refresh_token,
+                });
+                ensureActive(signal);
+                if (sessionError)
+                  throw new Error("Não foi possível abrir a sessão.");
+                loginPassword.current = password;
+                setHasLoginPassword(true);
+                return;
+              }
+              if (!/^\d{1,20}$/.test(normalized))
+                throw new Error(
+                  "Informe sua chapa ou o usuário da loja (ex.: ger006).",
+                );
+              const { error: authError } =
+                await supabase.auth.signInWithPassword({
+                  email: `app-${normalized}@login.app-eo.invalid`,
+                  password,
+                });
+              if (authError)
+                throw new Error(
+                  "Não foi possível entrar. Confira seus dados e se a conta já foi liberada.",
+                );
+            },
+            20000,
+            "Tempo limite para entrar. Confira sua conexão e tente novamente.",
           );
+        } catch (cause) {
+          if (
+            cause instanceof Error &&
+            /Tempo limite para entrar/.test(cause.message)
+          ) {
+            await withDeadline(
+              () => closeStoredSession(authStorageKey),
+              4000,
+              "Não foi possível limpar a sessão. Feche e abra o EO.",
+            );
+            resetEOClient();
+            setAuthClientEpoch((value) => value + 1);
+            setSession(null);
+          }
+          throw cause;
+        }
       }),
     [act],
   );
 
   const signout = useCallback(async () => {
-    if (!supabase) return { ok: false };
-    const { error: authError } = await supabase.auth.signOut({
-      scope: "local",
-    });
-    if (authError) setError("Não foi possível encerrar a sessão.");
-    return { ok: !authError };
+    if (signingOutRef.current) return { ok: false };
+    signingOutRef.current = true;
+    setSigningOut(true);
+    try {
+      await withDeadline(
+        () => closeStoredSession(authStorageKey),
+        4000,
+        "Não foi possível limpar a sessão local. Tente novamente.",
+      );
+      currentUser.current = undefined;
+      epoch.current++;
+      actionGeneration.current++;
+      busyRef.current = false;
+      setBusy(false);
+      setPushBusy(false);
+      pushBusyRef.current = false;
+      setPushRegistered(false);
+      setPushGranted(false);
+      void offlineEngine
+        .logout()
+        .catch((cause) =>
+          reportarErro(cause, false, { origem: "cache_saida" }),
+        );
+      setWorkspace(null);
+      workspaceRef.current = null;
+      setSession(null);
+      setPasswordMode(false);
+      setStoreUser(null);
+      setVisibleModules(null);
+      setNotices([]);
+      setAlerts([]);
+      setChecklists([]);
+      setModuleIcons({});
+      resetEOClient();
+      setAuthClientEpoch((value) => value + 1);
+      setError("");
+      return { ok: true };
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Falha ao encerrar acesso local.",
+      );
+      return { ok: false };
+    } finally {
+      signingOutRef.current = false;
+      setSigningOut(false);
+    }
   }, []);
+
+  const synchronize = useCallback(async () => {
+    await refresh();
+    if (offlineEngine.status.revalidated) await offlineEngine.sync();
+  }, [refresh]);
+
+  useEffect(() => {
+    if (!session?.user.id || passwordMode) return;
+    const timer = setInterval(() => {
+      const state = offlineEngine.status;
+      if (
+        AppState.currentState === "active" &&
+        !pushBusyRef.current &&
+        nativeInteractionDeadline() <= Date.now() &&
+        (!state.online || state.pending > 0)
+      )
+        void synchronize().catch(() => {});
+    }, 45000);
+    return () => clearInterval(timer);
+  }, [session?.user.id, passwordMode, synchronize]);
 
   const requestStoreReset = useCallback(
     (user: string) =>
       act(async () => {
         const lojaUser = normalizeStoreUser(user);
         if (!lojaUser)
-          throw new Error("Contas por chapa: procure a administração. Loja: digite o usuário (ex.: ger006) no campo acima.");
-        const { error: fnError } = await supabase!.functions.invoke("acesso-loja", {
-          body: { acao: "solicitar-reset", usuario: lojaUser, origem: Platform.OS },
-        });
-        if (fnError) throw new Error("Não foi possível enviar o pedido. Tente novamente.");
+          throw new Error(
+            "Contas por chapa: procure a administração. Loja: digite o usuário (ex.: ger006) no campo acima.",
+          );
+        const { error: fnError } = await supabase!.functions.invoke(
+          "acesso-loja",
+          {
+            body: {
+              acao: "solicitar-reset",
+              usuario: lojaUser,
+              origem: Platform.OS,
+            },
+          },
+        );
+        if (fnError)
+          throw new Error("Não foi possível enviar o pedido. Tente novamente.");
       }, "Pedido enviado ao administrador. Quando aprovado, a senha volta ao padrão da loja."),
     [act],
   );
@@ -930,16 +1339,32 @@ export function EOProvider({ children }: { children: ReactNode }) {
     (password: string, confirmation: string, current = "") =>
       act(async () => {
         if (storeUser) {
-          if (password !== confirmation) throw new Error("As senhas não coincidem.");
-          const broken = storePasswordRules(storeUser, password).filter((r) => !r.ok);
-          if (broken.length) throw new Error(`Falta: ${broken.map((r) => r.label.toLowerCase()).join(", ")}.`);
-          const { error: fnError } = await supabase!.functions.invoke("acesso-loja", {
-            body: { acao: "trocar-senha", senha_atual: current || loginPassword.current, nova_senha: password, origem: Platform.OS },
-          });
+          if (password !== confirmation)
+            throw new Error("As senhas não coincidem.");
+          const broken = storePasswordRules(storeUser, password).filter(
+            (r) => !r.ok,
+          );
+          if (broken.length)
+            throw new Error(
+              `Falta: ${broken.map((r) => r.label.toLowerCase()).join(", ")}.`,
+            );
+          const { error: fnError } = await supabase!.functions.invoke(
+            "acesso-loja",
+            {
+              body: {
+                acao: "trocar-senha",
+                senha_atual: current || loginPassword.current,
+                nova_senha: password,
+                origem: Platform.OS,
+              },
+            },
+          );
           if (fnError) {
             let msg = "Não foi possível trocar a senha.";
             try {
-              const parsed = await (fnError as { context?: Response }).context?.json();
+              const parsed = await (
+                fnError as { context?: Response }
+              ).context?.json();
               if (parsed?.error) msg = parsed.error;
             } catch {
               /* mensagem genérica */
@@ -1359,6 +1784,10 @@ export function EOProvider({ children }: { children: ReactNode }) {
       soundEnabled,
       pushGranted,
       pushRegistered,
+      pushBusy,
+      signingOut,
+      offline,
+      synchronize,
       audit,
       members,
       error,
@@ -1420,6 +1849,10 @@ export function EOProvider({ children }: { children: ReactNode }) {
       soundEnabled,
       pushGranted,
       pushRegistered,
+      pushBusy,
+      signingOut,
+      offline,
+      synchronize,
       audit,
       members,
       error,
@@ -1466,7 +1899,13 @@ export function EOProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  return <Context.Provider value={value}>{children}</Context.Provider>;
+  return (
+    <Context.Provider value={value}>
+      <IconOverridesProvider value={moduleIcons}>
+        {children}
+      </IconOverridesProvider>
+    </Context.Provider>
+  );
 }
 
 export function useEO() {

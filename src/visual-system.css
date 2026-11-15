@@ -641,3 +641,11 @@ button {
 .eo-portal .people-row-actions .text-button:hover {
   background: #eef0f4;
 }
+
+.eo-signin .auth-intro > .eo-brand-icon {
+  width: clamp(116px, 12vw, 176px);
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 28px;
+  margin-bottom: 24px;
+}

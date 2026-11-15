@@ -1,4 +1,5 @@
 import { rpc } from "../services/supabase";
+import { OfflineBanner } from "../features/OfflineStatus";
 import { ReportsHub } from "../features/ReportsHub";
 import { ModuleAccess } from "../features/ModuleAccess";
 import { MoodReminderBanner } from "../features/MoodReminderBanner";
@@ -171,6 +172,7 @@ export function RouteFrame({
       <Feedback error={app.error} message="" onClose={app.clearFeedback} />
       <SuccessToastHost bottom={tabs ? 86 : 24} />
       <SuccessToast message={app.message} />
+      <OfflineBanner />
       {app.workspace && app.moduleVisible("mood") && (
         <MoodReminderBanner
           userId={app.workspace.person.id}
@@ -499,6 +501,7 @@ export function ModulesRoute() {
           <Group>
             <MenuItem
               title="Agenda de ações"
+              moduleId="agenda"
               detail="Pendências e lembretes no calendário"
               icon="calendar"
               onPress={() => router.push("/agenda" as never)}
@@ -519,6 +522,7 @@ export function ModulesRoute() {
                     title={item.title}
                     detail={item.detail}
                     icon={item.icon}
+                    moduleId={item.id}
                     last={index === items.length - 1}
                     onPress={() => router.push(item.path as never)}
                   />

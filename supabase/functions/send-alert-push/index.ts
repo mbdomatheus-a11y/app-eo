@@ -64,8 +64,8 @@ Deno.serve(async (req) => {
   for (let offset = 0; ; offset += 1000) {
     const { data, error } = await admin
       .from("eo_alert_recipients")
-      .select("user_id,eo_profiles!inner(active)")
-      .eq("eo_profiles.active", true)
+      .select("user_id,perfis!inner(active)")
+      .eq("perfis.active", true)
       .eq("alert_id", alertId)
       .order("user_id")
       .range(offset, offset + 999);
@@ -77,13 +77,17 @@ Deno.serve(async (req) => {
     recipientIds.push(...(data ?? []).map((row) => row.user_id as string));
     if ((data?.length ?? 0) < 1000) break;
   }
-  const devices: { user_id: string; expo_push_token: string }[] = [];
+  const devices: {
+    user_id: string;
+    expo_push_token: string;
+    sound_bundle: string;
+  }[] = [];
   for (let offset = 0; offset < recipientIds.length; offset += 500) {
     const ids = recipientIds.slice(offset, offset + 500);
     for (let page = 0; ; page += 1) {
       const { data, error } = await admin
-        .from("eo_push_devices")
-        .select("user_id,expo_push_token")
+        .from("dispositivos_push")
+        .select("user_id,expo_push_token,sound_bundle")
         .in("user_id", ids)
         .range(page * 1000, page * 1000 + 999);
       if (error)
@@ -95,6 +99,7 @@ Deno.serve(async (req) => {
         ...(data ?? []).map((row) => ({
           user_id: row.user_id as string,
           expo_push_token: row.expo_push_token as string,
+          sound_bundle: row.sound_bundle as string,
         })),
       );
       if ((data?.length ?? 0) < 1000) break;
@@ -103,7 +108,7 @@ Deno.serve(async (req) => {
   const soundPreferences = new Map<string, boolean>();
   for (let offset = 0; offset < recipientIds.length; offset += 500) {
     const { data, error } = await admin
-      .from("eo_notification_settings")
+      .from("notificacoes_config")
       .select("user_id,sound_enabled")
       .in("user_id", recipientIds.slice(offset, offset + 500));
     if (error)
@@ -123,7 +128,7 @@ Deno.serve(async (req) => {
       to: device.expo_push_token,
       title: alert.title,
       body: alert.body,
-      ...notificationDelivery(alert.sound, soundEnabled),
+      ...notificationDelivery(alert.sound, soundEnabled, device.sound_bundle),
       priority: alert.urgent ? "high" : "default",
       data: { type: "eo-alert", alertId },
     };
@@ -157,7 +162,7 @@ Deno.serve(async (req) => {
       ).length;
     }
   }
-  const { error: auditError } = await admin.from("eo_audit_events").insert({
+  const { error: auditError } = await admin.from("auditoria").insert({
     actor: userData.user.id,
     action: "alert.push.submitted",
     entity_id: alertId,

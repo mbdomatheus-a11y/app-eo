@@ -28,6 +28,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Linking,
   Pressable,
   ScrollView,
@@ -96,7 +97,31 @@ export function LoginScreen({ openPrivacy }: { openPrivacy: () => void }) {
       }}
     >
       <View style={{ gap: 25 }}>
-        <Brand large />
+        <View style={{ alignItems: "center", gap: 12, width: "100%" }}>
+          <Image
+            source={require("./assets/eo-icon.png")}
+            accessibilityLabel="EO, Excelência Operacional"
+            accessible
+            resizeMode="contain"
+            style={{
+              width: "74%",
+              maxWidth: 248,
+              aspectRatio: 1,
+              borderRadius: 32,
+            }}
+          />
+          <Text
+            style={{
+              color: C.dark,
+              fontSize: 16,
+              fontWeight: "800",
+              textAlign: "center",
+              letterSpacing: 1,
+            }}
+          >
+            EXCELÊNCIA OPERACIONAL
+          </Text>
+        </View>
         <View style={{ gap: 9 }}>
           <Badge warning>PLATAFORMA EO</Badge>
           <Text style={s.title}>
@@ -158,7 +183,14 @@ export function LoginScreen({ openPrivacy }: { openPrivacy: () => void }) {
           onPress={() => void login()}
         />
         {app.busy && (
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+            }}
+          >
             <ActivityIndicator color={C.dark} />
             <Text style={s.small}>Conferindo seu acesso…</Text>
           </View>
@@ -192,7 +224,13 @@ export function LoadingScreen({
   return (
     <View style={s.centered}>
       <Brand large />
-      {configured && !error ? <ActivityIndicator size="large" color={C.dark} style={{ marginTop: 18 }} /> : null}
+      {configured && !error ? (
+        <ActivityIndicator
+          size="large"
+          color={C.dark}
+          style={{ marginTop: 18 }}
+        />
+      ) : null}
       <Text style={s.strong}>
         {configured ? "Carregando seu espaço" : "Conexão em preparação"}
       </Text>
@@ -241,8 +279,14 @@ export function ChangePasswordScreen() {
       <Card>
         <Badge warning>PRIMEIRO ACESSO</Badge>
         <Heading
-          title={loja ? `Crie a senha da loja (${loja})` : "Crie sua senha pessoal"}
-          detail={loja ? "Troque a senha padrão para continuar." : "A senha temporária precisa ser trocada antes de continuar."}
+          title={
+            loja ? `Crie a senha da loja (${loja})` : "Crie sua senha pessoal"
+          }
+          detail={
+            loja
+              ? "Troque a senha padrão para continuar."
+              : "A senha temporária precisa ser trocada antes de continuar."
+          }
         />
         {loja && !app.hasLoginPassword && (
           <Field
@@ -267,9 +311,22 @@ export function ChangePasswordScreen() {
             const ok = password.length > 0 && r.ok;
             const cor = ok ? C.green : password.length ? C.red : C.lightMuted;
             return (
-              <View key={r.id} style={{ flexDirection: "row", alignItems: "center", gap: 8 }} accessibilityLabel={`${r.label}: ${ok ? "atendido" : "pendente"}`}>
-                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: cor }} />
-                <Text style={[s.small, { color: ok ? C.green : C.muted }]}>{r.label}</Text>
+              <View
+                key={r.id}
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                accessibilityLabel={`${r.label}: ${ok ? "atendido" : "pendente"}`}
+              >
+                <View
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 5,
+                    backgroundColor: cor,
+                  }}
+                />
+                <Text style={[s.small, { color: ok ? C.green : C.muted }]}>
+                  {r.label}
+                </Text>
               </View>
             );
           })}
@@ -284,7 +341,9 @@ export function ChangePasswordScreen() {
         <Button
           title={app.busy ? "Salvando…" : "Salvar nova senha"}
           disabled={app.busy}
-          onPress={() => void app.changeTemporaryPassword(password, confirm, current)}
+          onPress={() =>
+            void app.changeTemporaryPassword(password, confirm, current)
+          }
         />
       </Card>
     </Page>
@@ -3257,9 +3316,9 @@ export function ProfileScreen({ openPrivacy }: { openPrivacy: () => void }) {
         />
       </Group>
       <Button
-        title={app.busy ? "Saindo…" : "Sair da conta"}
+        title={app.signingOut ? "Saindo…" : "Sair da conta"}
         secondary
-        disabled={app.busy}
+        disabled={app.signingOut}
         onPress={() =>
           Alert.alert(
             "Sair do EO?",

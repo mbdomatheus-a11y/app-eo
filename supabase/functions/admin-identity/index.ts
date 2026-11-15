@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
       return json({ error: "Use uma senha entre 12 e 128 caracteres." }, 400);
     }
     const { data: profile } = await admin
-      .from("eo_profiles")
+      .from("perfis")
       .select("must_change_password,active")
       .eq("id", callerId)
       .maybeSingle();
@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
       return json({ error: "Este fluxo nÃ£o estÃ¡ ativo para a conta." }, 403);
     }
     const { data: identity } = await admin
-      .from("eo_profiles")
+      .from("perfis")
       .select("login_chapa")
       .eq("id", callerId)
       .maybeSingle();
@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
       return json({ error: "Chapa ainda nÃ£o vinculada Ã  conta." }, 403);
     const alias = `app-${identity.login_chapa}@login.app-eo.invalid`;
     const { error: flagError } = await admin
-      .from("eo_profiles")
+      .from("perfis")
       .update({ must_change_password: true })
       .eq("id", callerId);
     if (flagError)
@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
     if (passwordError)
       return json({ error: "NÃ£o foi possÃ­vel atualizar a senha." }, 400);
     const { error: updateError } = await admin
-      .from("eo_profiles")
+      .from("perfis")
       .update({ must_change_password: false })
       .eq("id", callerId);
     if (updateError)
@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
         },
         503,
       );
-    await admin.from("eo_audit_events").insert({
+    await admin.from("auditoria").insert({
       actor: callerId,
       action: "identity.temporary_password_changed",
       entity_id: callerId,
@@ -132,7 +132,7 @@ Deno.serve(async (req) => {
   }
 
   const { data: profile, error: profileError } = await admin
-    .from("eo_profiles")
+    .from("perfis")
     .select("role,active,master_admin,must_change_password")
     .eq("id", callerId)
     .maybeSingle();
@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
     if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(targetId))
       return json({ error: "UsuÃ¡rio invÃ¡lido." }, 400);
     const { data: identity } = await admin
-      .from("eo_profiles")
+      .from("perfis")
       .select("login_chapa, role, active, master_admin, must_change_password")
       .eq("id", targetId)
       .maybeSingle();
@@ -202,7 +202,7 @@ Deno.serve(async (req) => {
     // The Auth update below confirms the login alias and sets the temporary password.
     const password = generateTemporaryPassword();
     const alias = `app-${identity.login_chapa}@login.app-eo.invalid`;
-    const { error: auditError } = await admin.from("eo_audit_events").insert({
+    const { error: auditError } = await admin.from("auditoria").insert({
       actor: callerId,
       action: "identity.temporary_password_requested",
       entity_id: targetId,
@@ -213,7 +213,7 @@ Deno.serve(async (req) => {
         503,
       );
     const { error: flagError } = await admin
-      .from("eo_profiles")
+      .from("perfis")
       .update({ must_change_password: true })
       .eq("id", targetId);
     if (flagError)
@@ -232,7 +232,7 @@ Deno.serve(async (req) => {
     if (passwordError) {
       if (!identity.must_change_password) {
         await admin
-          .from("eo_profiles")
+          .from("perfis")
           .update({ must_change_password: false })
           .eq("id", targetId);
       }
@@ -241,7 +241,7 @@ Deno.serve(async (req) => {
         400,
       );
     }
-    await admin.from("eo_audit_events").insert({
+    await admin.from("auditoria").insert({
       actor: callerId,
       action: legacy
         ? "identity.master_temporary_password_issued"
@@ -270,7 +270,7 @@ Deno.serve(async (req) => {
     if (!unitTypes.some((value) => value === unitType))
       return json({ error: "Unidade inválida." }, 400);
     const { data: preferences, error: preferencesError } = await admin
-      .from("eo_identity_preferences")
+      .from("identidade_preferencias")
       .select("email_domains,require_email")
       .eq("id", true)
       .single();
@@ -308,13 +308,9 @@ Deno.serve(async (req) => {
       { data: existingChapa, error: chapaError },
       { data: existingEmail, error: emailError },
     ] = await Promise.all([
-      admin.from("eo_profiles").select("id").eq("login_chapa", chapa).limit(1),
+      admin.from("perfis").select("id").eq("login_chapa", chapa).limit(1),
       email
-        ? admin
-            .from("eo_profiles")
-            .select("id")
-            .eq("contact_email", email)
-            .limit(1)
+        ? admin.from("perfis").select("id").eq("contact_email", email).limit(1)
         : Promise.resolve({ data: [], error: null }),
     ]);
     if (chapaError || emailError)
@@ -352,18 +348,16 @@ Deno.serve(async (req) => {
         409,
       );
 
-    const { error: profileInsertError } = await admin
-      .from("eo_profiles")
-      .insert({
-        id: person.id,
-        display_name: name,
-        role,
-        unit_type: unitType,
-        login_chapa: chapa,
-        contact_email: email || null,
-        active: false,
-        must_change_password: true,
-      });
+    const { error: profileInsertError } = await admin.from("perfis").insert({
+      id: person.id,
+      display_name: name,
+      role,
+      unit_type: unitType,
+      login_chapa: chapa,
+      contact_email: email || null,
+      active: false,
+      must_change_password: true,
+    });
     if (profileInsertError) {
       await admin.auth.admin.deleteUser(person.id);
       return json(
@@ -393,14 +387,12 @@ Deno.serve(async (req) => {
         );
       }
     }
-    const { error: creationAuditError } = await admin
-      .from("eo_audit_events")
-      .insert({
-        actor: callerId,
-        action: "member.created",
-        entity_id: person.id,
-        detail: { role, store_count: stores.length },
-      });
+    const { error: creationAuditError } = await admin.from("auditoria").insert({
+      actor: callerId,
+      action: "member.created",
+      entity_id: person.id,
+      detail: { role, store_count: stores.length },
+    });
     if (creationAuditError)
       return json(
         {
@@ -410,7 +402,7 @@ Deno.serve(async (req) => {
         503,
       );
     const { error: activationError } = await admin
-      .from("eo_profiles")
+      .from("perfis")
       .update({ active: true })
       .eq("id", person.id);
     if (activationError)
