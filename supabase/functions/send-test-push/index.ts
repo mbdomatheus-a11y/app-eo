@@ -1,3 +1,4 @@
+import { pushResults, pushFailureNote } from "../_shared/push-results.ts";
 import { notificationDelivery } from "../_shared/notification-sound.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 
@@ -49,13 +50,13 @@ Deno.serve(async (req) => {
   );
   if (scopeError || scope?.user_id !== authData.user.id)
     return json(
-      { error: "Somente um administrador ativo pode enviar teste." },
+      { error: "Somente uma pessoa com acesso ativo pode enviar teste." },
       403,
     );
 
   const { data: devices, error: deviceError } = await admin
-    .from("eo_push_devices")
-    .select("expo_push_token")
+    .from("dispositivos_push")
+    .select("expo_push_token,sound_bundle")
     .eq("user_id", authData.user.id);
   if (deviceError)
     return json(
@@ -69,7 +70,7 @@ Deno.serve(async (req) => {
       note: "Ative notificações em um aparelho antes de enviar o teste.",
     });
   const { data: preference } = await admin
-    .from("eo_notification_settings")
+    .from("notificacoes_config")
     .select("sound_enabled")
     .eq("user_id", authData.user.id)
     .maybeSingle();
@@ -78,11 +79,12 @@ Deno.serve(async (req) => {
     to: device.expo_push_token,
     title: "Teste de notificações do EO",
     body: "Seu aparelho está conectado para receber alertas operacionais.",
-    ...notificationDelivery(scope.sound, soundEnabled),
+    ...notificationDelivery(scope.sound, soundEnabled, device.sound_bundle),
     priority: "high",
     data: { type: "eo-test" },
   }));
   let accepted = 0;
+  const failures: Record<string, number> = {};
   for (let offset = 0; offset < messages.length; offset += 100) {
     const response = await fetch("https://exp.host/--/api/v2/push/send", {
       method: "POST",
@@ -96,11 +98,12 @@ Deno.serve(async (req) => {
     if (!response.ok)
       return json({ error: "O serviço de push não aceitou o teste." }, 502);
     const result = await response.json();
-    accepted += (result.data ?? []).filter(
-      (ticket: { status?: string }) => ticket.status === "ok",
-    ).length;
+    const summary = pushResults(result.data);
+    accepted += summary.accepted;
+    for (const [code, count] of Object.entries(summary.failures))
+      failures[code] = (failures[code] ?? 0) + count;
   }
-  await admin.from("eo_audit_events").insert({
+  const { error: auditError } = await admin.from("auditoria").insert({
     actor: authData.user.id,
     action: "notification.test.sent",
     entity_id: authData.user.id,
@@ -109,11 +112,16 @@ Deno.serve(async (req) => {
       body: "Seu aparelho está conectado para receber alertas operacionais.",
       devices: devices.length,
       accepted,
+      failures,
     },
   });
   return json({
     devices: devices.length,
     accepted,
-    note: "Aceitação pelo Expo não garante entrega ao aparelho.",
+    failures,
+    audit_recorded: !auditError,
+    note: accepted
+      ? "Aceitação pelo Expo não garante entrega ao aparelho."
+      : pushFailureNote(failures),
   });
 });

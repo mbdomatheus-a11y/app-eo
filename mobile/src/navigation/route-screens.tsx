@@ -499,6 +499,7 @@ export function ModulesRoute() {
           <Group>
             <MenuItem
               title="Agenda de ações"
+              moduleId="agenda"
               detail="Pendências e lembretes no calendário"
               icon="calendar"
               onPress={() => router.push("/agenda" as never)}
@@ -519,6 +520,7 @@ export function ModulesRoute() {
                     title={item.title}
                     detail={item.detail}
                     icon={item.icon}
+                    moduleId={item.id}
                     last={index === items.length - 1}
                     onPress={() => router.push(item.path as never)}
                   />

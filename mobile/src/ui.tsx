@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useContext, useEffect, useState, type ReactNode } from "react";
 import type { Store } from "./types";
 import {
   Pressable,
@@ -12,6 +12,8 @@ import {
   type ViewStyle,
 } from "react-native";
 import { SymbolView, type SymbolViewProps } from "expo-symbols";
+import { APP_ICONS, resolveModuleIcon } from "./features/app-icons";
+import { IconOverridesContext } from "./features/app-icon-context";
 
 export const C = {
   ink: "#282B31",
@@ -50,10 +52,22 @@ export function Page({
     </ScrollView>
   );
 }
-export function Brand({ compact = false, large = false }: { compact?: boolean; large?: boolean }) {
+export function Brand({
+  compact = false,
+  large = false,
+}: {
+  compact?: boolean;
+  large?: boolean;
+}) {
   return (
     <View style={[s.brand, large && { gap: 14 }]}>
-      <Text style={[s.brandMark, compact && s.brandMarkSmall, large && s.brandMarkLarge]}>
+      <Text
+        style={[
+          s.brandMark,
+          compact && s.brandMarkSmall,
+          large && s.brandMarkLarge,
+        ]}
+      >
         eo<Text style={[s.brandDot, large && { fontSize: 40 }]}>•</Text>
       </Text>
       {!compact && (
@@ -197,78 +211,50 @@ export function ActionRow({
         <Text style={s.actionTitle}>{title}</Text>
         {detail ? <Text style={s.actionDetail}>{detail}</Text> : null}
       </View>
-      <SymbolView
-        name={{ ios: "chevron.right", android: "chevron_right" }}
-        size={16}
-        tintColor={C.lightMuted}
-      />
+      <AppIcon name="chevron.right" size={16} color={C.lightMuted} />
     </Pressable>
   );
 }
-const androidIcons: Record<string, string> = {
-  "bell.fill": "notifications_active",
-  "square.grid.2x2.fill": "apps",
-  plus: "add",
-  "house.fill": "home",
-  "person.2.fill": "group",
-  "checkmark.shield.fill": "verified_user",
-  "person.crop.circle.fill": "account_circle",
-  "lock.fill": "lock",
-  "chart.bar.fill": "bar_chart",
-  "archivebox.fill": "inventory_2",
-  calendar: "calendar_today",
-  "phone.fill": "phone",
-  "building.2.fill": "store",
-  "arrow.up.right": "north_east",
-  "checkmark.circle.fill": "check_circle",
-  "questionmark.circle.fill": "help_outline",
-  "doc.text.fill": "description",
-  "list.bullet.rectangle.fill": "view_list",
-  checklist: "checklist",
-  "photo.fill": "photo_camera",
-  "camera.fill": "photo_camera",
-  "mic.fill": "mic",
-  waveform: "graphic_eq",
-  "paintbrush.fill": "brush",
-  "person.3.fill": "groups",
-  "chevron.right": "chevron_right",
-};
+/** Ícones desconhecidos usam o catálogo seguro e nunca viram texto na interface. */
 export function AppIcon({
   name,
+  moduleId,
   size,
   color,
 }: {
-  name: string;
+  name?: string;
+  moduleId?: string;
   size: number;
   color: string;
 }) {
-  const nativeNames = new Set(Object.keys(androidIcons));
-  if (nativeNames.has(name)) {
-    const symbolName = name as SymbolViewProps["name"] & string;
-    return (
-      <SymbolView
-        name={
-          {
-            ios: symbolName,
-            android: androidIcons[name],
-          } as SymbolViewProps["name"]
-        }
-        size={size}
-        tintColor={color}
-      />
-    );
-  }
+  const overrides = useContext(IconOverridesContext);
+  const iconName = resolveModuleIcon(moduleId, overrides, name);
+  const material = APP_ICONS[iconName].material;
+  const names = {
+    ios: iconName,
+    android: material,
+    web: material,
+  } satisfies SymbolViewProps["name"];
   return (
-    <Text
-      style={{
-        color,
-        fontSize: size + 1,
-        fontWeight: "800",
-        lineHeight: size + 4,
-      }}
-    >
-      {name}
-    </Text>
+    <SymbolView
+      name={names}
+      size={size}
+      tintColor={color}
+      accessible={false}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      fallback={
+        <View
+          style={{
+            width: size,
+            height: size,
+            borderWidth: 2,
+            borderColor: color,
+            borderRadius: size / 4,
+          }}
+        />
+      }
+    />
   );
 }
 export function Field({
@@ -361,7 +347,8 @@ export function StorePicker({
     onChange([...new Set([...selected, ...filtered.map((store) => store.id)])]);
   const unica = stores.length === 1 ? stores[0] : null;
   useEffect(() => {
-    if (unica && (selected.length !== 1 || selected[0] !== unica.id)) onChange([unica.id]);
+    if (unica && (selected.length !== 1 || selected[0] !== unica.id))
+      onChange([unica.id]);
   }, [unica?.id]);
   if (unica)
     return (
@@ -430,14 +417,23 @@ export function StorePicker({
           <View style={{ flexDirection: "row", gap: 10 }}>
             <View style={{ flex: 1 }}>
               <Button
-                title={query || uf || region ? `Todas do filtro (${filtered.length})` : `Todas (${stores.length})`}
+                title={
+                  query || uf || region
+                    ? `Todas do filtro (${filtered.length})`
+                    : `Todas (${stores.length})`
+                }
                 secondary
                 disabled={!filtered.length}
                 onPress={addFiltered}
               />
             </View>
             <View style={{ flex: 1 }}>
-              <Button title="Nenhuma" secondary disabled={!selected.length} onPress={() => onChange([])} />
+              <Button
+                title="Nenhuma"
+                secondary
+                disabled={!selected.length}
+                onPress={() => onChange([])}
+              />
             </View>
           </View>
           <Choice

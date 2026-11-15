@@ -1,3 +1,11 @@
+import {
+  ModuleIconSettings,
+  ModuleIconPreview,
+} from "./features/identity/ModuleIconSettings";
+import {
+  normalizeModuleIcons,
+  type ModuleIconOverrides,
+} from "./core/app-icons";
 import { ActionAgenda } from "./features/operations/ActionAgenda";
 import { EmailField } from "./features/identity/EmailField";
 import { ChecklistReport } from "./features/checklists/ChecklistReport";
@@ -337,6 +345,7 @@ function Dialog({
   );
 }
 export default function ConnectedApp() {
+  const [moduleIcons, setModuleIcons] = useState<ModuleIconOverrides>({});
   const [newStoreOpen, setNewStoreOpen] = useState(false);
   const [newStoreDirty, setNewStoreDirty] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -601,25 +610,33 @@ export default function ConnectedApp() {
     setLoading(true);
     setError("");
     try {
-      const status = await rpc<{
-        must_change_password: boolean;
-        conta_loja?: boolean;
-        usuario_loja?: string | null;
-      }>("eo_password_status");
+      const inicio = await rpc<{
+        status: {
+          must_change_password: boolean;
+          conta_loja?: boolean;
+          usuario_loja?: string | null;
+        };
+        context?: Workspace;
+        modules?: { id: string; visible: boolean }[];
+        feed?: LiveNotice[];
+        icons?: unknown;
+      }>("eo_app_inicio");
+      const status = inicio.status;
+      if (current !== epoch.current) return;
       setStoreUser(status.conta_loja ? (status.usuario_loja ?? null) : null);
       if (status.must_change_password) {
         setPasswordMode(true);
         return;
       }
-      const ctx = await rpc<Workspace>("eo_context");
-      const moduleRules =
-        await rpc<{ id: string; visible: boolean }[]>("eo_my_modules");
-      const visible = moduleRules
+      setPasswordMode(false);
+      if (!inicio.context)
+        throw new Error("Não foi possível carregar o espaço.");
+      const ctx = inicio.context;
+      const visible = (inicio.modules ?? [])
         .filter((rule) => rule.visible)
         .map((rule) => rule.id);
-      const feed = visible.includes("notices")
-        ? await rpc<LiveNotice[]>("eo_feed")
-        : [];
+      const feed = inicio.feed ?? [];
+      setModuleIcons(normalizeModuleIcons(inicio.icons));
       setVisibleModules(visible);
       if (current !== epoch.current) return;
       setWorkspace(ctx);
@@ -634,6 +651,25 @@ export default function ConnectedApp() {
       if (current === epoch.current) setLoading(false);
     }
   }, []);
+  useEffect(() => {
+    if (!session?.user.id) return;
+    let alive = true;
+    const load = () => {
+      if (document.hidden) return;
+      void rpc("eo_module_icons")
+        .then((v) => {
+          if (alive) setModuleIcons(normalizeModuleIcons(v));
+        })
+        .catch(() => {});
+    };
+    const timer = setInterval(load, 60000);
+    document.addEventListener("visibilitychange", load);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", load);
+    };
+  }, [session?.user.id]);
   useEffect(() => {
     if (session?.user.id) void refresh();
   }, [session?.user.id, refresh]);
@@ -683,7 +719,9 @@ export default function ConnectedApp() {
         return;
       }
       if (!/^\d{1,20}$/.test(chapa))
-        throw new Error("Informe sua chapa numérica ou o usuário da loja (ex.: ger006).");
+        throw new Error(
+          "Informe sua chapa numérica ou o usuário da loja (ex.: ger006).",
+        );
       const { error: e } = await supabase.auth.signInWithPassword({
         email: `app-${chapa}@login.app-eo.invalid`,
         password: String(data.get("password")),
@@ -709,9 +747,15 @@ export default function ConnectedApp() {
     await act(async () => {
       const password = String(data.get("password"));
       if (storeUser) {
-        if (password !== data.get("confirm")) throw new Error("As senhas não coincidem.");
-        const broken = storePasswordRules(storeUser, password).filter((r) => !r.ok);
-        if (broken.length) throw new Error(`Falta: ${broken.map((r) => r.label.toLowerCase()).join(", ")}.`);
+        if (password !== data.get("confirm"))
+          throw new Error("As senhas não coincidem.");
+        const broken = storePasswordRules(storeUser, password).filter(
+          (r) => !r.ok,
+        );
+        if (broken.length)
+          throw new Error(
+            `Falta: ${broken.map((r) => r.label.toLowerCase()).join(", ")}.`,
+          );
         await storeChangePassword(String(data.get("current")), password, "web");
         setPasswordMode(false);
         setNewPassword("");
@@ -1589,7 +1633,12 @@ export default function ConnectedApp() {
             >
               <label>
                 Usuário da loja
-                <input name="user" autoCapitalize="none" placeholder="Ex.: ger006" required />
+                <input
+                  name="user"
+                  autoCapitalize="none"
+                  placeholder="Ex.: ger006"
+                  required
+                />
               </label>
               <button className="primary" type="submit" disabled={busy}>
                 Pedir redefinição ao administrador
@@ -1619,13 +1668,27 @@ export default function ConnectedApp() {
     return (
       <div className="auth-shell">
         <section className="auth-card">
-          <h2>{storeUser ? `Crie a senha da loja (${storeUser})` : "Defina sua senha"}</h2>
-          {storeUser && <p>Primeiro acesso ou senha redefinida: troque a senha padrão para continuar.</p>}
+          <h2>
+            {storeUser
+              ? `Crie a senha da loja (${storeUser})`
+              : "Defina sua senha"}
+          </h2>
+          {storeUser && (
+            <p>
+              Primeiro acesso ou senha redefinida: troque a senha padrão para
+              continuar.
+            </p>
+          )}
           <form className="form" onSubmit={changePassword}>
             {storeUser && (
               <label>
                 Senha atual (padrão)
-                <input name="current" type="password" autoComplete="current-password" required />
+                <input
+                  name="current"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                />
               </label>
             )}
             <label>
@@ -1636,12 +1699,18 @@ export default function ConnectedApp() {
                 autoComplete="new-password"
                 minLength={12}
                 required
-                aria-describedby={storeUser ? "store-password-rules" : undefined}
+                aria-describedby={
+                  storeUser ? "store-password-rules" : undefined
+                }
                 onChange={(ev) => setNewPassword(ev.target.value)}
               />
             </label>
             {storeUser && (
-              <ul id="store-password-rules" className="password-rules" aria-live="polite">
+              <ul
+                id="store-password-rules"
+                className="password-rules"
+                aria-live="polite"
+              >
                 {storePasswordRules(storeUser, newPassword).map((r) => (
                   <li key={r.id} className={r.ok ? "ok" : ""}>
                     {r.ok ? "✓" : "○"} {r.label}
@@ -2096,7 +2165,10 @@ export default function ConnectedApp() {
                       onClick={() => setPage("agenda")}
                     >
                       <span className="eo-tile-icon">
-                        <CalendarDays size={21} />
+                        <ModuleIconPreview
+                          moduleId="agenda"
+                          icons={moduleIcons}
+                        />
                       </span>
                       <strong>Agenda de ações</strong>
                       <small>Pendências e lembretes no calendário</small>
@@ -2108,7 +2180,10 @@ export default function ConnectedApp() {
                       onClick={() => setPage("product")}
                     >
                       <span className="eo-tile-icon" data-tone="gold">
-                        <Grid2X2 size={21} />
+                        <ModuleIconPreview
+                          moduleId="product"
+                          icons={moduleIcons}
+                        />
                       </span>
                       <strong>Pedir produto</strong>
                       <small>Procura e oportunidades comerciais</small>
@@ -2120,7 +2195,10 @@ export default function ConnectedApp() {
                       onClick={() => setPage("assortment")}
                     >
                       <span className="eo-tile-icon" data-tone="blue">
-                        <ClipboardCheck size={21} />
+                        <ModuleIconPreview
+                          moduleId="assortment"
+                          icons={moduleIcons}
+                        />
                       </span>
                       <strong>Sortimento</strong>
                       <small>Código e quantidades por tamanho</small>
@@ -2132,7 +2210,10 @@ export default function ConnectedApp() {
                       onClick={() => setPage("checklists")}
                     >
                       <span className="eo-tile-icon" data-tone="green">
-                        <ClipboardCheck size={21} />
+                        <ModuleIconPreview
+                          moduleId="checklists"
+                          icons={moduleIcons}
+                        />
                       </span>
                       <strong>Checklists</strong>
                       <small>Rotinas e respostas da equipe</small>
@@ -2144,7 +2225,10 @@ export default function ConnectedApp() {
                       onClick={() => setPage("sales")}
                     >
                       <span className="eo-tile-icon" data-tone="blue">
-                        <Building2 size={21} />
+                        <ModuleIconPreview
+                          moduleId="sales"
+                          icons={moduleIcons}
+                        />
                       </span>
                       <strong>Vendas</strong>
                       <small>Semana, mês e ano</small>
@@ -2156,7 +2240,10 @@ export default function ConnectedApp() {
                       onClick={() => setPage("escala")}
                     >
                       <span className="eo-tile-icon" data-tone="green">
-                        <CalendarDays size={21} />
+                        <ModuleIconPreview
+                          moduleId="escala"
+                          icons={moduleIcons}
+                        />
                       </span>
                       <strong>Escala</strong>
                       <small>5x2 e 6x1 por semana, mês e ano</small>
@@ -2168,7 +2255,10 @@ export default function ConnectedApp() {
                       onClick={() => setPage("diary")}
                     >
                       <span className="eo-tile-icon" data-tone="green">
-                        <Mic size={21} />
+                        <ModuleIconPreview
+                          moduleId="diary"
+                          icons={moduleIcons}
+                        />
                       </span>
                       <strong>Diário de vendas</strong>
                       <small>Relatos, motivos e áudio</small>
@@ -2177,7 +2267,10 @@ export default function ConnectedApp() {
                   {visibleModules.includes("mood") && (
                     <button className="eo-tile" onClick={() => setPage("mood")}>
                       <span className="eo-tile-icon" data-tone="purple">
-                        <Users size={21} />
+                        <ModuleIconPreview
+                          moduleId="mood"
+                          icons={moduleIcons}
+                        />
                       </span>
                       <strong>Como está seu dia?</strong>
                       <small>Sentimento e acompanhamento</small>
@@ -2189,7 +2282,10 @@ export default function ConnectedApp() {
                       onClick={() => setPage("notices")}
                     >
                       <span className="eo-tile-icon" data-tone="gold">
-                        <Megaphone size={21} />
+                        <ModuleIconPreview
+                          moduleId="notices"
+                          icons={moduleIcons}
+                        />
                       </span>
                       <strong>Comunicados</strong>
                       <small>Orientações e confirmações</small>
@@ -2304,6 +2400,7 @@ export default function ConnectedApp() {
                 <details className="panel">
                   <summary>Visibilidade dos módulos</summary>
                   <ModuleAccess onChanged={() => void refresh()} />
+                  <ModuleIconSettings onChanged={setModuleIcons} />
                 </details>
               )}
               {tab === "people" && (

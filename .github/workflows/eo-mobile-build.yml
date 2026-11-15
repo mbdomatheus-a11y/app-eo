@@ -146,16 +146,13 @@ jobs:
       - name: Assinatura de upload
         run: |
           echo "$ANDROID_UPLOAD_KEYSTORE_B64" | base64 -d > android/app/eo-upload.keystore
-          cat >> android/gradle.properties <<EOF
-          EO_UPLOAD_STORE_FILE=eo-upload.keystore
-          EOF
           node - <<'EOF'
           const fs = require('fs');
           const f = 'android/app/build.gradle';
           let g = fs.readFileSync(f, 'utf8');
           const release = `
                   release {
-                      storeFile file(project.property('EO_UPLOAD_STORE_FILE'))
+                      storeFile file('eo-upload.keystore')
                       storePassword System.getenv('ANDROID_UPLOAD_KEYSTORE_PASSWORD')
                       keyAlias System.getenv('ANDROID_UPLOAD_KEY_ALIAS')
                       keyPassword System.getenv('ANDROID_UPLOAD_KEY_PASSWORD')

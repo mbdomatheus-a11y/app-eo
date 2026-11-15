@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
   const admin = createClient(url, secret);
 
   const { count, error: countError } = await admin
-    .from("eo_audit_events")
+    .from("auditoria")
     .select("id", { count: "exact", head: true })
     .eq("actor", auth.user.id)
     .eq("action", "product.ai_requested")
@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
       429,
     );
 
-  const { error: auditError } = await admin.from("eo_audit_events").insert({
+  const { error: auditError } = await admin.from("auditoria").insert({
     actor: auth.user.id,
     action: "product.ai_requested",
     entity_id: auth.user.id,
