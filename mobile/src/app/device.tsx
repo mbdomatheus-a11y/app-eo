@@ -3,6 +3,7 @@ import Constants from "expo-constants";
 import {
   createSoundChannels,
   soundChannel,
+  nativeSoundName,
 } from "../features/notification-sound";
 import { rpc } from "../services/supabase";
 import { SoundSettings } from "../features/SoundSettings";
@@ -92,7 +93,7 @@ export default function DeviceScreen() {
         content: {
           title: "EO • Avisos ativados",
           body: "Este é um teste local de som e banner. O teste push abaixo verifica o envio pelo servidor.",
-          sound: app.soundEnabled ? sound : false,
+          sound: app.soundEnabled ? nativeSoundName(sound) : false,
         },
         trigger:
           Platform.OS === "android"
@@ -146,13 +147,21 @@ export default function DeviceScreen() {
               ? "Aparelho registrado no servidor para push."
               : "Este aparelho ainda não está registrado no servidor. Ative as notificações para concluir."}
           </Text>
+          {app.pushBusy && (
+            <Text accessibilityLiveRegion="polite" style={s.small}>
+              Conectando ao serviço de notificações. Você pode navegar
+              normalmente.
+            </Text>
+          )}
           <Text style={s.body}>
             Receba orientações mesmo com o EO fechado. Som e exibição também
             dependem dos ajustes do aparelho.
           </Text>
           <Button
-            title="Ativar notificações"
-            disabled={busy || app.busy}
+            title={
+              app.pushBusy ? "Conectando notificações…" : "Ativar notificações"
+            }
+            disabled={app.pushBusy}
             onPress={() => void app.enablePush()}
           />
           <Button
@@ -217,8 +226,12 @@ export default function DeviceScreen() {
         />
         <View style={{ paddingVertical: 8 }}>
           <Text style={[s.small, { color: C.muted }]}>
-            EO · Versão {Constants.nativeAppVersion ?? "desenvolvimento"} ·
-            Compilação {Constants.nativeBuildVersion ?? "local"}
+            EO · Versão{" "}
+            {Constants.nativeAppVersion ??
+              Constants.expoConfig?.version ??
+              "não identificada"}{" "}
+            · Compilação{" "}
+            {Constants.nativeBuildVersion ?? "consulte no TestFlight"}
           </Text>
           <Text style={[s.small, { color: C.muted }]}>
             Atualização interna:{" "}
