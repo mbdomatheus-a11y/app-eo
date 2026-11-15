@@ -3,6 +3,12 @@
 Atualizado em 10/11/2026. Documento de passagem, sem senhas, chaves ou tokens.
 
 
+## Atualização 15/11/2026 (prevalece nos itens alterados)
+
+Cinco correções implementadas: logo ampliado, ícones globais editáveis por admin, ditado com estado/timeout, push isolado do bloqueio global e entrada com menos chamadas. Site9aca1b7 e seis funções publicadas; migrations202611150001/002 aditivas aplicadas após dry run/plpgsql_check.87 testes passaram, um opcional ignorado. Não houve validação física nem envio OTA.
+
+Matheus deve executar no próprio PowerShell scripts/publicar-correcoes-20261115.ps1 para iOS; -Plataforma android usa configuração do AAB4401. Tag local OTA compatível: ota-20261115-cinco-correcoes, baseada em ota-20261112-navegacao. Não publicar uma OTA de main no iPhone antigo nem afirmar atualização instalada. Código atual não alterou app.json, dependências ou configuração nativa. Detalhes e limites em docs/EO-CORRECOES-20261115.md. Toda entrega deve terminar com checklist de cada pedido, indicando feito/não feito e pendências de publicação/teste físico.
+
 ## Atualização 12/11/2026 (prevalece sobre o restante)
 
 Memória completa e pendências: Obsidian `01 - PROJETOS/app-operacional-lojas.md`, seção "Passagem atual para outra IA, 12/11/2026". Regras do banco: `docs/BANCO-CONVENCOES.md`. Publicação Android: `docs/ANDROID-PLAY.md`. Imagens da Play: `docs/play/`.
