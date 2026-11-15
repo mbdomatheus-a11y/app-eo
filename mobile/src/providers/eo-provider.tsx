@@ -509,6 +509,11 @@ export function EOProvider({ children }: { children: ReactNode }) {
       setError("");
       try {
         await offlineEngine.setIdentity(session.user.id);
+        if (
+          current !== epoch.current ||
+          currentUser.current !== session.user.id
+        )
+          return;
         type Startup = {
           status: {
             must_change_password: boolean;
@@ -544,6 +549,11 @@ export function EOProvider({ children }: { children: ReactNode }) {
             8000,
             "Tempo limite de conexão. Seus dados locais continuam disponíveis.",
           );
+          if (
+            current !== epoch.current ||
+            currentUser.current !== session.user.id
+          )
+            return;
           const status = inicio.status;
           setStoreUser(
             status.conta_loja ? (status.usuario_loja ?? null) : null,
@@ -587,6 +597,11 @@ export function EOProvider({ children }: { children: ReactNode }) {
           setNotices(feed);
           setMore(feed.length === 20);
         } catch (cause) {
+          if (
+            current !== epoch.current ||
+            currentUser.current !== session.user.id
+          )
+            return;
           if (
             isTransportError(cause) ||
             (cause instanceof Error && /Tempo limite/.test(cause.message))

@@ -27,7 +27,7 @@ Executar no PowerShell do projeto:
 .\scripts\publicar-faceid-offline-20261115.ps1
 ```
 
-O script envia main e a tag `ota-20261115-faceid-offline`, derivada de `ota-20261112-navegacao` com os arquivos nativos preservados para o runtime do iPhone. Não publicar main diretamente no runtime antigo. Android opcional: mesmo script com `-Plataforma android`. Nenhuma build nativa iniciada. O pacote contém também as correções anteriores de logo, ícones e ditado.
+O script envia main e a tag `ota-20261115-faceid-offline-r2`, derivada de `ota-20261112-navegacao` com os arquivos nativos preservados para o runtime do iPhone. Não publicar main diretamente no runtime antigo. Android opcional: mesmo script com `-Plataforma android`. Nenhuma build nativa iniciada. O pacote contém também as correções anteriores de logo, ícones e ditado.
 
 ## Teste físico após o workflow concluir
 

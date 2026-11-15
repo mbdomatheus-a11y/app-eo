@@ -4,7 +4,7 @@ $ErrorActionPreference='Stop'
 $projectRoot=Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $projectRoot
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'Abra no PowerShell onde o GitHub CLI esta instalado e autenticado. Nao envie tokens no chat.' }
-$otaTag='ota-20261115-faceid-offline'
+$otaTag='ota-20261115-faceid-offline-r2'
 git show-ref --verify --quiet "refs/tags/$otaTag"
 if ($LASTEXITCODE -ne 0) { throw 'Tag OTA local nao encontrada. Pare e confira a preparacao.' }
 git push origin main
