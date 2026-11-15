@@ -4,6 +4,7 @@ import {
 } from "./features/identity/ModuleIconSettings";
 import {
   normalizeModuleIcons,
+  isIconModuleId,
   type ModuleIconOverrides,
 } from "./core/app-icons";
 import { ActionAgenda } from "./features/operations/ActionAgenda";
@@ -1860,7 +1861,15 @@ export default function ConnectedApp() {
                 n.id === "admin" ? void openAdmin(tab) : setPage(n.id)
               }
             >
-              <n.icon size={20} />
+              {isIconModuleId(n.id) ? (
+                <ModuleIconPreview
+                  moduleId={n.id}
+                  icons={moduleIcons}
+                  size={20}
+                />
+              ) : (
+                <n.icon size={20} />
+              )}
               {n.label}
             </button>
           ))}
@@ -2297,7 +2306,10 @@ export default function ConnectedApp() {
                       onClick={() => void openAdmin("reports")}
                     >
                       <span className="eo-tile-icon">
-                        <ClipboardCheck size={21} />
+                        <ModuleIconPreview
+                          moduleId="reports"
+                          icons={moduleIcons}
+                        />
                       </span>
                       <strong>Relatórios</strong>
                       <small>Operação, respostas e auditoria</small>
@@ -3593,7 +3605,15 @@ export default function ConnectedApp() {
                 setMoreOpen(false);
               }}
             >
-              <n.icon size={21} />
+              {isIconModuleId(n.id) ? (
+                <ModuleIconPreview
+                  moduleId={n.id}
+                  icons={moduleIcons}
+                  size={21}
+                />
+              ) : (
+                <n.icon size={21} />
+              )}
               <span>{n.id === "home" ? "Início" : n.label}</span>
             </button>
           ))}
@@ -3636,7 +3656,15 @@ export default function ConnectedApp() {
                   n.id === "admin" ? void openAdmin(tab) : setPage(n.id);
                 }}
               >
-                <n.icon size={22} />
+                {isIconModuleId(n.id) ? (
+                  <ModuleIconPreview
+                    moduleId={n.id}
+                    icons={moduleIcons}
+                    size={22}
+                  />
+                ) : (
+                  <n.icon size={22} />
+                )}
                 <span>{n.label}</span>
                 <ChevronRight size={18} />
               </button>
