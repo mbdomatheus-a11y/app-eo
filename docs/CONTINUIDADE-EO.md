@@ -176,3 +176,7 @@ Arquivos 202611110001/002 e operações de banco estão não versionados no chec
 - Obsidian app-operacional-lojas: fonte durável de decisões e checkpoints, leitura dirigida.
 
 Não incluir em commits em massa: AGENTS.md/MEMORIA.md não versionados do usuário, .identity*.sql, scripts/provision-apple-review-demo.sql, tmp/, output/, outputs/, caches e as migrations de outra frente sem revisão específica. Não ler arquivos de credenciais só para documentar.
+
+## Atualização 15/11/2026: Face ID e offline
+
+Consultar docs/EO-FACEID-OFFLINE-20261115.md. Máquina de estado biométrica com timeout e senha disponível; sessão local sem esperar rede; indicador Saindo separado de push. Cache cifrado por identidade e fila idempotente com RPC eo_apply_offline aplicada após dry run/plpgsql_check. Testes: 112 aprovados, 1 ignorado; TypeScript e export iOS aprovados. Sem alteração nativa nem build. Publicação pendente pelo próprio PowerShell do Matheus: scripts/publicar-faceid-offline-20261115.ps1. Não executar push/gh por automação. Tag compatível ota-20261115-faceid-offline deriva de ota-20261112-navegacao. Validação física de Face ID, som e entrega remota ainda pendente. Não afirmar crash nativo resolvido sem evidência.

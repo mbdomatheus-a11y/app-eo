@@ -97,6 +97,7 @@ function RootNavigation() {
         />
         <Stack.Screen name="alerts" options={{ title: "Alertas" }} />
         <Stack.Screen name="device" options={{ title: "Meu aparelho" }} />
+        <Stack.Screen name="sync" options={{ title: "Sincronização" }} />
         <Stack.Screen name="product" options={{ title: "Pedir produto" }} />
         <Stack.Screen name="assortment" options={{ title: "Sortimento" }} />
         <Stack.Screen name="sales" options={{ title: "Vendas" }} />
@@ -127,7 +128,7 @@ function RootNavigation() {
           options={{ title: "Comunicados arquivados" }}
         />
       </Stack>
-      {app.workspace && !app.passwordMode && (
+      {app.workspace && !app.passwordMode && app.offline.online && app.offline.revalidated && (
         <ContactUpdateGate
           key={`${app.workspace.person.id}:${app.alerts.find((alert) => alert.data?.type === "contact_update")?.id ?? "none"}`}
           onSignOut={() => {

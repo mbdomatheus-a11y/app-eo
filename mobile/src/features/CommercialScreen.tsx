@@ -5,7 +5,7 @@ import { AppState, Modal, ScrollView, Share, Text, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Crypto from "expo-crypto";
 import { useEO } from "../providers/eo-provider";
-import { rpc, supabase } from "../services/supabase";
+import { rpc, supabase, deliveryMessage } from "../services/supabase";
 import { Badge, Button, C, Card, Choice, Field, Heading, Page, s } from "../ui";
 import { VoiceInput } from "./VoiceInput";
 import { ScreenTitle } from "../design";
@@ -168,7 +168,7 @@ export function CommercialScreen({
     setDetails(emptyDetails());
     setDictated(false);
     setReviewed(false);
-    setMessage("Pedido enviado com sucesso. Consulte o histórico da unidade.");
+    setMessage(deliveryMessage("Pedido enviado com sucesso. Consulte o histórico da unidade."));
     setReport(true);
     setRefresh((v) => v + 1);
   }

@@ -3316,9 +3316,9 @@ export function ProfileScreen({ openPrivacy }: { openPrivacy: () => void }) {
         />
       </Group>
       <Button
-        title={app.busy ? "Saindo…" : "Sair da conta"}
+        title={app.signingOut ? "Saindo…" : "Sair da conta"}
         secondary
-        disabled={app.busy}
+        disabled={app.signingOut}
         onPress={() =>
           Alert.alert(
             "Sair do EO?",

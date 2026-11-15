@@ -12,7 +12,7 @@ import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import * as Crypto from "expo-crypto";
 import { useEO } from "../providers/eo-provider";
-import { rpc, supabase } from "../services/supabase";
+import { rpc, supabase, deliveryMessage } from "../services/supabase";
 import {
   Button,
   Card,
@@ -313,7 +313,7 @@ export function OperationsScreen({
       setNote("");
       setReasons([]);
       setAnswers({});
-      setMessage("Registro salvo no diário da loja.");
+      setMessage(deliveryMessage("Registro salvo no diário da loja."));
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -336,7 +336,7 @@ export function OperationsScreen({
       });
       moodRequest.current = Crypto.randomUUID();
       setMood("");
-      setMessage("Resposta registrada. Obrigado por compartilhar.");
+      setMessage(deliveryMessage("Resposta registrada. Obrigado por compartilhar."));
       await load();
     } catch (e) {
       setError((e as Error).message);

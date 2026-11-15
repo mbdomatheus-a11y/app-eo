@@ -1,4 +1,5 @@
 import { rpc } from "../services/supabase";
+import { OfflineBanner } from "../features/OfflineStatus";
 import { ReportsHub } from "../features/ReportsHub";
 import { ModuleAccess } from "../features/ModuleAccess";
 import { MoodReminderBanner } from "../features/MoodReminderBanner";
@@ -171,6 +172,7 @@ export function RouteFrame({
       <Feedback error={app.error} message="" onClose={app.clearFeedback} />
       <SuccessToastHost bottom={tabs ? 86 : 24} />
       <SuccessToast message={app.message} />
+      <OfflineBanner />
       {app.workspace && app.moduleVisible("mood") && (
         <MoodReminderBanner
           userId={app.workspace.person.id}

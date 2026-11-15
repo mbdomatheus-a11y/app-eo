@@ -35,9 +35,20 @@ export function createTimedFetch(
     const abort = () => controller.abort();
     if (caller?.aborted) controller.abort();
     else caller?.addEventListener("abort", abort, { once: true });
-    const timer = setTimeout(abort, ms);
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      abort();
+    }, ms);
     try {
       return await baseFetch(input, { ...init, signal: controller.signal });
+    } catch (error) {
+      if (timedOut && !caller?.aborted)
+        throw Object.assign(new Error("Tempo limite de conexão."), {
+          name: "TimeoutError",
+          code: "ETIMEDOUT",
+        });
+      throw error;
     } finally {
       clearTimeout(timer);
       caller?.removeEventListener("abort", abort);

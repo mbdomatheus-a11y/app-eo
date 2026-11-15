@@ -1,0 +1,20 @@
+begin;
+do $$ declare v_actor uuid;store uuid;operation uuid:=gen_random_uuid();request uuid:=gen_random_uuid();args jsonb;first jsonb;second jsonb;rejected boolean:=false;begin
+ select id into v_actor from public.perfis where active and role='admin' order by id limit 1;
+ select id into store from public.lojas where active order by id limit 1;
+ perform set_config('request.jwt.claim.sub',v_actor::text,true);execute 'set local role authenticated';
+ args:=jsonb_build_object('p_store',store,'p_note','Teste reversível offline','p_details','{}'::jsonb,'p_request',request);
+ first:=public.eo_apply_offline(operation,'eo_save_product_request',args,now());
+ second:=public.eo_apply_offline(operation,'eo_save_product_request',args,now());
+ if first is distinct from second then raise exception 'FAIL reenvio mudou resultado';end if;
+ begin perform public.eo_apply_offline(operation,'eo_save_product_request',jsonb_set(args,'{p_note}','"Outro conteúdo"'),now());exception when sqlstate '22023' then rejected:=true;end;
+ if not rejected then raise exception 'FAIL conteúdo divergente aceito';end if;
+ rejected:=false;begin perform public.eo_apply_offline(gen_random_uuid(),'eo_admin_delete_person','{}',now());exception when insufficient_privilege then rejected:=true;end;
+ if not rejected then raise exception 'FAIL método admin offline';end if;
+ execute 'reset role';
+ if (select count(*) from public.eo_product_requests where person_id=v_actor and request_id=request)<>1 then raise exception 'FAIL pedido duplicado';end if;
+ if (select count(*) from public.auditoria a where a.actor=v_actor and action='offline.operation.applied' and entity_id=operation::text)<>1 then raise exception 'FAIL auditoria duplicada';end if;
+ if has_function_privilege('anon','public.eo_apply_offline(uuid,text,jsonb,timestamptz)','EXECUTE') then raise exception 'FAIL grant anon';end if;
+end;$$;
+select 'PASSOU: sincronização idempotente, conteúdo protegido, método admin negado e auditoria única' resultado;
+rollback;
