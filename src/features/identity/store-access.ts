@@ -67,8 +67,8 @@ export const storeRequestReset = (user: string, origem: Platform = "web") =>
 export const storeChangePassword = (current: string, next: string, origem: Platform = "web") =>
   call<{ ok: boolean }>({ acao: "trocar-senha", senha_atual: current, nova_senha: next, origem });
 
-export const storeProvision = (limite = 25) =>
-  call<{ criadas: number; falhas: string[]; restantes: number }>({ acao: "provisionar", limite });
+export const storeProvision = (limite = 25, ignorar: string[] = []) =>
+  call<{ criadas: number; falhas: string[]; restantes: number }>({ acao: "provisionar", limite, ignorar });
 
 export const storeResetToDefault = (perfilId: string, solicitacaoId?: number) =>
   call<{ ok: boolean; usuario: string }>({ acao: "redefinir", perfil_id: perfilId, solicitacao_id: solicitacaoId });

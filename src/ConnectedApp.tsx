@@ -14,6 +14,8 @@ import { BusinessUnits } from "./features/identity/BusinessUnits";
 import { SoundSettings } from "./features/communications/SoundSettings";
 import { ModuleAccess } from "./features/module-access/ModuleAccess";
 import { StoreAccounts } from "./features/identity/StoreAccounts";
+import { AndroidWaitlistAdmin } from "./features/identity/AndroidWaitlistAdmin";
+import { AppAvailability } from "./components/AppAvailability";
 import {
   normalizeStoreUser,
   storeChangePassword,
@@ -1674,6 +1676,7 @@ export default function ConnectedApp() {
             </a>
           )}
         </section>
+        <AppAvailability />
       </div>
     );
   if (passwordMode)
@@ -2075,6 +2078,7 @@ export default function ConnectedApp() {
                       )}
                     </div>
                   </section>
+                  <AppAvailability />
                 </>
               )}
               <div className="section-heading">
@@ -2432,6 +2436,7 @@ export default function ConnectedApp() {
                   <StoreAccounts />
                 </details>
               )}
+              {tab === "people" && <AndroidWaitlistAdmin />}
               {tab === "stores" && (
                 <details className="panel">
                   <summary>Gerenciar EC, CDA e outras unidades</summary>

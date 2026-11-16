@@ -26,7 +26,7 @@ const FILTERS = [
 ] as const;
 
 export function StoreAccounts() {
-  const [filter, setFilter] = useState<(typeof FILTERS)[number][0]>("pedidos");
+  const [filter, setFilter] = useState<(typeof FILTERS)[number][0]>("todas");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
   const [data, setData] = useState<Page | null>(null);
@@ -71,15 +71,17 @@ export function StoreAccounts() {
   const provisionAll = () =>
     run(async () => {
       let total = 0;
-      const failed: string[] = [];
+      let restantes = data?.resumo.lojas_sem_conta ?? 0;
+      const failed = new Set<string>();
       for (let i = 0; i < 30; i++) {
-        const r = await storeProvision(30);
+        const r = await storeProvision(30, [...failed]);
         total += r.criadas;
-        failed.push(...r.falhas);
-        setMessage(`Criando contas: ${total} criadas, ${r.restantes} restantes...`);
-        if (!r.restantes || (!r.criadas && r.falhas.length)) break;
+        restantes = r.restantes;
+        r.falhas.forEach((usuario) => failed.add(usuario));
+        setMessage(`Criando contas: ${total} criadas, ${restantes} restantes...`);
+        if (!restantes || (!r.criadas && !r.falhas.length)) break;
       }
-      return `${total} contas criadas.${failed.length ? ` Falharam: ${failed.join(", ")}.` : ""}`;
+      return `${total} contas criadas nesta ação. ${restantes} lojas ainda sem conta.${failed.size ? ` Verifique: ${[...failed].join(", ")}.` : ""}`;
     });
 
   const r = data?.resumo;

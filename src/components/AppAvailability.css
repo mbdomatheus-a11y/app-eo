@@ -1,0 +1,28 @@
+.eo-app-availability { margin: 24px 0; padding: 22px; border: 1px solid #e1e3e7; border-radius: 18px; background: #fff; color: #262a32; }
+.eo-app-intro { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.eo-app-intro > svg { flex-shrink: 0; }
+.eo-app-intro h2 { margin: 0; font-size: 18px; }
+.eo-app-intro p, .eo-app-option > p { margin: 6px 0 0; color: #59606c; font-size: 14px; line-height: 1.6; }
+.eo-app-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.eo-app-option { min-width: 0; padding: 18px; background: #f7f7f8; border-radius: 14px; }
+.eo-app-platform { display: inline-block; margin-bottom: 8px; font-size: 12px; font-weight: 700; color: #59606c; }
+.eo-app-option h3 { margin: 0; font-size: 16px; }
+.eo-app-link { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; margin-top: 16px; text-decoration: none; }
+.eo-app-play-link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 12px; color: #262a32; font-weight: 700; text-underline-offset: 3px; }
+.eo-android-details { margin-top: 16px; }
+.eo-android-details > summary { width: fit-content; min-height: 44px; padding: 10px 14px; border: 1px solid #d7d9de; border-radius: 10px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
+.eo-android-details > summary:focus-visible { outline: 2px solid #777035; outline-offset: 3px; }
+.eo-android-details[open] > summary { margin-bottom: 18px; }
+.eo-android-form { display: grid; gap: 7px; }
+.eo-android-form label { margin-top: 5px; font-size: 13px; font-weight: 600; }
+.eo-android-form input { width: 100%; min-width: 0; min-height: 44px; font-size: 16px; }
+.eo-android-form button { min-height: 44px; margin-top: 6px; }
+.eo-app-privacy { margin: 6px 0; color: #59606c; font-size: 12px; line-height: 1.6; }
+.eo-app-error { margin: 5px 0; color: #9b2424; font-size: 14px; line-height: 1.5; }
+.eo-app-confirmation { display: flex; align-items: flex-start; gap: 10px; padding: 14px; border-radius: 12px; background: #edf5ee; color: #285335; }
+.eo-app-confirmation > svg { flex-shrink: 0; }
+.eo-app-confirmation p { margin: 5px 0 0; font-size: 13px; line-height: 1.6; }
+.eo-signin { flex-wrap: wrap; column-gap: 7vw; row-gap: 24px; }
+.eo-signin > .eo-app-availability { flex: 0 1 1020px; width: 100%; margin: 0; }
+@media (max-width: 850px) { .eo-signin > .eo-app-availability { flex-basis: auto; width: 430px; max-width: 100%; } }
+@media (max-width: 640px) { .eo-app-availability { padding: 16px; } .eo-app-options { grid-template-columns: 1fr; } .eo-app-link { width: 100%; } }

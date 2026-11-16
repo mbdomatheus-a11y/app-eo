@@ -162,16 +162,41 @@ Deno.serve(async (req) => {
 
   if (acao === "provisionar" || automatico) {
     const limite = automatico ? 40 : Math.min(Math.max(Number(input.limite ?? 25), 1), 40);
-    const [{ data: lojas, error: e1 }, { data: contas, error: e2 }] = await Promise.all([
-      admin.from("lojas").select("id,code,name").eq("active", true),
-      admin.from("acesso_contas_loja").select("loja_id"),
-    ]);
-    if (e1 || e2) return json({ error: "Não foi possível ler as lojas." }, 503);
-    const comConta = new Set((contas ?? []).map((c) => c.loja_id));
-    const pendentes = (lojas ?? []).filter((l) => /^[0-9]{1,4}$/.test(l.code) && !comConta.has(l.id));
+    const ignoradas = new Set(
+      automatico || !Array.isArray(input.ignorar) ? [] : input.ignorar
+        .slice(0, 1000).filter((value): value is string => typeof value === "string" && /^ger[0-9]{3,4}$/.test(value)),
+    );
+    // A API pode limitar cada resposta a 100 linhas. Ler só a primeira página
+    // deixa a provisão presa nas primeiras 100 lojas, mesmo com centenas pendentes.
+    const lojas: { id: string; code: string; name: string }[] = [];
+    const contas: { loja_id: string }[] = [];
+    for (let lastId = ""; ; ) {
+      let query = admin.from("lojas").select("id,code,name")
+        .eq("active", true).order("id").limit(100);
+      if (lastId) query = query.gt("id", lastId);
+      const { data, error } = await query;
+      if (error)
+        return json({ error: "Não foi possível ler todas as lojas." }, 503);
+      lojas.push(...(data ?? []));
+      if (!data?.length) break;
+      lastId = data[data.length - 1].id;
+    }
+    for (let lastId = ""; ; ) {
+      let query = admin.from("acesso_contas_loja").select("loja_id")
+        .order("loja_id").limit(100);
+      if (lastId) query = query.gt("loja_id", lastId);
+      const { data, error } = await query;
+      if (error)
+        return json({ error: "Não foi possível ler todas as contas de loja." }, 503);
+      contas.push(...(data ?? []));
+      if (!data?.length) break;
+      lastId = data[data.length - 1].loja_id;
+    }
+    const comConta = new Set(contas.map((c) => c.loja_id));
+    const pendentes = lojas.filter((l) => /^[0-9]{1,4}$/.test(l.code) && !comConta.has(l.id));
     const criadas: string[] = [];
     const falhas: string[] = [];
-    for (const loja of pendentes.slice(0, limite)) {
+    for (const loja of pendentes.filter((l) => !ignoradas.has(`ger${l.code.padStart(3, "0")}`)).slice(0, limite)) {
       const usuario = `ger${loja.code.padStart(3, "0")}`;
       const nome = `Gerência ${loja.code.padStart(3, "0")} ${loja.name}`;
       const { data: criado, error } = await admin.auth.admin.createUser({
@@ -192,7 +217,7 @@ Deno.serve(async (req) => {
       }
       criadas.push(usuario);
     }
-    return json({ criadas: criadas.length, falhas, restantes: Math.max(0, pendentes.length - criadas.length - falhas.length) });
+    return json({ criadas: criadas.length, falhas, restantes: Math.max(0, pendentes.length - criadas.length) });
   }
 
   if (acao === "redefinir") {

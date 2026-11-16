@@ -1,0 +1,13 @@
+.android-waitlist-content { display: grid; gap: 12px; padding-top: 16px; }
+.android-waitlist-content > p { margin: 0; }
+.android-waitlist-toolbar { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
+.android-waitlist-toolbar label { flex: 1 1 240px; display: grid; gap: 6px; }
+.android-waitlist-toolbar input { min-width: 0; width: 100%; }
+.android-waitlist-toolbar button { min-height: 42px; }
+.android-waitlist-list { margin: 0; padding: 0; list-style: none; border: 1px solid #e3e4e7; border-radius: 12px; overflow: hidden; }
+.android-waitlist-list li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 16px; padding: 12px 14px; background: #fff; }
+.android-waitlist-list li + li { border-top: 1px solid #ececee; }
+.android-waitlist-list li > div { min-width: 0; display: grid; gap: 4px; }
+.android-waitlist-list strong, .android-waitlist-list a { overflow-wrap: anywhere; }
+.android-waitlist-list span, .android-waitlist-list small { color: #626975; }
+@media (max-width: 640px) { .android-waitlist-list li { grid-template-columns: 1fr; gap: 8px; } }
