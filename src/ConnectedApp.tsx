@@ -583,12 +583,13 @@ export default function ConnectedApp() {
     setTemporaryPassword("");
   }, []);
   useEffect(() => {
-    if (!supabase) {
+    const client = supabase;
+    if (!client) {
       setInitializing(false);
       return;
     }
     let alive = true;
-    void boundedRequest(() => supabase.auth.getSession(), 10000)
+    void boundedRequest(() => client.auth.getSession(), 10000)
       .then(({ data, error: e }) => {
         if (!alive) return;
         setSession(data.session);
@@ -602,7 +603,7 @@ export default function ConnectedApp() {
       });
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, next) => {
+    } = client.auth.onAuthStateChange((event, next) => {
       if (!alive) return;
       setSession(next);
       if (event === "SIGNED_OUT") clear();
