@@ -2,6 +2,10 @@
 
 Atualizado em 10/11/2026. Documento de passagem, sem senhas, chaves ou tokens.
 
+## Atualizacao 16/11/2026
+
+Matheus informou que o iPhone instalado usa Runtime `ee6c10e120100f0eaa3b33f9a2ba9e7693e7e812`. A OTA do grupo Expo mais recente estava em outro Runtime, iniciado por `3982f37`, e nao alcanca esse iPhone. Correcoes locais de entrada, diario, sentimento, lembretes, historico e perfil estao no commit `d5f5758`. Sem testes nesta entrega por pedido do usuario. Consultar `docs/EO-ENTREGA-20261116.md` antes de publicar. A tag compatível deve preservar a configuracao nativa da tag `ota-20261112-navegacao`, inclusive nomes legados dos sons; verificar no painel Expo o Runtime exato apos o workflow. Publicacao e verificacao fisica pendentes. O script `scripts/publicar-ux-ee6-20261116.ps1` deve ser executado pelo Matheus no proprio PowerShell.
+
 
 ## Atualização 15/11/2026 (prevalece nos itens alterados)
 
