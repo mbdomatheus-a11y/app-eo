@@ -3,6 +3,7 @@ import { OfflineBanner } from "../features/OfflineStatus";
 import { ReportsHub } from "../features/ReportsHub";
 import { ModuleAccess } from "../features/ModuleAccess";
 import { MoodReminderBanner } from "../features/MoodReminderBanner";
+import { useMoodDeferral } from "../features/mood-deferral";
 import { SuccessToast, SuccessToastHost } from "../features/SuccessToast";
 import { ScreenTitle, Group, MenuItem, Tile } from "../design";
 import { useEffect, type ReactNode } from "react";
@@ -142,7 +143,11 @@ export function RouteFrame({
       alive = false;
     };
   }, [app.session?.user.id]);
-  const banner = app.alerts.find((item) => !item.seen_at && !item.dismissed_at);
+  const moodDeferral = useMoodDeferral(app.workspace?.person.id);
+  const banner = app.alerts.find((item) =>
+    !item.seen_at && !item.dismissed_at &&
+    (item.data?.type !== "mood" || (moodDeferral.loaded && !moodDeferral.deferred && moodDeferral.answeredDate !== item.data?.date)),
+  );
   const edges = home
     ? (["top", "left", "right"] as const)
     : tabs

@@ -1,6 +1,6 @@
 import { EmailDomainPreference } from "./EmailField";
 import { useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { rpc } from "../services/supabase";
 import type { Store } from "../types";
 import { Button, Card, Choice, Field, Section, s } from "../ui";
@@ -36,6 +36,7 @@ export function PersonalSettings({
   const [data, setData] = useState<Prefs | null>(null);
   const [phone, setPhone] = useState("");
   const [channel, setChannel] = useState("whatsapp");
+  const [choosingChannel, setChoosingChannel] = useState(false);
   const [store, setStore] = useState("");
   const [query, setQuery] = useState("");
   const [hours, setHours] = useState<Day[]>(empty);
@@ -61,6 +62,11 @@ export function PersonalSettings({
       live = false;
     };
   }, []);
+  useEffect(() => {
+    if (stores.length !== 1 || store || !data) return;
+    setStore(stores[0].id);
+    setHours(data?.stores.find((item) => item.store_id === stores[0].id)?.hours ?? empty());
+  }, [stores, data, store]);
   async function save(withHours: boolean) {
     setBusy(true);
     setMessage("");
@@ -94,7 +100,18 @@ export function PersonalSettings({
         maxLength={30}
       />
       <Text style={s.label}>Canal preferido</Text>
-      {[
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Canal preferido: ${channel === "whatsapp" ? "WhatsApp" : channel === "phone" ? "Telefone" : channel === "email" ? "E-mail" : "Outro"}. Alterar`}
+        onPress={() => setChoosingChannel((value) => !value)}
+        style={[s.choice, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}
+      >
+        <Text style={s.strong}>
+          {channel === "whatsapp" ? "WhatsApp" : channel === "phone" ? "Telefone" : channel === "email" ? "E-mail" : "Outro"}
+        </Text>
+        <Text style={s.small}>{choosingChannel ? "Fechar" : "Alterar"}</Text>
+      </Pressable>
+      {choosingChannel && [
         ["whatsapp", "WhatsApp"],
         ["phone", "Telefone"],
         ["email", "E-mail"],
@@ -104,7 +121,7 @@ export function PersonalSettings({
           key={v}
           label={l}
           selected={channel === v}
-          onPress={() => setChannel(v)}
+          onPress={() => { setChannel(v); setChoosingChannel(false); }}
         />
       ))}
       <Button

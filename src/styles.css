@@ -2118,3 +2118,5 @@ dialog::backdrop { background: rgba(28,32,38,0.56); backdrop-filter: blur(4px); 
   .mobile-nav button.active { color: #30343b; background: var(--yellow); }
   .toast { bottom: 84px; }
 }
+.eo-preferred-channel { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 7px 12px; margin-top: 6px; border: 1px solid #dfe2e7; border-radius: 10px; background: #fff; }
+.eo-preferred-channel .text-button { width: auto; flex: 0 0 auto; }

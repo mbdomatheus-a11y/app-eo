@@ -166,6 +166,7 @@ export class OfflineEngine {
   >;
   private serial: Promise<unknown> = Promise.resolve();
   private owner: string | null = null;
+  private requiredScope: string | null = null;
   private generation = 0;
   private state: OfflineState | null = null;
   private listeners = new Set<() => void>();
@@ -195,6 +196,37 @@ export class OfflineEngine {
 
   get status(): OfflineStatus {
     return clone(this.value);
+  }
+  get ready(): boolean {
+    return Boolean(
+      this.owner &&
+      this.state?.userId === this.owner &&
+      (!this.requiredScope || this.state.scope === this.requiredScope),
+    );
+  }
+  waitUntilReady(userId: string, timeoutMs = 4000): Promise<void> {
+    if (this.owner !== userId) return Promise.reject(new Error("A sessão mudou."));
+    if (this.ready) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      let stop = () => {};
+      const timer = setTimeout(() => {
+        stop();
+        reject(new Error("O armazenamento local ainda está abrindo. Tente novamente em alguns segundos."));
+      }, timeoutMs);
+      stop = this.subscribe(() => {
+        if (this.owner !== userId || this.ready) {
+          clearTimeout(timer);
+          stop();
+          if (this.owner === userId) resolve();
+          else reject(new Error("A sessão mudou."));
+        }
+      });
+      if (this.ready) {
+        clearTimeout(timer);
+        stop();
+        resolve();
+      }
+    });
   }
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
@@ -243,8 +275,10 @@ export class OfflineEngine {
 
   /** Mudar usuário trava replay imediatamente, mesmo com uma requisição em andamento. */
   setIdentity(userId: string | null): Promise<void> {
+    if (this.owner === userId && this.ready) return Promise.resolve();
     if (this.owner === userId) return this.exclusive(async () => undefined);
     this.owner = userId;
+    this.requiredScope = null;
     const generation = ++this.generation;
     this.state = null;
     this.emit({
@@ -274,6 +308,13 @@ export class OfflineEngine {
     });
   }
 
+  /** Suspende leituras do escopo antigo antes de mostrar a nova abrangência. */
+  restrictScope(scope: string) {
+    this.requiredScope = scope;
+    if (this.state && this.state.scope !== scope)
+      this.emit({ revalidated: false });
+  }
+
   /** Abrangência vem do contexto do servidor; preserva fila, invalida leituras antigas. */
   setScope(scope: string): Promise<void> {
     const owner = this.snapshot();
@@ -289,6 +330,8 @@ export class OfflineEngine {
 
   cached<T>(name: string, args: RpcArgs = {}): T | null {
     if (!this.state || !this.owner) return null;
+    if (this.requiredScope && this.state.scope !== this.requiredScope)
+      return null;
     const entry = this.state.cache.find(
       (item) =>
         item.key === stable([name, args]) &&
@@ -336,6 +379,7 @@ export class OfflineEngine {
     const saved = this.state ? clone(this.state) : null;
     if (saved) saved.cache = [];
     this.owner = null;
+    this.requiredScope = null;
     ++this.generation;
     this.state = null;
     this.emit({
@@ -421,12 +465,14 @@ export class OfflineEngine {
           throw cause;
         }
         this.emit({ online: false, lastError: message(cause) });
-        const cached = this.state!.cache.find(
+        const cached = this.requiredScope && this.state!.scope !== this.requiredScope
+          ? undefined
+          : this.state!.cache.find(
           (item) =>
             item.key === stable([name, immutableArgs]) &&
             item.scope === this.state!.scope &&
             this.now() - item.savedAt <= this.options.cacheTtlMs,
-        );
+          );
         if (readOnly && cached) {
           this.emit({ staleReads: this.value.staleReads + 1 });
           return clone(cached.data) as T;

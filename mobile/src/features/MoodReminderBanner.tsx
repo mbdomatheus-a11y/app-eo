@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Text } from "react-native";
-import * as SecureStore from "expo-secure-store";
 import { rpc } from "../services/supabase";
 import { Button, Card, s } from "../ui";
+import { deferMood, useMoodDeferral } from "./mood-deferral";
 type PromptState = {
   due: boolean;
   answered: boolean;
@@ -17,10 +17,8 @@ export function MoodReminderBanner({
   onRespond: () => void;
 }) {
   const [state, setState] = useState<PromptState | null>(null);
-  const [deferred, setDeferred] = useState(0);
-  const key = `eo.mood.defer.${userId}`;
+  const deferral = useMoodDeferral(userId);
   useEffect(() => {
-    void SecureStore.getItemAsync(key).then((v) => setDeferred(Number(v || 0)));
     const load = () =>
       void rpc<PromptState>("eo_mood_prompt_state")
         .then(setState)
@@ -28,8 +26,8 @@ export function MoodReminderBanner({
     load();
     const timer = setInterval(load, 60000);
     return () => clearInterval(timer);
-  }, [key]);
-  if (!state?.due || deferred > Date.now()) return null;
+  }, [userId]);
+  if (!state?.due || !deferral.loaded || deferral.deferred || deferral.answeredDate === state.date) return null;
   return (
     <Card>
       <Text style={s.strong}>{state.prompt}</Text>
@@ -39,9 +37,7 @@ export function MoodReminderBanner({
         secondary
         title="Adiar 30 minutos"
         onPress={() => {
-          const until = Date.now() + 30 * 60000;
-          void SecureStore.setItemAsync(key, String(until));
-          setDeferred(until);
+          deferMood(userId, 30);
         }}
       />
     </Card>

@@ -311,6 +311,8 @@ export function EOProvider({ children }: { children: ReactNode }) {
   const pushBusyRef = useRef(false);
   const currentUser = useRef<string | undefined>(undefined);
   currentUser.current = session?.user.id;
+  const locallyOpenedUser = useRef<string | null>(null);
+  const authSignedOut = useRef(false);
   const [more, setMore] = useState(false);
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [members, setMembers] = useState<LivePerson[]>([]);
@@ -386,9 +388,10 @@ export function EOProvider({ children }: { children: ReactNode }) {
           3000,
           "Não foi possível ler a sessão local.",
         );
-        if (local && alive) {
-          await offlineEngine.setIdentity(local.user.id);
-          if (alive) setSession(local);
+        if (local && alive && !authSignedOut.current) {
+          // A leitura da sessão não depende de sincronização antiga na fila.
+          locallyOpenedUser.current = local.user.id;
+          setSession(local);
         }
       } catch (cause) {
         if (alive)
@@ -398,29 +401,23 @@ export function EOProvider({ children }: { children: ReactNode }) {
       } finally {
         if (alive) setInitializing(false);
       }
-      if (!alive) return;
-      void withDeadline(
-        () => client.auth.getSession(),
-        8000,
-        "Tempo limite para conferir a sessão online.",
-      )
-        .then(({ data, error: authError }) => {
-          if (!alive || client !== supabase) return;
-          if (authError) {
-            if (!isTransportError(authError))
-              setError("Não foi possível confirmar a sessão online.");
-            return;
-          }
-          setSession(data.session);
-        })
-        .catch((cause) => {
-          if (alive) reportarErro(cause, false, { origem: "sessao_online" });
-        });
+      // O SDK já inicializa a sessão e emite INITIAL_SESSION. Uma chamada
+      // getSession adicional competia pelo mesmo bloqueio interno do login.
     })();
     const {
       data: { subscription },
-    } = client.auth.onAuthStateChange((_, next) => {
-      if (alive && client === supabase) setSession(next);
+    } = client.auth.onAuthStateChange((event, next) => {
+      if (!alive || client !== supabase) return;
+      if (event === "INITIAL_SESSION" && !next && locallyOpenedUser.current)
+        return;
+      if (event === "SIGNED_OUT") {
+        authSignedOut.current = true;
+        locallyOpenedUser.current = null;
+      } else if (next?.user.id) {
+        authSignedOut.current = false;
+        locallyOpenedUser.current = next.user.id;
+      }
+      setSession(next);
     });
     const appStateSubscription = AppState.addEventListener(
       "change",
@@ -508,12 +505,12 @@ export function EOProvider({ children }: { children: ReactNode }) {
       if (!workspaceRef.current) setLoading(true);
       setError("");
       try {
-        await offlineEngine.setIdentity(session.user.id);
-        if (
-          current !== epoch.current ||
-          currentUser.current !== session.user.id
-        )
-          return;
+        // O servidor pode abrir o espaço enquanto a fila cifrada termina sua
+        // própria leitura. Uma requisição velha não deve prender esta tela.
+        const userId = session.user.id;
+        const identityReady = offlineEngine.setIdentity(userId);
+        let serverDenied = false;
+        let serverResolved = false;
         type Startup = {
           status: {
             must_change_password: boolean;
@@ -525,14 +522,25 @@ export function EOProvider({ children }: { children: ReactNode }) {
           feed?: LiveNotice[];
           icons?: unknown;
         };
-        const restore = offlineEngine.cached<Startup>("eo_app_inicio");
-        if (
-          !workspaceRef.current &&
-          restore?.context?.person.id === session.user.id &&
-          !restore.status.must_change_password
-        ) {
+        const restoreCached = () => {
+          if (
+            serverDenied ||
+            serverResolved ||
+            current !== epoch.current ||
+            currentUser.current !== userId ||
+            workspaceRef.current
+          )
+            return false;
+          const restore = offlineEngine.cached<Startup>("eo_app_inicio");
+          if (
+            !restore ||
+            restore.context?.person.id !== userId ||
+            restore.status.must_change_password
+          )
+            return false;
           offlineEngine.markOffline();
           setWorkspace(restore.context);
+          workspaceRef.current = restore.context;
           setVisibleModules(restore.modules ?? []);
           setModuleIcons(normalizeModuleIcons(restore.icons));
           setNotices(restore.feed ?? []);
@@ -542,65 +550,74 @@ export function EOProvider({ children }: { children: ReactNode }) {
               : null,
           );
           setLoading(false);
-        }
+          setError("");
+          return true;
+        };
+        restoreCached();
+        void identityReady
+          .then(restoreCached)
+          .catch((cause) =>
+            reportarErro(cause, false, { origem: "cache_sessao" }),
+          );
         try {
           const inicio = await withDeadline(
             (signal) => rawRpc<Startup>("eo_app_inicio", {}, signal),
             8000,
             "Tempo limite de conexão. Seus dados locais continuam disponíveis.",
           );
-          if (
-            current !== epoch.current ||
-            currentUser.current !== session.user.id
-          )
+          if (current !== epoch.current || currentUser.current !== userId)
             return;
+          serverResolved = true;
           const status = inicio.status;
           setStoreUser(
             status.conta_loja ? (status.usuario_loja ?? null) : null,
           );
           if (status.must_change_password) {
-            await offlineEngine.invalidateAccess();
+            serverDenied = true;
             setWorkspace(null);
             workspaceRef.current = null;
             setPasswordMode(true);
+            void identityReady
+              .then(() => offlineEngine.invalidateAccess())
+              .catch((cause) =>
+                reportarErro(cause, false, { origem: "cache_acesso" }),
+              );
             return;
           }
           setPasswordMode(false);
           const ctx = inicio.context as Workspace;
-          if (ctx?.person?.id !== session.user.id)
+          if (ctx?.person?.id !== userId)
             throw new Error("Não foi possível validar o acesso.");
-          await offlineEngine.setScope(
-            JSON.stringify({
-              person: ctx.person.id,
-              role: ctx.person.role,
-              stores: ctx.stores.map((item) => item.id).sort(),
-              modules: inicio.modules ?? [],
-            }),
-          );
-          await offlineEngine.revalidate(session.user.id);
-          void offlineEngine
-            .remember("eo_app_inicio", {}, inicio)
-            .catch((cause) =>
-              reportarErro(cause, false, { origem: "cache_inicio" }),
-            );
-          void offlineEngine
-            .sync()
-            .catch((cause) =>
-              reportarErro(cause, false, { origem: "sincronizacao" }),
-            );
           const modules = inicio.modules ?? [];
           const feed = inicio.feed ?? [];
           if (current !== epoch.current) return;
+          const nextScope = JSON.stringify({
+            person: ctx.person.id,
+            role: ctx.person.role,
+            stores: ctx.stores.map((item) => item.id).sort(),
+            modules,
+          });
+          offlineEngine.restrictScope(nextScope);
           setVisibleModules(modules);
           setWorkspace(ctx);
           setModuleIcons(normalizeModuleIcons(inicio.icons));
           setNotices(feed);
           setMore(feed.length === 20);
+          setLoading(false);
+          void identityReady
+            .then(async () => {
+              if (current !== epoch.current || currentUser.current !== userId)
+                return;
+              await offlineEngine.setScope(nextScope);
+              await offlineEngine.revalidate(userId);
+              await offlineEngine.remember("eo_app_inicio", {}, inicio);
+              await offlineEngine.sync();
+            })
+            .catch((cause) =>
+              reportarErro(cause, false, { origem: "sincronizacao_inicio" }),
+            );
         } catch (cause) {
-          if (
-            current !== epoch.current ||
-            currentUser.current !== session.user.id
-          )
+          if (current !== epoch.current || currentUser.current !== userId)
             return;
           if (
             isTransportError(cause) ||
@@ -609,9 +626,15 @@ export function EOProvider({ children }: { children: ReactNode }) {
             offlineEngine.markOffline(
               cause instanceof Error ? cause.message : "Sem conexão",
             );
-            if (restore?.context) return;
+            if (restoreCached()) return;
+            if (workspaceRef.current) return;
           } else {
-            await offlineEngine.invalidateAccess();
+            serverDenied = true;
+            void identityReady
+              .then(() => offlineEngine.invalidateAccess())
+              .catch((failure) =>
+                reportarErro(failure, false, { origem: "cache_acesso" }),
+              );
             setWorkspace(null);
             workspaceRef.current = null;
           }
@@ -721,11 +744,22 @@ export function EOProvider({ children }: { children: ReactNode }) {
   }, [session?.user.id, passwordMode, refreshOperational]);
 
   const markAlert = useCallback(
-    (alert: LiveAlert, action: "view" | "dismiss") =>
-      act(async () => {
+    async (alert: LiveAlert, action: "view" | "dismiss") => {
+      const at = new Date().toISOString();
+      setAlerts((current) => current.map((item) =>
+        item.id === alert.id
+          ? { ...item, [action === "view" ? "seen_at" : "dismissed_at"]: at }
+          : item,
+      ));
+      const result = await act(async () => {
         await rpc("eo_alert_mark", { p_alert: alert.id, p_action: action });
-        await refreshOperational();
-      }),
+      });
+      if (result.ok) void refreshOperational().catch(() => undefined);
+      else setAlerts((current) => current.map((item) =>
+        item.id === alert.id ? alert : item,
+      ));
+      return result;
+    },
     [act, refreshOperational],
   );
   const moderateAlert = useCallback(
@@ -1232,6 +1266,8 @@ export function EOProvider({ children }: { children: ReactNode }) {
             );
             resetEOClient();
             setAuthClientEpoch((value) => value + 1);
+            authSignedOut.current = true;
+            locallyOpenedUser.current = null;
             setSession(null);
           }
           throw cause;
@@ -1251,6 +1287,8 @@ export function EOProvider({ children }: { children: ReactNode }) {
         "Não foi possível limpar a sessão local. Tente novamente.",
       );
       currentUser.current = undefined;
+      authSignedOut.current = true;
+      locallyOpenedUser.current = null;
       epoch.current++;
       actionGeneration.current++;
       busyRef.current = false;

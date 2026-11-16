@@ -4,9 +4,15 @@ import type { Session } from "@supabase/supabase-js";
 
 let generation = 0;
 let storageTail: Promise<unknown> = Promise.resolve();
+let markerTail: Promise<unknown> = Promise.resolve();
 function storageExclusive<T>(work: () => Promise<T>): Promise<T> {
   const task = storageTail.then(work);
   storageTail = task.catch(() => {});
+  return task;
+}
+function markerExclusive<T>(work: () => Promise<T>): Promise<T> {
+  const task = markerTail.then(work);
+  markerTail = task.catch(() => {});
   return task;
 }
 let closed: boolean | null = null;
@@ -114,9 +120,12 @@ export const sessionStorage = {
     });
   },
   async removeItem(name: string) {
+    const start = generation;
     return storageExclusive(async () => {
+      if (start !== generation) return;
       const key = keyFor(name),
         raw = await SecureStore.getItemAsync(key);
+      if (start !== generation) return;
       await SecureStore.deleteItemAsync(key);
       if (raw) {
         try {
@@ -140,7 +149,7 @@ export const sessionStorage = {
 export async function beginSessionLogin() {
   generation++;
   closed = true;
-  await SecureStore.deleteItemAsync(CLOSED_KEY);
+  await markerExclusive(() => SecureStore.deleteItemAsync(CLOSED_KEY));
   closed = false;
   flagPromise = Promise.resolve(false);
 }
@@ -148,7 +157,7 @@ export async function closeStoredSession(storageKey: string) {
   generation++;
   closed = true;
   flagPromise = Promise.resolve(true);
-  await SecureStore.setItemAsync(CLOSED_KEY, "1");
+  await markerExclusive(() => SecureStore.setItemAsync(CLOSED_KEY, "1"));
   await Promise.all([
     sessionStorage.removeItem(storageKey),
     sessionStorage.removeItem(`${storageKey}-user`),
