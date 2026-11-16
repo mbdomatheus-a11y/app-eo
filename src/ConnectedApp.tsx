@@ -80,6 +80,7 @@ import {
   backendConfigured,
   supabase,
   rpc,
+  boundedRequest,
   type Workspace,
   type Store,
   type LiveNotice,
@@ -564,6 +565,7 @@ export default function ConnectedApp() {
   }, [page, tab, workspace?.person.role, searchPeople]);
   const epoch = useRef(0),
     requestId = useRef(crypto.randomUUID());
+  const busyRef = useRef(false);
   const clear = useCallback(() => {
     epoch.current++;
     setWorkspace(null);
@@ -586,13 +588,18 @@ export default function ConnectedApp() {
       return;
     }
     let alive = true;
-    supabase.auth.getSession().then(({ data, error: e }) => {
-      if (alive) {
+    void boundedRequest(() => supabase.auth.getSession(), 10000)
+      .then(({ data, error: e }) => {
+        if (!alive) return;
         setSession(data.session);
         if (e) setError("Não foi possível recuperar a sessão.");
         setInitializing(false);
-      }
-    });
+      })
+      .catch((cause) => {
+        if (!alive) return;
+        setInitializing(false);
+        setError(cause instanceof Error ? cause.message : "Não foi possível recuperar a sessão.");
+      });
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, next) => {
@@ -696,7 +703,8 @@ export default function ConnectedApp() {
     );
   }, [workspace?.person.id, page]);
   async function act(work: () => Promise<void>) {
-    if (busy) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setError("");
     setMessage("");
@@ -705,6 +713,7 @@ export default function ConnectedApp() {
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }
@@ -779,7 +788,8 @@ export default function ConnectedApp() {
       setPasswordMode(false);
       history.replaceState({}, "", location.pathname);
       clear();
-      await supabase!.auth.signOut({ scope: "local" });
+      const { error: signoutError } = await supabase!.auth.signOut({ scope: "local" });
+      if (signoutError) throw signoutError;
       setSession(null);
       setMessage("Senha atualizada. Entre novamente com sua chapa.");
     });

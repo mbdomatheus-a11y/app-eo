@@ -1,4 +1,4 @@
-import { OfflineEngine, type OfflineStorage } from "../offline/engine";
+import { OfflineEngine, OFFLINE_MUTATION_METHODS, type OfflineStorage } from "../offline/engine";
 import { encryptedOfflineStorage } from "../offline/encrypted-storage";
 import { randomUUID } from "expo-crypto";
 import { createTimedFetch, withDeadline } from "./deadline";
@@ -15,12 +15,29 @@ export const backendConfigured = Boolean(
 export const authStorageKey = url
   ? `sb-${new URL(url).hostname.split(".")[0]}-auth-token`
   : "";
-const createEOClient = () =>
-  backendConfigured
+let clientLease = 0;
+const createEOClient = () => {
+  const lease = ++clientLease;
+  // Uma instância Auth antiga não pode apagar a sessão de um login posterior.
+  const storage = {
+    getItem: (name: string) =>
+      lease === clientLease
+        ? sessionStorage.getItem(name)
+        : Promise.resolve(null),
+    setItem: (name: string, value: string) =>
+      lease === clientLease
+        ? sessionStorage.setItem(name, value)
+        : Promise.resolve(),
+    removeItem: (name: string) =>
+      lease === clientLease
+        ? sessionStorage.removeItem(name)
+        : Promise.resolve(),
+  };
+  return backendConfigured
     ? createClient(url!, key!, {
         global: { fetch: guardSessionFetch(createTimedFetch(fetch, 12000)) },
         auth: {
-          storage: sessionStorage,
+          storage,
           storageKey: authStorageKey,
           flowType: "pkce",
           persistSession: true,
@@ -29,6 +46,7 @@ const createEOClient = () =>
         },
       })
     : null;
+};
 
 export let supabase = createEOClient();
 export function resetEOClient() {
@@ -84,7 +102,12 @@ export async function rpc<T>(
   args?: Record<string, unknown>,
   signal?: AbortSignal,
 ): Promise<T> {
-  if (!offlineEngine.status.userId) return rawRpc<T>(name, args, signal);
+  const userId = offlineEngine.status.userId;
+  if (!userId)
+    return rawRpc<T>(name, args, signal);
+  if (!offlineEngine.ready && OFFLINE_MUTATION_METHODS.has(name))
+    await offlineEngine.waitUntilReady(userId);
+  if (!offlineEngine.ready) return rawRpc<T>(name, args, signal);
   return offlineEngine.rpc<T>(name, args, signal);
 }
 export function deliveryMessage(onlineMessage: string) {

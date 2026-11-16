@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import * as Crypto from "expo-crypto";
 import { rpc } from "../services/supabase";
 import { Button, Card, Choice, Field, s } from "../ui";
@@ -29,19 +29,43 @@ export function DiaryQuestions({
                 {q.label}
                 {q.required ? " *" : ""}
               </Text>
-              {q.options.map((option) => (
-                <Choice
-                  key={option}
-                  label={option}
-                  selected={answers[q.id] === option}
-                  onPress={() =>
-                    onChange({
-                      ...answers,
-                      [q.id]: answers[q.id] === option ? "" : option,
-                    })
-                  }
-                />
-              ))}
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {q.options.map((option) => (
+                  <Pressable
+                    key={option}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: answers[q.id] === option }}
+                    style={{
+                      borderWidth: 1,
+                      borderColor:
+                        answers[q.id] === option ? "#5A5C67" : "#D9D9DF",
+                      backgroundColor:
+                        answers[q.id] === option ? "#FFF6A7" : "#FFFFFF",
+                      borderRadius: 14,
+                      paddingHorizontal: 12,
+                      paddingVertical: 9,
+                      minHeight: 40,
+                      justifyContent: "center",
+                    }}
+                    onPress={() =>
+                      onChange({
+                        ...answers,
+                        [q.id]: answers[q.id] === option ? "" : option,
+                      })
+                    }
+                  >
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: answers[q.id] === option ? "700" : "500",
+                      }}
+                    >
+                      {answers[q.id] === option ? "✓  " : ""}
+                      {option}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
             </>
           ) : (
             <Field

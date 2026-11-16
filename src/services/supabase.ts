@@ -1,11 +1,48 @@
 import { createClient } from "@supabase/supabase-js";
 
+/** Limita a espera da interface e cancela requisições HTTP quando possível. */
+export async function boundedRequest<T>(
+  work: (signal: AbortSignal) => PromiseLike<T>,
+  timeout = 20000,
+): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve().then(() => work(controller.signal)),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          controller.abort();
+          reject(new Error("A conexão demorou. Confira o resultado antes de repetir a ação."));
+        }, timeout);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 export const backendConfigured =
   !!url && !!key && key.startsWith("sb_publishable_");
+const timedFetch: typeof fetch = async (input, init) => {
+  const controller = new AbortController();
+  const onAbort = () => controller.abort();
+  const upstream = init?.signal ?? (input instanceof Request ? input.signal : undefined);
+  if (upstream?.aborted) controller.abort();
+  else upstream?.addEventListener("abort", onAbort, { once: true });
+  const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+    upstream?.removeEventListener("abort", onAbort);
+  }
+};
 export const supabase = backendConfigured
   ? createClient(url, key, {
+      global: { fetch: timedFetch },
       auth: {
         flowType: "pkce",
         persistSession: true,
@@ -77,7 +114,9 @@ export async function rpc<T>(
   args?: Record<string, unknown>,
 ): Promise<T> {
   if (!supabase) throw new Error("Conexão ainda não configurada.");
-  const { data, error } = await supabase.rpc(name, args);
+  const { data, error } = await boundedRequest(
+    (signal) => supabase.rpc(name, args).abortSignal(signal),
+  );
   if (error)
     throw new Error(
       error.code === "42501"

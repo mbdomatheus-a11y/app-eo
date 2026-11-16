@@ -105,6 +105,34 @@ function downloadCsv(name: string, rows: unknown[][]) {
   URL.revokeObjectURL(url);
 }
 
+function DayRecord({ entry }: { entry: DayEntry }) {
+  return (
+    <article className="eo-day-row">
+      <strong>
+        {entry.store_code} · {entry.store_name}
+      </strong>
+      <p>
+        {entry.person_name} · {entry.entry_date}
+      </p>
+      <p>{entry.reasons.join(" · ")}</p>
+      <p>{entry.note}</p>
+      {entry.transcript && <blockquote>{entry.transcript}</blockquote>}
+      {entry.answers &&
+        Object.entries(entry.answers).map(([key, value]) => (
+          <p key={key}>
+            <strong>
+              {entry.questionnaire_snapshot?.questions.find(
+                (q) => q.id === key,
+              )?.label || key}
+              :
+            </strong>{" "}
+            {value}
+          </p>
+        ))}
+    </article>
+  );
+}
+
 export function OperationsPanel({
   workspace,
   initialTab = "diary",
@@ -133,6 +161,8 @@ export function OperationsPanel({
   const [mood, setMood] = useState("");
   const [dictating, setDictating] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [from, setFrom] = useState(today().slice(0, 8) + "01");
@@ -150,15 +180,29 @@ export function OperationsPanel({
   const moodRequest = useRef(crypto.randomUUID());
   const leader = ["admin", "diretor"].includes(workspace.person.role);
   const admin = workspace.person.role === "admin";
+  const soleStore = workspace.stores.length === 1 ? workspace.stores[0] : null;
+  useEffect(() => {
+    setStore((current) => {
+      if (soleStore) return soleStore.id;
+      return workspace.stores.some((item) => item.id === current) ? current : "";
+    });
+  }, [soleStore?.id, workspace.stores]);
   const load = useCallback(async () => {
-    if (from > to) {
-      setError("Confira o intervalo de datas.");
-      return;
-    }
     const version = ++loadVersion.current;
-    setBusy(true);
+    setLoading(true);
     setError("");
     try {
+      if (tab === "diary") {
+        const config = await rpc<DiaryConfiguration>("eo_diary_configuration");
+        if (version === loadVersion.current) setQuestionnaire(config);
+        return;
+      }
+      if (tab === "mood") {
+        const config = await rpc<MoodSettings>("eo_mood_settings");
+        if (version === loadVersion.current) setSettings(config);
+        return;
+      }
+      if (from > to) throw new Error("Confira o intervalo de datas.");
       const cutoff = new Date().toISOString();
       const parameters = {
         p_from: from,
@@ -166,38 +210,57 @@ export function OperationsPanel({
         p_stores: store ? [store] : [],
         p_cutoff: cutoff,
       };
-      const [days, feelings, summary, config, diaryConfig] = await Promise.all([
-        rpc<PageResult<DayEntry>>("eo_day_entries_page", {
-          ...parameters,
-          p_limit: 50,
-          p_offset: recordPage * 50,
-        }),
-        rpc<PageResult<MoodEntry>>("eo_mood_entries_page", {
-          ...parameters,
-          p_limit: 50,
-          p_offset: recordPage * 50,
-        }),
-        rpc<Overview>("eo_operational_overview", {
-          ...parameters,
-          p_group: group,
-        }),
-        rpc<MoodSettings>("eo_mood_settings"),
-        rpc<DiaryConfiguration>("eo_diary_configuration"),
-      ]);
+      const dayPage = rpc<PageResult<DayEntry>>("eo_day_entries_page", {
+        ...parameters,
+        p_limit: 50,
+        p_offset: recordPage * 50,
+      });
+      if (!leader) {
+        const days = await dayPage;
+        if (version === loadVersion.current) {
+          setEntries(days.items);
+          setDayTotal(days.total);
+        }
+        return;
+      }
+      const [daysResult, feelingsResult, summaryResult] =
+        await Promise.allSettled([
+          dayPage,
+          rpc<PageResult<MoodEntry>>("eo_mood_entries_page", {
+            ...parameters,
+            p_limit: 50,
+            p_offset: recordPage * 50,
+          }),
+          rpc<Overview>("eo_operational_overview", {
+            ...parameters,
+            p_group: group,
+          }),
+        ] as const);
       if (version !== loadVersion.current) return;
-      setEntries(days.items);
-      setMoodEntries(feelings.items);
-      setDayTotal(days.total);
-      setMoodTotal(feelings.total);
-      setOverview(summary);
-      setSettings(config);
-      setQuestionnaire(diaryConfig);
+      if (daysResult.status === "fulfilled") {
+        setEntries(daysResult.value.items);
+        setDayTotal(daysResult.value.total);
+      }
+      if (feelingsResult.status === "fulfilled") {
+        setMoodEntries(feelingsResult.value.items);
+        setMoodTotal(feelingsResult.value.total);
+      }
+      if (summaryResult.status === "fulfilled") setOverview(summaryResult.value);
+      const failed = [daysResult, feelingsResult, summaryResult].find(
+        (result) => result.status === "rejected",
+      );
+      if (failed?.status === "rejected")
+        setError(
+          failed.reason instanceof Error
+            ? failed.reason.message
+            : "Parte do resumo não pôde ser carregada.",
+        );
     } catch (e) {
       if (version === loadVersion.current) setError((e as Error).message);
     } finally {
-      if (version === loadVersion.current) setBusy(false);
+      if (version === loadVersion.current) setLoading(false);
     }
-  }, [from, to, store, group, recordPage]);
+  }, [tab, from, to, store, group, recordPage, leader]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -210,7 +273,7 @@ export function OperationsPanel({
   }, [from, to, store]);
 
   async function summarize() {
-    setBusy(true);
+    setReportBusy(true);
     setError("");
     setMessage("");
     try {
@@ -227,18 +290,18 @@ export function OperationsPanel({
             ? await invokeError.context.json().catch(() => null)
             : null;
         throw new Error(
-          detail?.error || "Não foi possível gerar o resumo com Anthropic.",
+          detail?.error || "Não foi possível gerar o resumo com EO.IA.",
         );
       }
       setAiSummary({ text: data.text, scope });
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setBusy(false);
+      setReportBusy(false);
     }
   }
   async function checkAnthropic() {
-    setBusy(true);
+    setReportBusy(true);
     setError("");
     setMessage("");
     try {
@@ -253,11 +316,11 @@ export function OperationsPanel({
             : null;
         throw new Error(detail?.error || "Não foi possível testar a conexão.");
       }
-      setMessage(`Conexão com Anthropic validada · ${data.model}.`);
+      setMessage(`Conexão com EO.IA validada · ${data.model}.`);
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setBusy(false);
+      setReportBusy(false);
     }
   }
   async function saveDay() {
@@ -288,7 +351,7 @@ export function OperationsPanel({
       setSelectedReasons([]);
       setAnswers({});
       setMessage("Registro salvo no diário da loja.");
-      await load();
+      void load();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -311,7 +374,7 @@ export function OperationsPanel({
       moodRequest.current = crypto.randomUUID();
       setMood("");
       setMessage("Resposta registrada. Obrigado por compartilhar.");
-      await load();
+      void load();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -324,7 +387,7 @@ export function OperationsPanel({
       .includes(storeSearch.trim().toLocaleLowerCase("pt-BR")),
   );
   async function exportRecords(kind: "day" | "mood") {
-    setBusy(true);
+    setReportBusy(true);
     setError("");
     try {
       let cutoff: string | undefined;
@@ -403,7 +466,7 @@ export function OperationsPanel({
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setBusy(false);
+      setReportBusy(false);
     }
   }
 
@@ -414,7 +477,7 @@ export function OperationsPanel({
           [
             ["diary", "Diário de vendas"],
             ["mood", "Como está seu dia?"],
-            ["summary", leader ? "Resumo da equipe" : "Meus registros"],
+            ["summary", leader ? "Resumo da equipe" : "Histórico do mês"],
           ] as const
         )
           .filter(([key]) => !reportOnly || key === "summary")
@@ -429,6 +492,11 @@ export function OperationsPanel({
             </button>
           ))}
       </div>
+      {soleStore ? (
+        <p className="field-hint">
+          Loja do registro: {soleStore.code} · {soleStore.name}
+        </p>
+      ) : (
       <div className="eo-ops-scope">
         <label>
           Buscar loja
@@ -463,6 +531,10 @@ export function OperationsPanel({
           </select>
         </label>
       </div>
+      )}
+      {!store && tab !== "summary" && (
+        <p className="field-hint">Selecione uma loja para registrar seu dia.</p>
+      )}
       {error && (
         <p className="form-error" role="alert">
           {error}
@@ -484,10 +556,10 @@ export function OperationsPanel({
           <button
             type="button"
             className="text-button"
-            disabled={busy}
+            disabled={busy || loading}
             onClick={() => void load()}
           >
-            Atualizar perguntas
+            {loading ? "Carregando perguntas…" : "Atualizar perguntas"}
           </button>
           <div className="eo-choice-row">
             {(["sold", "no_sale"] as const).map((value) => (
@@ -660,7 +732,7 @@ export function OperationsPanel({
       )}
       {tab === "summary" && (
         <>
-          <div className="panel form-grid">
+          {leader ? <div className="panel form-grid">
             <label>
               De
               <input
@@ -689,8 +761,13 @@ export function OperationsPanel({
                 <option value="store">Loja</option>
               </select>
             </label>
-          </div>
-          <div className="eo-ops-totals">
+          </div> : (
+            <div className="panel">
+              <h2>Meus registros de {new Date(`${from}T12:00:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}</h2>
+              <p>Histórico do mês atual na sua loja.</p>
+            </div>
+          )}
+          {leader && <div className="eo-ops-totals">
             <div>
               <strong>{overview?.diary_count ?? 0}</strong>
               <span>Registros de vendas</span>
@@ -703,13 +780,13 @@ export function OperationsPanel({
               <strong>{overview?.mood_count ?? 0}</strong>
               <span>Respostas de sentimento</span>
             </div>
-          </div>
-          <p className="field-hint">
+          </div>}
+          {leader && <p className="field-hint">
             Sentimento: administradores consultam o histórico; diretores veem
             hoje na abrangência; demais pessoas veem somente as próprias
             respostas de hoje. Cada nova resposta preserva as anteriores.
-          </p>
-          <div className="table-wrap">
+          </p>}
+          {leader && <div className="table-wrap">
             <table>
               <thead>
                 <tr>
@@ -732,8 +809,8 @@ export function OperationsPanel({
                 ))}
               </tbody>
             </table>
-          </div>
-          {!!overview?.top_reasons.length && (
+          </div>}
+          {leader && !!overview?.top_reasons.length && (
             <div className="panel">
               <h3>Motivos mais registrados</h3>
               {overview.top_reasons.map((item) => (
@@ -743,15 +820,15 @@ export function OperationsPanel({
               ))}
             </div>
           )}
-          <div className="panel form">
-            <h3>Resumo com Anthropic</h3>
+          {leader && <div className="panel form">
+            <h3>Resumo EO.IA</h3>
             <p>
               Consolida os totais do período e uma amostra de até 100 relatos
               recentes. O resumo fica salvo no banco.
             </p>
             <button
               className="secondary"
-              disabled={busy || !dayTotal}
+              disabled={reportBusy || !dayTotal}
               onClick={() => void summarize()}
             >
               Gerar resumo dos relatos
@@ -759,21 +836,21 @@ export function OperationsPanel({
             {admin && (
               <button
                 className="text-button"
-                disabled={busy}
+                disabled={reportBusy}
                 onClick={() => void checkAnthropic()}
               >
-                Testar conexão Anthropic
+                Verificar conexão EO.IA
               </button>
             )}
             {aiSummary?.scope ===
               JSON.stringify({ from, to, store, group }) && (
               <p style={{ whiteSpace: "pre-wrap" }}>{aiSummary.text}</p>
             )}
-          </div>
-          <div className="eo-choice-row">
+          </div>}
+          {leader && <div className="eo-choice-row">
             <button
               className="secondary"
-              disabled={busy || !dayTotal}
+              disabled={reportBusy || !dayTotal}
               onClick={() => void exportRecords("day")}
             >
               <Download size={16} />
@@ -781,44 +858,23 @@ export function OperationsPanel({
             </button>
             <button
               className="secondary"
-              disabled={busy || !moodTotal}
+              disabled={reportBusy || !moodTotal}
               onClick={() => void exportRecords("mood")}
             >
               <Download size={16} />
               Exportar sentimento
             </button>
-          </div>
-          <details className="panel">
+          </div>}
+          {leader ? <details className="panel">
             <summary>Registros do diário · {dayTotal} no período</summary>
-            {entries.map((entry) => (
-              <article className="eo-day-row" key={entry.id}>
-                <strong>
-                  {entry.store_code} · {entry.store_name}
-                </strong>
-                <p>
-                  {entry.person_name} · {entry.entry_date}
-                </p>
-                <p>{entry.reasons.join(" · ")}</p>
-                <p>{entry.note}</p>
-                {entry.transcript && (
-                  <blockquote>{entry.transcript}</blockquote>
-                )}
-                {entry.answers &&
-                  Object.entries(entry.answers).map(([key, value]) => (
-                    <p key={key}>
-                      <strong>
-                        {entry.questionnaire_snapshot?.questions.find(
-                          (q) => q.id === key,
-                        )?.label || key}
-                        :
-                      </strong>{" "}
-                      {value}
-                    </p>
-                  ))}
-              </article>
-            ))}
-          </details>
-          <details className="panel">
+            {entries.map((entry) => <DayRecord entry={entry} key={entry.id} />)}
+          </details> : (
+            <div className="panel">
+              <strong>{dayTotal} registros no mês</strong>
+              {entries.map((entry) => <DayRecord entry={entry} key={entry.id} />)}
+            </div>
+          )}
+          {leader && <details className="panel">
             <summary>Respostas de sentimento · {moodTotal} no período</summary>
             {moodEntries.map((entry) => (
               <article className="eo-day-row" key={entry.id}>
@@ -831,11 +887,11 @@ export function OperationsPanel({
                 </p>
               </article>
             ))}
-          </details>
+          </details>}
           <div className="eo-choice-row">
             <button
               className="secondary"
-              disabled={busy || recordPage === 0}
+              disabled={loading || recordPage === 0}
               onClick={() => setRecordPage(recordPage - 1)}
             >
               Anterior
@@ -844,14 +900,14 @@ export function OperationsPanel({
             <button
               className="secondary"
               disabled={
-                busy || (recordPage + 1) * 50 >= Math.max(dayTotal, moodTotal)
+                loading || (recordPage + 1) * 50 >= (leader ? Math.max(dayTotal, moodTotal) : dayTotal)
               }
               onClick={() => setRecordPage(recordPage + 1)}
             >
               Próxima
             </button>
           </div>
-          {!dayTotal && !moodTotal && (
+          {!dayTotal && (!leader || !moodTotal) && !loading && (
             <p className="empty">Nenhum registro nesse período.</p>
           )}
         </>

@@ -33,6 +33,7 @@ export function PersonalSettings({
   const [data, setData] = useState<Prefs | null>(null);
   const [phone, setPhone] = useState("");
   const [channel, setChannel] = useState("whatsapp");
+  const [editingChannel, setEditingChannel] = useState(false);
   const [store, setStore] = useState("");
   const [hours, setHours] = useState<Day[]>(empty);
   const [busy, setBusy] = useState(true);
@@ -45,6 +46,10 @@ export function PersonalSettings({
           setData(p);
           setPhone(p.phone ?? "");
           setChannel(p.channel);
+          if (stores.length === 1) {
+            setStore(stores[0].id);
+            setHours(p.stores.find((item) => item.store_id === stores[0].id)?.hours ?? empty());
+          }
         }
       })
       .catch((e) => {
@@ -56,8 +61,9 @@ export function PersonalSettings({
     return () => {
       live = false;
     };
-  }, []);
+  }, [stores]);
   async function save(withHours: boolean) {
+    if (!data) return;
     setBusy(true);
     setMessage("");
     try {
@@ -68,6 +74,7 @@ export function PersonalSettings({
           : { p_phone: phone.trim() || null, p_channel: channel },
       );
       setData(next);
+      if (!withHours) setEditingChannel(false);
       setMessage(
         withHours
           ? "Horário da unidade atualizado, sem aprovação adicional."
@@ -92,21 +99,28 @@ export function PersonalSettings({
             maxLength={30}
           />
         </label>
-        <label>
-          Canal preferido
-          <select value={channel} onChange={(e) => setChannel(e.target.value)}>
-            {[
-              ["whatsapp", "WhatsApp"],
-              ["phone", "Telefone"],
-              ["email", "E-mail"],
-              ["other", "Outro"],
-            ].map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div>
+          <strong>Canal preferido</strong>
+          <div className="eo-preferred-channel">
+            <span>{({ whatsapp: "WhatsApp", phone: "Telefone", email: "E-mail", other: "Outro" } as Record<string, string>)[channel] ?? channel}</span>
+            <button type="button" className="text-button" onClick={() => setEditingChannel((value) => !value)}>
+              {editingChannel ? "Fechar" : "Alterar"}
+            </button>
+          </div>
+          {editingChannel && <label>
+            Escolher canal
+            <select value={channel} onChange={(e) => setChannel(e.target.value)}>
+              {[
+                ["whatsapp", "WhatsApp"],
+                ["phone", "Telefone"],
+                ["email", "E-mail"],
+                ["other", "Outro"],
+              ].map(([v, l]) => (
+                <option key={v} value={v}>{l}</option>
+              ))}
+            </select>
+          </label>}
+        </div>
         <button
           type="button"
           disabled={busy || !data}
