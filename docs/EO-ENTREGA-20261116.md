@@ -17,7 +17,7 @@ O aparelho informou Runtime `ee6c10e120100f0eaa3b33f9a2ba9e7693e7e812`. O grupo 
 
 Apos publicar, confirmar no painel Expo que o novo grupo iOS usa exatamente `ee6c10e120100f0eaa3b33f9a2ba9e7693e7e812` antes de orientar o usuario a buscar a atualizacao. Se divergir, interromper a OTA e preparar nova compilacao nativa. Nao atribuir a falha do push apenas a versao sem confirmar registro e entrega fisica.
 
-Tag local preparada: `ota-20261116-ux-ee6`, commit `c06565c`. A comparacao dos arquivos nativos e assets entre ela e `ota-20261112-navegacao` nao mostrou diferencas. Isso e uma verificacao estatica; a confirmacao final do Runtime vem do painel Expo apos publicar.
+Tag local preparada: `ota-20261116-ux-ee6`. A comparacao dos arquivos nativos e assets entre ela e `ota-20261112-navegacao` nao mostrou diferencas. Isso e uma verificacao estatica; a confirmacao final do Runtime vem do painel Expo apos publicar.
 
 O aplicativo instalado pode usar os sons legados embutidos em sua compilacao. Novos sons ou assinatura APNs exigem build. Push remoto, som e desempenho do login ainda requerem observacao real no iPhone. Nao tratar o codigo como prova de que o encerramento nativo acabou.
 

@@ -38,6 +38,7 @@ export function PersonalSettings({
   const [hours, setHours] = useState<Day[]>(empty);
   const [busy, setBusy] = useState(true);
   const [message, setMessage] = useState("");
+  const soleStoreId = stores.length === 1 ? stores[0].id : null;
   useEffect(() => {
     let live = true;
     void rpc<Prefs>("eo_profile_preferences")
@@ -46,9 +47,9 @@ export function PersonalSettings({
           setData(p);
           setPhone(p.phone ?? "");
           setChannel(p.channel);
-          if (stores.length === 1) {
-            setStore(stores[0].id);
-            setHours(p.stores.find((item) => item.store_id === stores[0].id)?.hours ?? empty());
+          if (soleStoreId) {
+            setStore(soleStoreId);
+            setHours(p.stores.find((item) => item.store_id === soleStoreId)?.hours ?? empty());
           }
         }
       })
@@ -61,7 +62,7 @@ export function PersonalSettings({
     return () => {
       live = false;
     };
-  }, [stores]);
+  }, [soleStoreId]);
   async function save(withHours: boolean) {
     if (!data) return;
     setBusy(true);
