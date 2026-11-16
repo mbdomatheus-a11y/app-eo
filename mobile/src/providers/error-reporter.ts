@@ -12,7 +12,7 @@ export function reportarErro(error: unknown, fatal: boolean, contexto: Record<st
   if (!supabase || enviados >= 20) return;
   enviados++;
   const e = error instanceof Error ? error : new Error(String(error));
-  const versao = `${Constants.expoConfig?.version ?? "?"} ${Updates.updateId ?? "embutido"}`;
+  const versao = `${Constants.nativeAppVersion ?? Constants.expoConfig?.version ?? "?"} (${Constants.nativeBuildVersion ?? "?"}) ${Updates.updateId ?? "embutido"}`;
   void supabase
     .rpc("app_registrar_erro", {
       p_app: "eo",

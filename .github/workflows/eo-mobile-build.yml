@@ -310,19 +310,18 @@ jobs:
       - name: Test signing configuration checks
         run: python3 ../scripts/test-ios-signing-inputs.py
 
-      - name: Use a unique Apple build number
-        run: |
-          node -e 'const fs = require("fs"); const p = "app.json"; const config = JSON.parse(fs.readFileSync(p, "utf8")); config.expo.ios.buildNumber = String(1000 + Number(process.env.GITHUB_RUN_NUMBER) * 100 + Number(process.env.GITHUB_RUN_ATTEMPT)); fs.writeFileSync(p, JSON.stringify(config, null, 2) + "\n"); console.log("iOS build:", config.expo.ios.buildNumber);'
+      - name: Definir versao e compilacao unicas para o TestFlight
+        run: node ../scripts/ios-build-version.mjs
 
       - name: Generate Expo iOS project
         env:
           CI: '1'
         run: npx expo prebuild --clean --platform ios
 
-      - name: Preserve native build number without changing OTA compatibility
+      - name: Preservar versao nativa sem alterar a compatibilidade OTA
         shell: bash
         run: |
-          # O número único já foi escrito no projeto/Info.plist pelo prebuild.
+          # Os números únicos já foram escritos no projeto iOS pelo prebuild.
           # O fingerprint usa o app.json estável do repositório, igual ao EAS Update.
           node <<'NODE'
           const fs = require('fs');
@@ -330,6 +329,7 @@ jobs:
           fs.writeFileSync('app.json', execFileSync('git', ['show', 'HEAD:mobile/app.json']));
           NODE
           info_plist="$(find ios -mindepth 2 -maxdepth 2 -name Info.plist -not -path '*/Pods/*' -print -quit)"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$info_plist"
           /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$info_plist"
 
       - name: Prepare App Store Connect API key
@@ -438,6 +438,13 @@ jobs:
             echo "::error::O aplicativo assinado do EO não foi encontrado no IPA final."
             exit 1
           fi
+          signed_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$archive_app/Info.plist")"
+          signed_build="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$archive_app/Info.plist")"
+          if [ "$signed_version" != "$EO_APP_VERSION" ] || [ "$signed_build" != "$EO_BUILD_NUMBER" ]; then
+            echo "::error::O IPA gerado tem versão $signed_version ($signed_build), esperada $EO_APP_VERSION ($EO_BUILD_NUMBER). Upload cancelado."
+            exit 1
+          fi
+          echo "IPA EO versão $signed_version, compilação $signed_build."
           signed_entitlements="$RUNNER_TEMP/EO-signed-entitlements.plist"
           codesign --display --entitlements - --xml "$archive_app" > "$signed_entitlements"
           aps_environment="$(/usr/libexec/PlistBuddy -c 'Print :aps-environment' "$signed_entitlements" 2>/dev/null || true)"

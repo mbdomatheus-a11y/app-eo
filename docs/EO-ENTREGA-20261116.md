@@ -22,3 +22,9 @@ Tag local preparada: `ota-20261116-ux-ee6`. A comparacao dos arquivos nativos e 
 O aplicativo instalado pode usar os sons legados embutidos em sua compilacao. Novos sons ou assinatura APNs exigem build. Push remoto, som e desempenho do login ainda requerem observacao real no iPhone. Nao tratar o codigo como prova de que o encerramento nativo acabou.
 
 Publicacao de main, tag e workflow GitHub deve ser executada no PowerShell do Matheus. Nao gravar credenciais. O script correspondente fica em `scripts/publicar-ux-ee6-20261116.ps1`.
+
+## TestFlight com versao nova em cada execucao
+
+Atualizacao interna Expo nao cria compilacao no TestFlight. O workflow `eo-mobile-build.yml`, opcao `ios-testflight`, agora define antes do prebuild a versao visivel `MAJOR.MINOR.(GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT)` e a compilacao `1000 + GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT`. Cada nova execucao e cada tentativa recebem identificadores diferentes. O `app.json` original e restaurado apos o prebuild para manter a configuracao OTA estavel. Antes do upload, o workflow compara ambos os valores no IPA assinado e falha se houver divergencia.
+
+Usar `scripts/publicar-testflight-versao.ps1` no PowerShell do Matheus para enviar `main` e iniciar `ios-testflight`. A Apple ainda precisa processar o upload. Para o novo build chegar ao iPhone, verificar no App Store Connect se o grupo `EO - Teste interno` distribui automaticamente ou adicionar o build ao grupo. A sessao Apple deste atendimento estava expirada; nao foi possivel conferir o grupo. Nenhuma compilacao ou teste local foi iniciado neste atendimento.

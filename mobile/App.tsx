@@ -3335,8 +3335,8 @@ export function ProfileScreen({ openPrivacy }: { openPrivacy: () => void }) {
         }
       />
       <Text style={[s.small, { textAlign: "center", paddingVertical: 8 }]}>
-        EO · {Constants.expoConfig?.version ?? "1.0.0"} (
-        {Constants.expoConfig?.ios?.buildNumber ?? "dev"})
+        EO · {Constants.nativeAppVersion ?? Constants.expoConfig?.version ?? "dev"} (
+        {Constants.nativeBuildVersion ?? "dev"})
       </Text>
     </Page>
   );
