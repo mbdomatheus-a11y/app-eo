@@ -58,7 +58,7 @@ export function AndroidWaitlistAdmin() {
       <summary>Solicitações para testar no Android</summary>
       {open && (
         <div className="android-waitlist-content">
-          <p>Inclua o e-mail da conta Google na lista de testadores do EO. Depois, a pessoa abre o convite pelo Google Play usando a mesma conta.</p>
+          <p>Inclua o e-mail da conta Google em uma lista de testadores própria do EO. Depois, a pessoa abre o convite pelo Google Play usando a mesma conta.</p>
           <p><a href="https://play.google.com/console/u/0/developers/8960154356839047529/app/4972840947538514394/tracks/4700203061802526697?tab=testers" target="_blank" rel="noopener noreferrer">Abrir testadores no Play Console</a></p>
           <div className="android-waitlist-toolbar">
             <label>
