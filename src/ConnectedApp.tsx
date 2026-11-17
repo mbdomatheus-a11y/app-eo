@@ -2177,6 +2177,7 @@ export default function ConnectedApp() {
           )}
           {page === "modules" && (
             <>
+              <AppAvailability />
               <section
                 className="eo-shortcuts"
                 aria-labelledby="eo-available-title"
