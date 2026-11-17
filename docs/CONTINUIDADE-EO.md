@@ -1,6 +1,12 @@
 # Continuidade do App EO para outra IA
 
-Atualizado em 10/11/2026. Documento de passagem, sem senhas, chaves ou tokens.
+Atualizado em 17/11/2026. Documento de passagem, sem senhas, chaves ou tokens.
+
+## Atualização 17/11/2026: Escala no aplicativo
+
+O portal já tinha Escala, mas o catálogo Expo não tinha item, rota nem tela. Diagnóstico de UX e arquitetura em `docs/UX-MOBILE-ESCALA-20261117.md`. A implementação local está em `mobile/src/features/ScaleScreen.tsx`, `ScaleEditor.tsx`, `mobile/src/app/escala.tsx` e rotas. Usa as RPCs existentes, seleciona loja única automaticamente, recolhe busca após escolha e abre o HTML publicado em WebView isolada. A gravação usa versão otimista, permite nova tentativa após falha e confirma pendências antes de sair. O site recebeu apenas CSS responsivo para a moldura da Escala. Não houve mudança no banco, dependências nem configuração nativa. O editor real vem do banco e a experiência física ainda requer validação por Matheus. Não foram executados testes nem build por instrução expressa.
+
+Commit `8b62981` na `main` local, ainda sem push no momento deste registro. Tag local `ota-20261117-escala-ee6`, baseada em `ota-20261116-ux-ee6`. Comparação estática não mostrou diferença em app.json, package, lock, assets, eas.json ou .gitignore entre essa nova tag e a base ee6. Script para Matheus executar no PowerShell: `scripts/publicar-escala-mobile-20261117.ps1`. Ele envia `main` e a tag e solicita o workflow iOS OTA. Confirmar no Expo que o Runtime publicado é `ee6c10e120100f0eaa3b33f9a2ba9e7693e7e812` antes do teste no iPhone. Não publicar OTA diretamente da `main`. Android e uso físico do editor continuam pendentes. No portal, a saída do iframe ainda usa espera fixa de 400ms e não recebeu protocolo de confirmação nesta entrega.
 
 ## Atualizacao 16/11/2026
 
