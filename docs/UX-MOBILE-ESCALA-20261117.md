@@ -49,3 +49,7 @@ O usuário pediu para não executar testes. A revisão desta etapa é estática.
 ## Publicação
 
 O site precisa receber o commit em `main`. Para o iPhone que informou Runtime `ee6c10e120100f0eaa3b33f9a2ba9e7693e7e812`, a atualização Expo deve partir da tag compatível `ota-20261116-ux-ee6`, trazendo apenas JavaScript e CSS necessários. A `main` atual tem configuração e sons nativos diferentes e não deve ser usada diretamente como OTA desse iPhone. Confirmar no painel Expo o Runtime da atualização concluída antes de orientar o teste. Android também requer distribuição compatível com a instalação do usuário.
+
+### Resultado da publicação
+
+Em 17/11 a tag `ota-20261117-escala-ee6` foi publicada, mas o Expo calculou Runtime `3982f37...`. O iPhone informou `ee6c10e1...`, portanto não receberá essa atualização. A igualdade dos arquivos nativos entre tags não garantiu igualdade do fingerprint no runner. Seguir a decisão registrada do projeto: não forçar manualmente o Runtime. A Escala chegará ao iPhone por nova compilação TestFlight de `main`, que já contém o módulo. O script de OTA da Escala não deve ser executado novamente para tentar alcançar esse aparelho.
