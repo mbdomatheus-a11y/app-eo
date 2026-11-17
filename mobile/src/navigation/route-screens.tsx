@@ -26,6 +26,7 @@ import * as SecureStore from "expo-secure-store";
 import { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEO } from "../providers/eo-provider";
+import { ScaleScreen } from "../features/ScaleScreen";
 import { SalesReportsScreen } from "../features/SalesReportsScreen";
 import { OperationsScreen } from "../features/OperationsScreen";
 import { RegisterPersonScreen } from "../../App";
@@ -67,6 +68,7 @@ export function moduleForPath(path: string): string | null {
     (
       {
         agenda: "agenda",
+        escala: "escala",
         "checklist-reports": "reports",
         sales: "sales",
         product: "product",
@@ -445,6 +447,7 @@ export function ModulesRoute() {
     {
       title: "Pessoas e rotina",
       items: [
+        { id: "escala", title: "Escala de colaboradores", detail: "Planejamento semanal da equipe", icon: "calendar", path: "/escala" },
         {
           id: "diary",
           title: "Diário de vendas",
@@ -567,6 +570,9 @@ export function ModulesRoute() {
       </Page>
     </RouteFrame>
   );
+}
+export function ScaleRoute() {
+  return <RouteFrame><ScaleScreen /></RouteFrame>;
 }
 export function SalesRoute() {
   const { period } = useLocalSearchParams<{ period?: string }>();
