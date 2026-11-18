@@ -1,5 +1,11 @@
 # Publicar o EO no Android (Google Play) pelo GitHub Actions
 
+## Escala no Android, 18/11/2026
+
+A última compilação `android-play` conhecida é a execução #34 (12/11, versionCode 4401), anterior à Escala (commit `8b62981`, 17/11). Uma OTA a partir da `main` não serve: o Runtime calculado pode diferir do binário instalado, como ocorreu no iPhone. A distribuição correta é um AAB novo da `main`.
+
+Rotina preparada: `powershell -ExecutionPolicy Bypass -File scripts\publicar-android-escala-20261118.ps1`. O script faz commit só dos arquivos da entrega, envia a `main` (o portal também é publicado pelo Vercel), dispara `android-play`, acompanha a execução, baixa o AAB em `output\android\run-<id>` e informa se o envio automático ao teste interno ocorreu. Os testadores estão no teste fechado Alpha: com envio automático, promover a versão do teste interno para Alpha; sem ele, criar a versão direto em Alpha com o AAB baixado. A confirmação final é abrir a Escala no aparelho, alterar uma semana, voltar à lista e reabrir.
+
 ## Link de teste confirmado em 16/11/2026
 
 O EO tem uma versão disponível na faixa de teste fechado Alpha. O Play Console mostra o convite web `https://play.google.com/apps/testing/com.appeo.mobile` e o endereço do aplicativo `https://play.google.com/store/apps/details?id=com.appeo.mobile`. O convite sozinho não libera a instalação. O administrador precisa incluir o e-mail da conta Google usada no Android em uma lista de testadores própria do EO na faixa Alpha, em `https://play.google.com/console/u/0/developers/8960154356839047529/app/4972840947538514394/tracks/4700203061802526697?tab=testers`. A lista atualmente selecionada também é usada pelo Control ALL; antes de adicionar novos testadores, criar uma lista exclusiva do EO para não ampliar acesso ao outro app. Depois a pessoa abre o convite com essa mesma conta, aceita participar e instala pelo Google Play. O teste aberto ainda está indisponível porque o Play Console exige acesso à produção, incluindo os critérios de teste fechado.

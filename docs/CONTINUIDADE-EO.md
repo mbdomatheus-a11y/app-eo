@@ -2,6 +2,12 @@
 
 Atualizado em 17/11/2026. Documento de passagem, sem senhas, chaves ou tokens.
 
+## Atualização 18/11/2026: saída do editor no portal e AAB Android
+
+Portal: a saída do editor da Escala deixou de esperar 400 ms fixos. O botão passou a "Salvar e voltar à lista"; o portal envia `eo-escala-enviar-agora` com identificador, a ponte `public/ferramentas/escala.html` tira o foco do campo, envia o pendente e responde `eo-escala-enviado`. O portal espera essa confirmação (limite de 5 s) e a fila de gravação. Sem confirmação, ou com falha, conflito ou semana inválida, pergunta se a pessoa quer sair e perder as alterações. Perfil só de consulta sai sem aviso. Revisão estática, sem testes locais, por instrução do Matheus. Arquivos alterados localmente, ainda sem commit.
+
+Android: preparado `scripts/publicar-android-escala-20261118.ps1` (ver `docs/ANDROID-PLAY.md`). Nada foi compilado nem enviado à Play nesta sessão. Os commits locais `80b3639`, `6769655` e `0de49b5` sobem junto no push do script.
+
 ## Atualização 17/11/2026: Escala no aplicativo
 
 O portal já tinha Escala, mas o catálogo Expo não tinha item, rota nem tela. Diagnóstico de UX e arquitetura em `docs/UX-MOBILE-ESCALA-20261117.md`. A implementação está em `mobile/src/features/ScaleScreen.tsx`, `ScaleEditor.tsx`, `mobile/src/app/escala.tsx` e rotas. Usa as RPCs existentes, seleciona loja única automaticamente, recolhe busca após escolha e abre o HTML publicado em WebView isolada. A gravação usa versão otimista, permite nova tentativa após falha e confirma pendências antes de sair. O site recebeu CSS responsivo para a moldura da Escala. Não houve mudança no banco, dependências nem configuração nativa. O editor real vem do banco. Matheus confirmou no iPhone que abriu uma semana, alterou e encontrou a mudança salva ao reabrir. Não foram executados testes locais por instrução expressa.

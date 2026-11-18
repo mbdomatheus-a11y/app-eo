@@ -43,6 +43,10 @@ export function EscalaModule({ workspace }: { workspace: Workspace }) {
   const htmlAtivo = useRef<HtmlAtivo | undefined>(undefined);
   const versoes = useRef(new Map<string, number | null>());
   const fila = useRef<Promise<void>>(Promise.resolve());
+  // Falha da última gravação: impede sair sem aviso enquanto houver alteração não gravada.
+  const falha = useRef(false);
+  const confirmacao = useRef<{ id: string; resolver: () => void } | null>(null);
+  const [saindo, setSaindo] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -79,6 +83,7 @@ export function EscalaModule({ workspace }: { workspace: Workspace }) {
       if (htmlAtivo.current === undefined) htmlAtivo.current = await rpc<HtmlAtivo>("escala_html_ativo");
       if (!htmlAtivo.current) throw new Error("Nenhuma versão da escala foi publicada ainda pelo administrador.");
       versoes.current = new Map();
+      falha.current = false;
       let estado: unknown | null = null;
       if (semana) {
         const s = await rpc<{ dados: unknown; versao: number; semana_inicio: string } | null>("escala_obter_semana", {
@@ -107,10 +112,16 @@ export function EscalaModule({ workspace }: { workspace: Workspace }) {
         try {
           estado = JSON.parse(valor);
         } catch {
+          falha.current = true;
+          setStatus("Dados inválidos. A alteração não foi gravada.");
           return;
         }
         const r = resumoDoEstado(estado as never);
-        if (!r.semana) return;
+        if (!r.semana) {
+          falha.current = true;
+          setStatus("Escolha uma semana válida para gravar o planejamento.");
+          return;
+        }
         if (!contexto?.pode_editar) {
           setStatus("Seu perfil só visualiza: alterações não são gravadas.");
           return;
@@ -119,6 +130,7 @@ export function EscalaModule({ workspace }: { workspace: Workspace }) {
           if (!versoes.current.has(r.semana)) {
             const existente = await rpc<{ versao: number } | null>("escala_obter_semana", { p_loja: loja.id, p_semana: r.semana });
             if (existente) {
+              falha.current = true;
               setStatus(`Já existe escala salva para a semana de ${dataBR(r.semana)}. Abra-a pela lista para editar.`);
               return;
             }
@@ -133,9 +145,11 @@ export function EscalaModule({ workspace }: { workspace: Workspace }) {
             p_versao: versoes.current.get(r.semana) ?? null,
           });
           versoes.current.set(r.semana, res.versao);
+          falha.current = false;
           setStatus(`Salvo no EO às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} (semana de ${dataBR(r.semana)}, versão ${res.versao}).`);
           setSemanas((await rpc<Semana[]>("escala_listar_semanas", { p_loja: loja.id, p_limite: 100 })) ?? []);
         } catch (e) {
+          falha.current = true;
           setStatus(e instanceof Error ? e.message : "Não foi possível salvar.");
         }
       });
@@ -146,7 +160,11 @@ export function EscalaModule({ workspace }: { workspace: Workspace }) {
   useEffect(() => {
     function onMessage(ev: MessageEvent) {
       if (!frame.current || ev.source !== frame.current.contentWindow) return;
-      const d = ev.data as { type?: string; key?: string; value?: string };
+      const d = ev.data as { type?: string; key?: string; value?: string; id?: string };
+      if (d?.type === "eo-escala-enviado") {
+        if (confirmacao.current && d.id === confirmacao.current.id) confirmacao.current.resolver();
+        return;
+      }
       if (d?.type === "eo-escala-pronto" && htmlAtivo.current && contexto && aberta) {
         const chave = chaveLoja(contexto.loja.codigo, contexto.loja.nome);
         const rows = contexto.colaboradores.map((c) => [Number(c.chapa), c.nome, c.cargo ?? "", c.departamento ?? "", c.jornada_diaria_min ?? 440, c.situacao ?? ""]);
@@ -193,6 +211,42 @@ export function EscalaModule({ workspace }: { workspace: Workspace }) {
     setCheia(true);
     // Tela cheia do navegador quando existir (computador e Android); no iPhone fica o modo foco.
     await area.current?.requestFullscreen?.().catch(() => undefined);
+  }
+
+  // Saída do editor: pede o envio do que está pendente, espera a confirmação da ponte e a fila de
+  // gravação terminar. Sem confirmação ou com falha, a pessoa decide se continua ou sai sem salvar.
+  async function sairDoEditor() {
+    if (saindo) return;
+    setSaindo(true);
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const confirmado = await new Promise<boolean>((resolve) => {
+      const fim = (ok: boolean) => {
+        clearTimeout(limite);
+        confirmacao.current = null;
+        resolve(ok);
+      };
+      const limite = setTimeout(() => fim(false), 5000);
+      confirmacao.current = { id, resolver: () => fim(true) };
+      const destino = frame.current?.contentWindow;
+      if (!destino) return fim(false);
+      destino.postMessage({ type: "eo-escala-enviar-agora", id }, "*");
+    });
+    // A confirmação chega depois das mensagens de gravação; espera também gravações encadeadas.
+    let atual: Promise<void>;
+    do {
+      atual = fila.current;
+      await atual;
+    } while (atual !== fila.current);
+    setSaindo(false);
+    if ((!confirmado || falha.current) && contexto?.pode_editar) {
+      setStatus("Não foi possível confirmar a gravação. As alterações podem ser perdidas.");
+      const sair = window.confirm("Não foi possível confirmar a gravação da escala. Sair mesmo assim e perder as alterações não salvas?");
+      if (!sair) return;
+    }
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+    setCheia(false);
+    setAberta(null);
+    if (loja) void carregarLoja(loja);
   }
 
   async function publicar(arquivo: File) {
@@ -297,19 +351,8 @@ export function EscalaModule({ workspace }: { workspace: Workspace }) {
       {aberta && (
         <div ref={area} className={`escala-frame-wrap${cheia ? " escala-cheia" : ""}`}>
           <div className="escala-frame-bar">
-            <button
-              onClick={async () => {
-                // Pede ao planejamento o envio do que ainda estava aguardando e espera a gravação terminar.
-                frame.current?.contentWindow?.postMessage({ type: "eo-escala-enviar-agora" }, "*");
-                await new Promise((r) => setTimeout(r, 400));
-                await fila.current;
-                if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
-                setCheia(false);
-                setAberta(null);
-                if (loja) void carregarLoja(loja);
-              }}
-            >
-              Voltar à lista
+            <button disabled={saindo} onClick={() => void sairDoEditor()}>
+              {saindo ? "Confirmando gravação…" : "Salvar e voltar à lista"}
             </button>
             <span>{aberta.rotulo}</span>
             <button className="primary escala-cheia-botao" aria-pressed={cheia} onClick={() => void alternarTelaCheia()}>
@@ -317,7 +360,7 @@ export function EscalaModule({ workspace }: { workspace: Workspace }) {
             </button>
           </div>
           {cheia && status && <p role="status" className="escala-status">{status}</p>}
-          <iframe ref={frame} title="Escala de colaboradores" src="/ferramentas/escala.html" sandbox={SANDBOX} referrerPolicy="no-referrer" />
+          <iframe ref={frame} title="Escala de colaboradores" src="/ferramentas/escala.html" sandbox={SANDBOX} referrerPolicy="no-referrer" style={saindo ? { pointerEvents: "none" } : undefined} />
         </div>
       )}
     </section>

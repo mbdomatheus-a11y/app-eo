@@ -45,6 +45,7 @@ O usuário pediu para não executar testes. A revisão desta etapa é estática.
 - A gravação usa a versão otimista da semana, guarda o último estado pendente e permite repetir após falha. Antes de sair, bloqueia novos toques, solicita o envio imediato e espera a fila. Se não confirmar, pergunta se a pessoa quer continuar ou descartar.
 - O contêiner web da Escala ganhou ajustes de altura, quebra de linha, toque e áreas seguras no celular. O HTML interno publicado não foi modificado.
 - O site ainda tem fluxo anterior de saída do editor com espera fixa e sem confirmação explícita da ponte. Esta alteração de CSS não resolve esse risco de gravação no navegador.
+- Atualização 18/11/2026: a saída do editor no site passou a usar confirmação explícita da ponte (`eo-escala-enviado`), espera da fila e aviso antes de descartar, no mesmo padrão do aplicativo. Ainda sem teste local e sem publicação.
 
 ## Publicação
 

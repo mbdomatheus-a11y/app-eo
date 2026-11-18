@@ -33,7 +33,15 @@
     window.addEventListener("pagehide", enviarAgora);
     document.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") enviarAgora(); });
     window.addEventListener("message", function (ev) {
-      if (ev.source === parentWin && ev.data && ev.data.type === "eo-escala-enviar-agora") enviarAgora();
+      if (ev.source !== parentWin || !ev.data || ev.data.type !== "eo-escala-enviar-agora") return;
+      var pedido = ev.data.id;
+      // Tira o foco do campo em edição para o HTML gravar a última digitação antes do envio.
+      if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+      setTimeout(function () {
+        enviarAgora();
+        // A confirmação sai depois da última gravação; a ordem das mensagens é preservada.
+        parentWin.postMessage({ type: "eo-escala-enviado", id: pedido }, "*");
+      }, 150);
     });
   }
   var armazenamento = {
