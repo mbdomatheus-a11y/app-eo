@@ -2,6 +2,16 @@
 
 Atualizado em 17/11/2026. Documento de passagem, sem senhas, chaves ou tokens.
 
+## Atualização 18/11/2026 (noite): menus, tela cheia da Escala e Firebase
+
+Resultado anterior: AAB 4801 (execução 44312407707, commit `4f2dbae`) enviado por Matheus ao teste fechado Alpha, após remover a 4401 da versão. A tela no Android mostrou a Escala no catálogo e o aviso de Firebase ao ativar push: falta `google-services.json` na compilação (segredo `GOOGLE_SERVICES_JSON_B64`).
+
+Feito localmente, sem commit e sem testes, por instrução do Matheus:
+- Menus, versão enxuta aprovada por Matheus: Início deixou de repetir Aplicativos e passou a mostrar "Para fazer agora" (comunicados sem ciência, alertas novos), atalhos (Escala, Vendas, Checklists, Diário, Pedir produto, conforme acesso) e "Todos os aplicativos". Aplicativos sem duplicatas, em Pessoas e rotina, Vendas e comercial e Execução; Vendas virou um item só (período escolhido na tela); Comunicados saiu (é a aba Avisos); Geral saiu (fica em Mais). Barra inferior e botão central mantidos, com Escala no menu do botão central.
+- Escala: botão "Tela cheia" no editor esconde cabeçalho e barra de status e libera a horizontal; Voltar do sistema primeiro sai da tela cheia. O resto do app fica travado em retrato.
+- Nativo: `expo-screen-orientation ~57.0.3` (lock gerado com inserção mínima), `orientation: default` no app.json e plugin com `initialOrientation PORTRAIT_UP`. Isso retira a exigência `android.hardware.screen.portrait` apontada pela Play e muda o Runtime: exige binário novo no Android e no iPhone; OTA não serve.
+- Script: `scripts/publicar-reorganizacao-20261118.ps1` confere o segredo do Firebase, faz commit só destes arquivos, envia a main, dispara `android-play` e `ios-testflight` e baixa o AAB.
+
 ## Atualização 18/11/2026: saída do editor no portal e AAB Android
 
 Portal: a saída do editor da Escala deixou de esperar 400 ms fixos. O botão passou a "Salvar e voltar à lista"; o portal envia `eo-escala-enviar-agora` com identificador, a ponte `public/ferramentas/escala.html` tira o foco do campo, envia o pendente e responde `eo-escala-enviado`. O portal espera essa confirmação (limite de 5 s) e a fila de gravação. Sem confirmação, ou com falha, conflito ou semana inválida, pergunta se a pessoa quer sair e perder as alterações. Perfil só de consulta sai sem aviso. Revisão estática, sem testes locais, por instrução do Matheus. Arquivos alterados localmente, ainda sem commit.

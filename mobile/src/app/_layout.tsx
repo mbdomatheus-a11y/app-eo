@@ -11,6 +11,7 @@ import { RouteFrame } from "../navigation/route-screens";
 import { LoadingScreen } from "../../App";
 import { C } from "../ui";
 import { instalarRelatorioDeErros, reportarErro } from "../providers/error-reporter";
+import { travarRetrato } from "../features/orientation";
 
 instalarRelatorioDeErros();
 
@@ -18,6 +19,9 @@ function RootNavigation() {
   const app = useEO();
   const segments = useSegments();
   const first = segments[0] ?? "(tabs)";
+  useEffect(() => {
+    void travarRetrato();
+  }, []);
   useEffect(() => {
     if (!app.workspace || app.passwordMode) return;
     const open = (response: Notifications.NotificationResponse | null) => {

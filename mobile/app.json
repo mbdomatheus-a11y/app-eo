@@ -4,7 +4,7 @@
     "slug": "eo",
     "version": "1.0.0",
     "scheme": "eo",
-    "orientation": "portrait",
+    "orientation": "default",
     "userInterfaceStyle": "light",
     "ios": {
       "bundleIdentifier": "com.appeo.mobile",
@@ -41,6 +41,12 @@
       ],
       "expo-updates",
       "expo-router",
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "PORTRAIT_UP"
+        }
+      ],
       [
         "expo-notifications",
         {

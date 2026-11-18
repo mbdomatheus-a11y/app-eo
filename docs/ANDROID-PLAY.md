@@ -2,6 +2,9 @@
 
 ## Escala no Android, 18/11/2026
 
+Firebase, pendente em 18/11/2026: sem `GOOGLE_SERVICES_JSON_B64` o push Android falha com o aviso "precisa da configuração Firebase". Passos no item 2 e 3 da seção "Uma vez só". Guardar o `google-services.json` fora do repositório, que é público (ex.: `C:\Users\Usúario\Documents\EO-chaves`). No Play Console, ao criar versão nova, remover da versão o pacote anterior se aparecer o erro "APK completamente oculto"; o alerta `android.hardware.screen.portrait` some a partir da compilação com rotação liberada.
+
+
 A última compilação `android-play` conhecida é a execução #34 (12/11, versionCode 4401), anterior à Escala (commit `8b62981`, 17/11). Uma OTA a partir da `main` não serve: o Runtime calculado pode diferir do binário instalado, como ocorreu no iPhone. A distribuição correta é um AAB novo da `main`.
 
 Rotina preparada: `powershell -ExecutionPolicy Bypass -File scripts\publicar-android-escala-20261118.ps1`. O script faz commit só dos arquivos da entrega, envia a `main` (o portal também é publicado pelo Vercel), dispara `android-play`, acompanha a execução, baixa o AAB em `output\android\run-<id>` e informa se o envio automático ao teste interno ocorreu. Os testadores estão no teste fechado Alpha: com envio automático, promover a versão do teste interno para Alpha; sem ele, criar a versão direto em Alpha com o AAB baixado. A confirmação final é abrir a Escala no aparelho, alterar uma semana, voltar à lista e reabrir.

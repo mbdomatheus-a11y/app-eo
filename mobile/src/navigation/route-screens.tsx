@@ -386,8 +386,93 @@ const goNotice = (id: string) =>
   router.push({ pathname: "/notice/[id]", params: { id } } as never);
 const goCompose = () => router.push("/compose" as never);
 
+// Menus reorganizados em 18/11/2026 (versão enxuta aprovada por Matheus): Início com o que fazer agora
+// e atalhos; Aplicativos sem itens repetidos; conta, aparelho e lojas ficam em Mais. Barra inferior e
+// botão central de ações rápidas mantidos.
+type ItemApp = { id: string; title: string; detail: string; icon: string; path: string };
+const APPS: { title: string; items: ItemApp[] }[] = [
+  {
+    title: "Pessoas e rotina",
+    items: [
+      { id: "escala", title: "Escala de colaboradores", detail: "Planejamento semanal da equipe", icon: "calendar", path: "/escala" },
+      { id: "diary", title: "Diário de vendas", detail: "Relato e motivos da operação", icon: "mic.fill", path: "/diary" },
+      { id: "mood", title: "Como está seu dia?", detail: "Compartilhe como você se sente", icon: "face.smiling", path: "/mood" },
+      { id: "diary", title: "Resumo da equipe", detail: "Registros por loja e regional", icon: "person.2.fill", path: "/diary?tab=summary" },
+    ],
+  },
+  {
+    title: "Vendas e comercial",
+    items: [
+      { id: "sales", title: "Vendas", detail: "Semana, mês e ano", icon: "chart.bar.fill", path: "/sales?period=week" },
+      { id: "product", title: "Pedir produto", detail: "Texto revisado e classificação por IA", icon: "shippingbox.fill", path: "/product" },
+      { id: "assortment", title: "Sortimento por tamanho", detail: "Sessões e contagens por código", icon: "barcode.viewfinder", path: "/assortment" },
+    ],
+  },
+  {
+    title: "Execução",
+    items: [
+      { id: "checklists", title: "Checklists", detail: "Rotinas e evidências", icon: "checklist", path: "/checklists" },
+      { id: "agenda", title: "Agenda de ações", detail: "Pendências e lembretes no calendário", icon: "calendar", path: "/agenda" },
+      { id: "reports", title: "Relatórios", detail: "Central e auditoria conforme seu acesso", icon: "chart.bar.doc.horizontal", path: "/reports" },
+    ],
+  },
+];
+// Atalhos do Início, na ordem de uso mais frequente; aparecem só os liberados para a conta.
+const ATALHOS = ["/escala", "/sales?period=week", "/checklists", "/diary", "/product"];
+
+function ListaApps({ items }: { items: ItemApp[] }) {
+  return (
+    <Group>
+      {items.map((item, index) => (
+        <MenuItem
+          key={item.path}
+          title={item.title}
+          detail={item.detail}
+          icon={item.icon}
+          moduleId={item.id}
+          last={index === items.length - 1}
+          onPress={() => router.push(item.path as never)}
+        />
+      ))}
+    </Group>
+  );
+}
+
 export function HomeRoute() {
-  return <ModulesRoute />;
+  const app = useEO();
+  const primeiroNome = app.workspace?.person.name?.trim().split(/\s+/)[0] ?? "";
+  const avisos = app.notices.filter((n) => !n.acknowledged).length;
+  const alertas = app.alerts.filter((a) => !a.seen_at && !a.dismissed_at).length;
+  const todos = APPS.flatMap((g) => g.items);
+  const atalhos = ATALHOS.map((path) => todos.find((i) => i.path === path)).filter(
+    (i): i is ItemApp => !!i && app.moduleVisible(i.id),
+  );
+  const pendencias = [
+    app.moduleVisible("notices") && { title: "Comunicados", detail: avisos ? "Aguardando sua ciência" : "Tudo lido", icon: "doc.text.fill", value: avisos ? String(avisos) : undefined, go: () => goTab("notices") },
+    { title: "Alertas", detail: alertas ? "Novos alertas para ver" : "Nenhum alerta novo", icon: "bell.fill", value: alertas ? String(alertas) : undefined, go: () => router.push("/alerts" as never) },
+  ].filter(Boolean) as { title: string; detail: string; icon: string; value?: string; go: () => void }[];
+  return (
+    <RouteFrame tabs>
+      <Page>
+        <ScreenTitle title={primeiroNome ? `Olá, ${primeiroNome}` : "Início"} subtitle="O que precisa da sua atenção e seus atalhos." />
+        <Section title="Para fazer agora" />
+        <Group>
+          {pendencias.map((p, index) => (
+            <MenuItem key={p.title} title={p.title} detail={p.detail} icon={p.icon} value={p.value} last={index === pendencias.length - 1} onPress={p.go} />
+          ))}
+        </Group>
+        {atalhos.length > 0 && (
+          <>
+            <Section title="Atalhos" />
+            <ListaApps items={atalhos} />
+          </>
+        )}
+        <Group>
+          <MenuItem title="Todos os aplicativos" detail="Ferramentas liberadas para a sua conta" icon="square.grid.2x2" last onPress={() => goTab("modules")} />
+        </Group>
+      </Page>
+    </RouteFrame>
+  );
 }
 export function NoticesRoute() {
   return (
@@ -398,175 +483,19 @@ export function NoticesRoute() {
 }
 export function ModulesRoute() {
   const app = useEO();
-  const groups = [
-    {
-      title: "Vendas",
-      items: [
-        {
-          id: "sales",
-          title: "Venda semana",
-          detail: "Relatórios e acompanhamento semanal",
-          icon: "chart.bar.fill",
-          path: "/sales?period=week",
-        },
-        {
-          id: "sales",
-          title: "Venda mês",
-          detail: "Resultados do mês",
-          icon: "calendar",
-          path: "/sales?period=month",
-        },
-        {
-          id: "sales",
-          title: "Venda ano",
-          detail: "Visão anual das lojas",
-          icon: "chart.line.uptrend.xyaxis",
-          path: "/sales?period=year",
-        },
-      ],
-    },
-    {
-      title: "Comercial e sortimento",
-      items: [
-        {
-          id: "product",
-          title: "Pedir produto",
-          detail: "Texto revisado e classificação por IA",
-          icon: "shippingbox.fill",
-          path: "/product",
-        },
-        {
-          id: "assortment",
-          title: "Sortimento por tamanho",
-          detail: "Sessões e contagens por código",
-          icon: "barcode.viewfinder",
-          path: "/assortment",
-        },
-      ],
-    },
-    {
-      title: "Pessoas e rotina",
-      items: [
-        { id: "escala", title: "Escala de colaboradores", detail: "Planejamento semanal da equipe", icon: "calendar", path: "/escala" },
-        {
-          id: "diary",
-          title: "Diário de vendas",
-          detail: "Relato e motivos da operação",
-          icon: "mic.fill",
-          path: "/diary",
-        },
-        {
-          id: "mood",
-          title: "Como está seu dia?",
-          detail: "Compartilhe como você se sente",
-          icon: "face.smiling",
-          path: "/mood",
-        },
-        {
-          id: "diary",
-          title: "Resumo da equipe",
-          detail: "Registros por loja e regional",
-          icon: "person.2.fill",
-          path: "/diary?tab=summary",
-        },
-      ],
-    },
-    {
-      title: "Comunicação e execução",
-      items: [
-        {
-          id: "notices",
-          title: "Comunicados",
-          detail: "Orientações e ciência",
-          icon: "doc.text.fill",
-          path: "/notices",
-        },
-        {
-          id: "checklists",
-          title: "Checklists",
-          detail: "Rotinas e evidências",
-          icon: "checklist",
-          path: "/checklists",
-        },
-        {
-          id: "reports",
-          title: "Relatórios",
-          detail: "Central e auditoria conforme seu acesso",
-          icon: "chart.bar.doc.horizontal",
-          path: "/reports",
-        },
-      ],
-    },
-  ];
+  const grupos = APPS.map((g) => ({ ...g, items: g.items.filter((i) => app.moduleVisible(i.id)) })).filter((g) => g.items.length);
   return (
     <RouteFrame tabs>
       <Page>
-        <ScreenTitle
-          title="Aplicativos disponíveis"
-          subtitle="Ferramentas liberadas para a sua conta."
-        />
-        {app.moduleVisible("agenda") && (
-          <Group>
-            <MenuItem
-              title="Agenda de ações"
-              moduleId="agenda"
-              detail="Pendências e lembretes no calendário"
-              icon="calendar"
-              onPress={() => router.push("/agenda" as never)}
-            />
-          </Group>
-        )}
-        {groups.map((group) => {
-          const items = group.items.filter((item) =>
-            app.moduleVisible(item.id),
-          );
-          return items.length ? (
-            <View key={group.title}>
-              <Section title={group.title} />
-              <Group>
-                {items.map((item, index) => (
-                  <MenuItem
-                    key={item.path}
-                    title={item.title}
-                    detail={item.detail}
-                    icon={item.icon}
-                    moduleId={item.id}
-                    last={index === items.length - 1}
-                    onPress={() => router.push(item.path as never)}
-                  />
-                ))}
-              </Group>
-            </View>
-          ) : null;
-        })}
-        <Section title="Geral" />
-        <Group>
-          <MenuItem
-            title="Alertas"
-            detail="Avisos e pendências"
-            icon="bell.fill"
-            onPress={() => router.push("/alerts" as never)}
-          />
-          <MenuItem
-            title="Minhas lojas"
-            detail="Unidades do seu acesso"
-            icon="building.2.fill"
-            onPress={() => router.push("/scope" as never)}
-          />
-          <MenuItem
-            title="Meu aparelho"
-            detail="Notificações e permissões"
-            icon="iphone"
-            onPress={() => router.push("/device" as never)}
-          />
-          <MenuItem
-            title="Configurações"
-            detail="Conta, segurança e privacidade"
-            icon="gearshape.fill"
-            last
-            onPress={() => goTab("profile")}
-          />
-        </Group>
+        <ScreenTitle title="Aplicativos" subtitle="Ferramentas liberadas para a sua conta." />
+        {grupos.map((g) => (
+          <View key={g.title}>
+            <Section title={g.title} />
+            <ListaApps items={g.items} />
+          </View>
+        ))}
+        {!grupos.length && <Text style={s.small}>Nenhum aplicativo liberado para sua conta.</Text>}
+        <Text style={[s.small, { marginTop: 12 }]}>Conta, aparelho, lojas e privacidade ficam em Mais.</Text>
       </Page>
     </RouteFrame>
   );

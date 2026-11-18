@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, BackHandler, Text, View } from "react-native";
+import { Alert, BackHandler, Pressable, StatusBar, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "expo-router";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { rawRpc } from "../services/supabase";
 import { Button, C, s } from "../ui";
+import { liberarRotacao, travarRetrato } from "./orientation";
 
 type Contexto = { loja: { id: string; codigo: string; nome: string }; pode_editar: boolean; colaboradores: { chapa: string; nome: string; cargo: string | null; departamento: string | null; jornada_diaria_min: number | null; situacao: string | null }[] };
 type Estado = { settings?: { semanaInicio?: unknown; modeloEscala?: unknown; statusEscala?: unknown } };
@@ -54,6 +56,21 @@ export function ScaleEditor(props: Props) {
   const key = /var STORAGE_KEY\s*=\s*"([^"]{1,80})"/.exec(props.html)?.[1] ?? "escalaColaboradores.v1";
   const [source] = useState(() => ponte(props, key));
   const closeRef = useRef<() => void>(() => {});
+  const insets = useSafeAreaInsets();
+  // Tela cheia (18/11/2026): esconde cabeçalho e barra de status e libera a horizontal só aqui.
+  const [cheia, setCheia] = useState(false);
+  const cheiaRef = useRef(false);
+  cheiaRef.current = cheia;
+  useEffect(() => {
+    navigation.setOptions({ headerShown: !cheia });
+    StatusBar.setHidden(cheia, "fade");
+    void (cheia ? liberarRotacao() : travarRetrato());
+  }, [cheia, navigation]);
+  useEffect(() => () => {
+    StatusBar.setHidden(false, "fade");
+    void travarRetrato();
+    navigation.setOptions({ headerShown: true });
+  }, [navigation]);
   useEffect(() => {
     navigation.setOptions({ headerBackVisible: false, gestureEnabled: false });
     const unsub = navigation.addListener("beforeRemove", (event) => { event.preventDefault(); closeRef.current(); });
@@ -141,6 +158,28 @@ export function ScaleEditor(props: Props) {
     }
     props.onClose();
   }
-  closeRef.current = () => { void close(); };
-  return <View style={{ flex: 1, backgroundColor: C.canvas }}><View style={{ padding: 12, gap: 8 }}><Button title={isClosing ? "Confirmando salvamento…" : "Salvar e voltar à lista"} secondary disabled={isClosing} onPress={() => void close()} />{retryAvailable && <Button title="Tentar salvar novamente" disabled={isClosing} onPress={retry} />}<Text style={{ color: C.ink, fontWeight: "700" }}>{props.rotulo}</Text><Text accessibilityLiveRegion="polite" style={s.small}>{status}</Text></View><View style={{ flex: 1 }} pointerEvents={isClosing ? "none" : "auto"}><WebView ref={web} source={{ html: source }} originWhitelist={["*"]} onShouldStartLoadWithRequest={(request) => request.url === "about:blank"} onOpenWindow={() => {}} onMessage={onMessage} javaScriptEnabled javaScriptCanOpenWindowsAutomatically={false} domStorageEnabled={false} allowFileAccess={false} allowFileAccessFromFileURLs={false} allowUniversalAccessFromFileURLs={false} sharedCookiesEnabled={false} thirdPartyCookiesEnabled={false} setSupportMultipleWindows={false} mixedContentMode="never" allowsLinkPreview={false} dataDetectorTypes="none" incognito onError={() => { failed.current = true; setStatus("Não foi possível abrir o editor neste aparelho."); }} style={{ flex: 1, backgroundColor: "white" }} /></View></View>;
+  // Voltar do sistema: em tela cheia primeiro sai da tela cheia; depois salva e fecha.
+  closeRef.current = () => { if (cheiaRef.current) setCheia(false); else void close(); };
+  const chip = (titulo: string, onPress: () => void, destaque = false) => (
+    <Pressable accessibilityRole="button" disabled={isClosing} onPress={onPress} hitSlop={6} style={({ pressed }) => ({ minHeight: 44, paddingHorizontal: 14, borderRadius: 12, justifyContent: "center", backgroundColor: destaque ? C.dark : C.paper, borderWidth: destaque ? 0 : 1, borderColor: C.line, opacity: isClosing ? 0.5 : pressed ? 0.7 : 1 })}>
+      <Text style={{ color: destaque ? "#fff" : C.ink, fontWeight: "700" }}>{titulo}</Text>
+    </Pressable>
+  );
+  const painel = cheia
+    ? <View style={{ paddingTop: Math.max(insets.top, 6), paddingHorizontal: 10, paddingBottom: 6, flexDirection: "row", alignItems: "center", gap: 8 }}>
+        {chip("Sair da tela cheia", () => setCheia(false))}
+        {chip(isClosing ? "Confirmando…" : "Salvar e voltar", () => void close(), true)}
+        {retryAvailable && chip("Tentar de novo", retry)}
+        <Text numberOfLines={1} accessibilityLiveRegion="polite" style={[s.small, { flex: 1 }]}>{status}</Text>
+      </View>
+    : <View style={{ padding: 12, gap: 8 }}>
+        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+          {chip(isClosing ? "Confirmando salvamento…" : "Salvar e voltar à lista", () => void close(), true)}
+          {chip("Tela cheia", () => setCheia(true))}
+        </View>
+        {retryAvailable && <Button title="Tentar salvar novamente" disabled={isClosing} onPress={retry} />}
+        <Text style={{ color: C.ink, fontWeight: "700" }}>{props.rotulo}</Text>
+        <Text accessibilityLiveRegion="polite" style={s.small}>{status}</Text>
+      </View>;
+  return <View style={{ flex: 1, backgroundColor: C.canvas }}>{painel}<View style={{ flex: 1 }} pointerEvents={isClosing ? "none" : "auto"}><WebView ref={web} source={{ html: source }} originWhitelist={["*"]} onShouldStartLoadWithRequest={(request) => request.url === "about:blank"} onOpenWindow={() => {}} onMessage={onMessage} javaScriptEnabled javaScriptCanOpenWindowsAutomatically={false} domStorageEnabled={false} allowFileAccess={false} allowFileAccessFromFileURLs={false} allowUniversalAccessFromFileURLs={false} sharedCookiesEnabled={false} thirdPartyCookiesEnabled={false} setSupportMultipleWindows={false} mixedContentMode="never" allowsLinkPreview={false} dataDetectorTypes="none" incognito onError={() => { failed.current = true; setStatus("Não foi possível abrir o editor neste aparelho."); }} style={{ flex: 1, backgroundColor: "white" }} /></View></View>;
 }

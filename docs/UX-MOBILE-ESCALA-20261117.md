@@ -39,6 +39,8 @@ O usuário pediu para não executar testes. A revisão desta etapa é estática.
 
 ## Implementação preparada
 
+- 18/11/2026: editor com "Tela cheia" (sem cabeçalho e barra de status, horizontal liberada só nele) e menus reorganizados; ver `docs/CONTINUIDADE-EO.md`.
+
 - O catálogo Expo mostra Escala em Pessoas e rotina e protege a rota pela permissão do módulo. A barra inferior permanece com cinco destinos.
 - A tela Expo consulta lojas autorizadas e planejamentos pela mesma API do portal. Uma loja única é selecionada automaticamente; com várias, a busca mostra até dez resultados e recolhe após a escolha.
 - Semana, mês e ano filtram a lista. O planejamento abre o HTML publicado pelo administrador dentro de uma WebView sem sessão, cookies, acesso a arquivos ou navegação externa. A ponte fornece só a equipe da loja escolhida.

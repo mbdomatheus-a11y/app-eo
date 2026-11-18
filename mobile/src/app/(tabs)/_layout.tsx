@@ -13,6 +13,7 @@ import { AppIcon, C } from "../../ui";
 
 type Acao = { id: string; titulo: string; detalhe: string; icone: string; rota: string };
 const ACOES: Acao[] = [
+  { id: "escala", titulo: "Escala", detalhe: "Planejar a semana da equipe", icone: "calendar", rota: "/escala" },
   { id: "product", titulo: "Pedir produto", detalhe: "Solicite um item para a loja", icone: "list.bullet.rectangle.fill", rota: "/product" },
   { id: "checklists", titulo: "Checklists", detalhe: "Rotinas e respostas da equipe", icone: "checkmark.circle.fill", rota: "/checklists" },
   { id: "diary", titulo: "Diário de vendas", detalhe: "Relato do dia por voz ou texto", icone: "mic.fill", rota: "/diary" },
