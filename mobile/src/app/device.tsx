@@ -1,5 +1,6 @@
 import { PhoneUpdateCard } from "../features/ContactRefresh";
 import { AppVersionCard } from "../features/AppVersionCard";
+import { carregarEconomiaDados, definirEconomiaDados, economiaDadosLigada, ouvirEconomiaDados } from "../features/data-saver";
 import {
   createSoundChannels,
   soundChannel,
@@ -7,8 +8,8 @@ import {
 } from "../features/notification-sound";
 import { rpc } from "../services/supabase";
 import { SoundSettings } from "../features/SoundSettings";
-import { useState } from "react";
-import { Alert, Image, Linking, Platform, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, Image, Linking, Platform, Switch, Text, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as Notifications from "expo-notifications";
 import { createEventInCalendarAsync } from "expo-calendar/legacy";
@@ -28,6 +29,11 @@ import {
 } from "../ui";
 
 export default function DeviceScreen() {
+  const [economia, setEconomia] = useState(economiaDadosLigada());
+  useEffect(() => {
+    void carregarEconomiaDados.then(() => setEconomia(economiaDadosLigada()));
+    return ouvirEconomiaDados(setEconomia);
+  }, []);
   const app = useEO();
   const [photo, setPhoto] = useState<string>();
   const [phone, setPhone] = useState("");
@@ -224,6 +230,26 @@ export default function DeviceScreen() {
           disabled={busy}
           onPress={() => void update()}
         />
+        <Section title="Uso de dados e leitura" />
+        <Card>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, minHeight: 44 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: C.ink, fontWeight: "700" }}>Economia de dados</Text>
+              <Text style={s.small}>
+                Atualiza avisos e pendências a cada 5 minutos em vez de 1. Fotos e anexos já carregam só quando você toca.
+              </Text>
+            </View>
+            <Switch
+              accessibilityLabel="Economia de dados"
+              value={economia}
+              onValueChange={(v) => void definirEconomiaDados(v)}
+            />
+          </View>
+          <Text style={s.small}>
+            Tamanho do texto: o EO acompanha o tamanho de letra do aparelho. Para aumentar, use Ajustes, Acessibilidade,
+            Tamanho do texto no iPhone, ou Configurações, Tela, Tamanho da fonte no Android.
+          </Text>
+        </Card>
         <Section title="Versão do app" />
         <AppVersionCard />
         <Text style={[s.small, { color: C.muted, paddingVertical: 8 }]}>

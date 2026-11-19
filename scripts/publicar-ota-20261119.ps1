@@ -3,7 +3,8 @@ param(
   [ValidateSet("android", "ios")]
   [string]$Plataforma = "android",
   # Runtime informado pelo aparelho em Mais, Notificações e aparelho. Android 4901: d50e3fea...
-  [string]$RuntimeEsperado = "d50e3fea02bb63f3c59c99496c0aa06b2f8e5c08"
+  [string]$RuntimeEsperado = "d50e3fea02bb63f3c59c99496c0aa06b2f8e5c08",
+  [string]$Mensagem = "Fundacao: busca, catalogo e versao do app"
 )
 # 19/11/2026: envia a main e publica atualização OTA do app no canal production para uma plataforma.
 # Depois confere no log se o Runtime da OTA é igual ao do aparelho. Se for diferente, a OTA não chega.
@@ -36,7 +37,7 @@ git push origin main
 if ($LASTEXITCODE -ne 0) { throw "O envio falhou. Nenhuma OTA foi publicada." }
 
 $inicio = (Get-Date).ToUniversalTime()
-gh workflow run eo-mobile-update.yml --ref main -f channel=production -f platform=$Plataforma -f message="Fundacao: busca, catalogo e versao do app"
+gh workflow run eo-mobile-update.yml --ref main -f channel=production -f platform=$Plataforma -f message="$Mensagem"
 if ($LASTEXITCODE -ne 0) { throw "O GitHub não confirmou a publicação da OTA." }
 
 $runId = $null

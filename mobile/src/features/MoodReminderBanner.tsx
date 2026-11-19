@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { intervaloAtualizacao } from "./data-saver";
 import { Text } from "react-native";
 import { rpc } from "../services/supabase";
 import { Button, Card, s } from "../ui";
@@ -24,7 +25,7 @@ export function MoodReminderBanner({
         .then(setState)
         .catch(() => {});
     load();
-    const timer = setInterval(load, 60000);
+    const timer = setInterval(load, intervaloAtualizacao(60000));
     return () => clearInterval(timer);
   }, [userId]);
   if (!state?.due || !deferral.loaded || deferral.deferred || deferral.answeredDate === state.date) return null;

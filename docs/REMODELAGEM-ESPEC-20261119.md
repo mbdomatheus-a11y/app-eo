@@ -22,7 +22,7 @@ Legenda: Existe, Parcial, Falta. "A conferir" quando o código ainda não foi re
 | Portal admin em endereço próprio | Falta | Hoje a administração está no mesmo site |
 | Módulo ativável por empresa | Existe | `settings.disabled_modules` e `modulos_acesso` |
 | Multiempresa por configuração | Falta | Marca e módulos por cliente em configuração |
-| Salvamento automático discreto | Parcial | Escala sim; demais módulos a conferir |
+| Salvamento automático discreto | Parcial | Escala e respostas de texto do checklist no app (19/11, `SaveStatus`); demais módulos ao migrar cada um |
 | Admin sobrepõe qualquer dado com marcação | Falta | |
 | Acesso chapa + PIN 2 h + nascimento, vínculos | Falta | gerNNN e senha temporária por chapa existem |
 | Bloqueio escalonado e desbloqueio pelo superior | Parcial | Hoje bloqueia no 3º erro com liberação só pelo admin |
@@ -45,7 +45,7 @@ Legenda: Existe, Parcial, Falta. "A conferir" quando o código ainda não foi re
 
 1. Fundação no app: catálogo único de módulos, busca no topo, ação principal no botão central e novos nomes. Feito localmente em 19/11, sem testes nem publicação.
 2. Fundação no site: busca fixa no topo com os mesmos termos do app (`src/core/module-search.ts`) e mesmos nomes. Feito localmente em 19/11, sem testes. Publicação: `scripts/publicar-fundacao-20261119.ps1` envia a main; o app recebe por OTA só depois de conferir o Runtime instalado.
-3. Fundação de UX: indicador discreto de salvamento como padrão, preferência de contato em seletor, fonte ajustável e modo de baixo consumo.
+3. Fundação de UX: feito localmente em 19/11 o indicador `SaveStatus` com salvamento automático das respostas de texto do checklist (sem botão Salvar), economia de dados (atualizações a cada 5 min) e orientação de tamanho de texto pelo aparelho. Preferência de contato já era seletor. Pendente de decisão: ajuste de letra dentro do app além do ajuste do aparelho.
 4. Portal admin em endereço próprio.
 5. Acesso e segurança: chapa + PIN, data de nascimento, senhas por perfil, bloqueio escalonado, cascata e gestão em massa, termos de uso e log com valor anterior e novo. Exige migrations aditivas no SUP_EO1 conforme `docs/BANCO-CONVENCOES.md`.
 6. Comunicado Obrigatório com níveis e Checklist completo com acompanhamento.

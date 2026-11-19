@@ -36,3 +36,8 @@ jobs:
       - run: npm ci --prefix mobile --ignore-scripts --legacy-peer-deps
       - run: npm test
       - run: npm run build
+      # Tipos do app mobile (19/11/2026). Informativo até zerar os erros antigos; depois passa a bloquear.
+      - name: Tipos do app mobile
+        continue-on-error: true
+        working-directory: mobile
+        run: npx tsc --noEmit

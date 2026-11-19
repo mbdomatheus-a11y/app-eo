@@ -1,3 +1,4 @@
+import { intervaloAtualizacao } from "../features/data-saver";
 import {
   offlineEngine,
   rawRpc,
@@ -247,6 +248,8 @@ type ContextValue = {
   moderateAlert: (alert: LiveAlert) => Promise<Result>;
   setSoundEnabled: (enabled: boolean) => Promise<Result>;
   openChecklist: (id: string) => Promise<Result>;
+  // Salvamento automático e discreto: sem mensagem de sucesso; quem chama mostra o indicador.
+  saveChecklistAnswerQuiet: (run: string, item: string, answer: Record<string, unknown>) => Promise<void>;
   saveChecklistAnswer: (
     run: string,
     item: string,
@@ -685,7 +688,7 @@ export function EOProvider({ children }: { children: ReactNode }) {
         })
         .catch(() => {});
     };
-    const timer = setInterval(load, 60000);
+    const timer = setInterval(load, intervaloAtualizacao(60000));
     return () => {
       alive = false;
       clearInterval(timer);
@@ -811,6 +814,12 @@ export function EOProvider({ children }: { children: ReactNode }) {
         );
       }, "Resposta salva e registrada."),
     [act, refreshOperational],
+  );
+  const saveChecklistAnswerQuiet = useCallback(
+    async (run: string, item: string, answer: Record<string, unknown>) => {
+      await rpc("eo_checklist_save", { p_run: run, p_item: item, p_answer: answer });
+    },
+    [],
   );
   const uploadMessageFiles = useCallback(
     async (files: MessageFile[] = []) => {
@@ -1863,6 +1872,7 @@ export function EOProvider({ children }: { children: ReactNode }) {
       setSoundEnabled,
       openChecklist,
       saveChecklistAnswer,
+      saveChecklistAnswerQuiet,
       publishAlert,
       openMessageAttachment,
       publishChecklist,
@@ -1928,6 +1938,7 @@ export function EOProvider({ children }: { children: ReactNode }) {
       setSoundEnabled,
       openChecklist,
       saveChecklistAnswer,
+      saveChecklistAnswerQuiet,
       publishAlert,
       openMessageAttachment,
       publishChecklist,

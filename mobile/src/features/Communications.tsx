@@ -1,4 +1,5 @@
 import { CalendarAction } from "./CalendarAction";
+import { intervaloAtualizacao } from "./data-saver";
 import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { rpc } from "../services/supabase";
@@ -409,7 +410,7 @@ export function CommunicationInbox({
       .catch((e: Error) => setError(e.message));
   useEffect(() => {
     void load();
-    const timer = setInterval(() => void load(), 60000);
+    const timer = setInterval(() => void load(), intervaloAtualizacao(60000));
     return () => clearInterval(timer);
   }, []);
   async function mark(action: string, item?: InboxItem) {

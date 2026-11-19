@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { intervaloAtualizacao } from "./data-saver";
 import { AppState, Text } from "react-native";
 import { router } from "expo-router";
 import { rpc } from "../services/supabase";
@@ -36,7 +37,7 @@ export function ActionAgenda() {
         });
     };
     load();
-    const timer = setInterval(load, 60000);
+    const timer = setInterval(load, intervaloAtualizacao(60000));
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") load();
     });

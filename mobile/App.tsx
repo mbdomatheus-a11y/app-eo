@@ -1,3 +1,4 @@
+import { SaveStatus, type EstadoSalvo } from "./src/features/SaveStatus";
 import { useHistoricoVersao } from "./src/features/AppVersionCard";
 import { resumoVersao } from "./src/features/app-version";
 import { EmailField } from "./src/features/EmailField";
@@ -920,6 +921,32 @@ export function ModulesScreen({
     feedRetry,
   ]);
   const [draft, setDraft] = useState<Record<string, string>>({});
+  // Salvamento automático e discreto das respostas de texto (especificação, seções 2 e 9.2).
+  const [salvo, setSalvo] = useState<Record<string, EstadoSalvo>>({});
+  const timersResposta = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const ultimoEnviado = useRef<Record<string, string>>({});
+  const salvarResposta = (run: string, itemId: string, texto: string, minimo: number) => {
+    clearTimeout(timersResposta.current[itemId]);
+    if (texto.trim().length < minimo) {
+      setSalvo((o) => ({ ...o, [itemId]: { estado: "aguardando", mensagem: `Faltam ${minimo - texto.trim().length} caracteres para salvar` } }));
+      return;
+    }
+    if (ultimoEnviado.current[itemId] === texto) return;
+    ultimoEnviado.current[itemId] = texto;
+    setSalvo((o) => ({ ...o, [itemId]: { estado: "salvando" } }));
+    void app
+      .saveChecklistAnswerQuiet(run, itemId, { text: texto })
+      .then(() => setSalvo((o) => ({ ...o, [itemId]: { estado: app.offline.online ? "salvo" : "pendente", em: new Date().toISOString() } })))
+      .catch((e: unknown) => {
+        delete ultimoEnviado.current[itemId];
+        setSalvo((o) => ({ ...o, [itemId]: { estado: "erro", mensagem: e instanceof Error ? e.message : "tente de novo" } }));
+      });
+  };
+  const agendarResposta = (run: string, itemId: string, texto: string, minimo: number) => {
+    clearTimeout(timersResposta.current[itemId]);
+    timersResposta.current[itemId] = setTimeout(() => salvarResposta(run, itemId, texto, minimo), 1200);
+  };
+  useEffect(() => () => Object.values(timersResposta.current).forEach(clearTimeout), []);
   const [alertTitle, setAlertTitle] = useState("");
   const [alertBody, setAlertBody] = useState("");
   const [alertStores, setAlertStores] = useState<string[]>([]);
@@ -1085,9 +1112,14 @@ export function ModulesScreen({
                 <Field
                   label="Sua resposta"
                   value={draft[item.id] ?? String(item.answer?.text ?? "")}
-                  onChangeText={(value) =>
-                    setDraft((old) => ({ ...old, [item.id]: value }))
-                  }
+                  onChangeText={(value) => {
+                    setDraft((old) => ({ ...old, [item.id]: value }));
+                    agendarResposta(checklistId, item.id, value, item.min_length ?? 0);
+                  }}
+                  onBlur={() => {
+                    const texto = draft[item.id];
+                    if (texto !== undefined) salvarResposta(checklistId, item.id, texto, item.min_length ?? 0);
+                  }}
                   multiline={item.type === "text" || item.type === "long_text"}
                   maxLength={
                     item.max_length ?? (item.type === "short_text" ? 280 : 4000)
@@ -1110,20 +1142,17 @@ export function ModulesScreen({
                     ? " · Resposta salva e sinalizada para revisão de linguagem"
                     : ""}
                 </Text>
-                <Button
-                  title="Salvar resposta"
-                  secondary
-                  onPress={() =>
-                    void app.saveChecklistAnswer(checklistId, item.id, {
-                      text: draft[item.id] ?? String(item.answer?.text ?? ""),
-                    })
+                <SaveStatus
+                  valor={salvo[item.id]}
+                  tentarDeNovo={() =>
+                    salvarResposta(checklistId, item.id, draft[item.id] ?? String(item.answer?.text ?? ""), item.min_length ?? 0)
                   }
                 />
               </>
             )}
-            {item.answer && (
+            {item.answer && !salvo[item.id] && (
               <Text style={[s.small, { color: C.green }]}>
-                ✓ Resposta salva no Supabase
+                ✓ Resposta salva
               </Text>
             )}
           </Card>
