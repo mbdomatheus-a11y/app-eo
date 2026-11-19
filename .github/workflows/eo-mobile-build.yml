@@ -87,6 +87,7 @@ jobs:
     env:
       EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
       EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      EXPO_PUBLIC_EO_COMMIT: ${{ github.sha }}
       ANDROID_UPLOAD_KEYSTORE_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_B64 }}
       ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
       ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
@@ -131,6 +132,7 @@ jobs:
           if [ -n "$GOOGLE_SERVICES_JSON_B64" ]; then echo "$GOOGLE_SERVICES_JSON_B64" | base64 -d > google-services.json; firebase="1"; fi
           code=$((1000 + GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT))
           echo "VERSION_CODE=$code" >> "$GITHUB_ENV"
+          echo "EXPO_PUBLIC_EO_BUILD=$code" >> "$GITHUB_ENV"
           cp app.json app.json.versionado
           node -e "const f='app.json';const a=JSON.parse(require('fs').readFileSync(f));a.expo.android=a.expo.android||{};if(process.argv[2])a.expo.android.googleServicesFile='./google-services.json';a.expo.android.versionCode=Number(process.argv[1]);require('fs').writeFileSync(f,JSON.stringify(a,null,2))" "$code" "$firebase"
           echo "versionCode $code"
@@ -276,6 +278,7 @@ jobs:
     env:
       EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
       EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      EXPO_PUBLIC_EO_COMMIT: ${{ github.sha }}
       APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
       ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
       ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
@@ -312,6 +315,10 @@ jobs:
 
       - name: Definir versao e compilacao unicas para o TestFlight
         run: node ../scripts/ios-build-version.mjs
+
+      - name: Identificar compilacao no app (tela Versao do app)
+        shell: bash
+        run: echo "EXPO_PUBLIC_EO_BUILD=${EO_APP_VERSION:-} (${EO_BUILD_NUMBER:-})" >> "$GITHUB_ENV"
 
       - name: Generate Expo iOS project
         env:

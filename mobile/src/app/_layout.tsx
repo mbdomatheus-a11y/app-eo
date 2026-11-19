@@ -12,6 +12,7 @@ import { LoadingScreen } from "../../App";
 import { C } from "../ui";
 import { instalarRelatorioDeErros, reportarErro } from "../providers/error-reporter";
 import { travarRetrato } from "../features/orientation";
+import { registrarVersao } from "../features/app-version";
 
 instalarRelatorioDeErros();
 
@@ -21,6 +22,7 @@ function RootNavigation() {
   const first = segments[0] ?? "(tabs)";
   useEffect(() => {
     void travarRetrato();
+    void registrarVersao();
   }, []);
   useEffect(() => {
     if (!app.workspace || app.passwordMode) return;

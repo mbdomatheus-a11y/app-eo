@@ -1,3 +1,5 @@
+import { useHistoricoVersao } from "./src/features/AppVersionCard";
+import { resumoVersao } from "./src/features/app-version";
 import { EmailField } from "./src/features/EmailField";
 import { CalendarAction } from "./src/features/CalendarAction";
 import { PersonalSettings } from "./src/features/PersonalSettings";
@@ -3204,6 +3206,7 @@ export function ComposeScreen() {
 export function ProfileScreen({ openPrivacy }: { openPrivacy: () => void }) {
   const security = useDeviceSecurity();
   const app = useEO();
+  const versaoApp = useHistoricoVersao();
   const workspace = app.workspace!;
   const initials = workspace.person.name
     .trim()
@@ -3335,8 +3338,7 @@ export function ProfileScreen({ openPrivacy }: { openPrivacy: () => void }) {
         }
       />
       <Text style={[s.small, { textAlign: "center", paddingVertical: 8 }]}>
-        EO · {Constants.nativeAppVersion ?? Constants.expoConfig?.version ?? "dev"} (
-        {Constants.nativeBuildVersion ?? "dev"})
+        {versaoApp ? resumoVersao(versaoApp.atual) : `EO · ${Constants.nativeAppVersion ?? Constants.expoConfig?.version ?? ""}`}
       </Text>
     </Page>
   );

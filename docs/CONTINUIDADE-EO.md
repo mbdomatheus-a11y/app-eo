@@ -2,6 +2,10 @@
 
 Atualizado em 17/11/2026. Documento de passagem, sem senhas, chaves ou tokens.
 
+## Atualização 19/11/2026: versão no aparelho e OTA da Fundação
+
+Android 4901 informou Runtime `d50e3fea02bb63f3c59c99496c0aa06b2f8e5c08`; `Constants.nativeBuildVersion` volta vazio, por isso o rodapé mostrava "(dev)". Criado o cartão "Versão do app" (atual e anterior com data e hora) e a identificação de compilação e commit pelos workflows. O commit `1b9959d` (Fundação, blocos 1 e 2) já foi enviado. `scripts/publicar-ota-20261119.ps1` envia a versão do app e publica a OTA da plataforma escolhida, conferindo o Runtime no log. iPhone: informar o Runtime do novo TestFlight antes de publicar com `-Plataforma ios -RuntimeEsperado <valor>`.
+
 ## Atualização 18/11/2026 (noite): menus, tela cheia da Escala e Firebase
 
 Resultado anterior: AAB 4801 (execução 44312407707, commit `4f2dbae`) enviado por Matheus ao teste fechado Alpha, após remover a 4401 da versão. A tela no Android mostrou a Escala no catálogo e o aviso de Firebase ao ativar push: falta `google-services.json` na compilação (segredo `GOOGLE_SERVICES_JSON_B64`).

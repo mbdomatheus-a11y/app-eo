@@ -1,5 +1,5 @@
 import { PhoneUpdateCard } from "../features/ContactRefresh";
-import Constants from "expo-constants";
+import { AppVersionCard } from "../features/AppVersionCard";
 import {
   createSoundChannels,
   soundChannel,
@@ -114,14 +114,14 @@ export default function DeviceScreen() {
       if (!result.isAvailable) {
         Alert.alert(
           "Tudo atualizado",
-          "Você está usando a atualização compatível mais recente.",
+          "Você está usando a atualização compatível mais recente. Confira data e hora em Versão do app, nesta tela.",
         );
         return;
       }
       await Updates.fetchUpdateAsync();
       Alert.alert(
         "Atualização pronta",
-        "Salve seu trabalho antes de reiniciar o EO.",
+        "Salve seu trabalho antes de reiniciar o EO. Depois, confira em Versão do app se a versão atual mudou.",
         [
           { text: "Depois" },
           { text: "Reiniciar", onPress: () => void Updates.reloadAsync() },
@@ -224,25 +224,12 @@ export default function DeviceScreen() {
           disabled={busy}
           onPress={() => void update()}
         />
-        <View style={{ paddingVertical: 8 }}>
-          <Text style={[s.small, { color: C.muted }]}>
-            EO · Versão{" "}
-            {Constants.nativeAppVersion ??
-              Constants.expoConfig?.version ??
-              "não identificada"}{" "}
-            · Compilação{" "}
-            {Constants.nativeBuildVersion ?? "consulte no TestFlight"}
-          </Text>
-          <Text style={[s.small, { color: C.muted }]}>
-            Atualização interna:{" "}
-            {Updates.updateId?.slice(0, 8) ?? "incluída na instalação"}
-          </Text>
-          <Text style={[s.small, { color: C.muted }]}>
-            Ícone e assinatura push mudam somente ao instalar uma nova
-            compilação pelo TestFlight. Buscar atualização não troca esses
-            recursos. Runtime: {Updates.runtimeVersion ?? "Desenvolvimento"}
-          </Text>
-        </View>
+        <Section title="Versão do app" />
+        <AppVersionCard />
+        <Text style={[s.small, { color: C.muted, paddingVertical: 8 }]}>
+          Ícone e assinatura push mudam somente ao instalar uma nova compilação pela loja ou pelo TestFlight. Buscar
+          atualização não troca esses recursos.
+        </Text>
       </Page>
     </RouteFrame>
   );

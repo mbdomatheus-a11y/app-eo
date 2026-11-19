@@ -18,7 +18,7 @@ Legenda: Existe, Parcial, Falta. "A conferir" quando o código ainda não foi re
 | --- | --- | --- |
 | Busca fixa no topo | Existe | App (bloco 1) e site (bloco 2), sem testes; app aguarda OTA |
 | Barra com cinco itens e botão central | Existe | Ação contextual no app desde o bloco 1 |
-| Padrões de UX e acessibilidade | Parcial | Falta fonte ajustável, baixo consumo e seletor na preferência de contato |
+| Padrões de UX e acessibilidade | Parcial | Canal preferido de contato já é seletor no app e no site (conferido em 19/11). O app respeita o tamanho de fonte do sistema (nenhum texto bloqueia a ampliação). Faltam ajuste de fonte dentro do app, modo de baixo consumo e indicador de salvamento padronizado |
 | Portal admin em endereço próprio | Falta | Hoje a administração está no mesmo site |
 | Módulo ativável por empresa | Existe | `settings.disabled_modules` e `modulos_acesso` |
 | Multiempresa por configuração | Falta | Marca e módulos por cliente em configuração |
@@ -54,3 +54,7 @@ Legenda: Existe, Parcial, Falta. "A conferir" quando o código ainda não foi re
 9. Segurança de tela, marca d'água e palavras bloqueadas.
 
 Cada bloco termina com checklist do que foi feito e do que falta, e com atualização desta tabela.
+
+## Controle de versão no aparelho (19/11/2026)
+
+Pedido de Matheus: ver no app a versão atual e a anterior, com data e hora, para ter certeza de que uma compilação ou OTA chegou. Em Mais, Notificações e aparelho, o cartão "Versão do app" mostra para a atual e a anterior: versão e compilação, origem (instalação ou OTA), data de geração ou publicação, desde quando está em uso, código (commit), atualização e Runtime. O rodapé de Mais mostra o resumo da atual. Compilação e commit entram pelos workflows (`EXPO_PUBLIC_EO_BUILD`, `EXPO_PUBLIC_EO_COMMIT`); a anterior é guardada no armazenamento seguro do aparelho. Publicação por `scripts/publicar-ota-20261119.ps1`, que confere no log se o Runtime da OTA é igual ao do aparelho.
