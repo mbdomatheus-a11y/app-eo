@@ -434,7 +434,7 @@ export function HomeScreen({
           onPress={() => router.push("/diary" as never)}
         />
         <MenuItem
-          title="Como está seu dia?"
+          title="Como está o seu dia?"
           detail="Compartilhe seu momento"
           icon="face.smiling"
           tint="#FFF4D8"
@@ -3373,7 +3373,7 @@ export function PrivacyScreen({ back }: { back: () => void }) {
       </Text>
       <Text style={s.body}>
         O microfone grava relatos de vendas de até um minuto quando você inicia
-        a gravação. Diário e respostas à pergunta “Como está seu dia?” ficam
+        a gravação. Diário e respostas à pergunta “Como está o seu dia?” ficam
         associados à pessoa, à loja e à data. Diretores acessam registros de sua
         abrangência e administradores acessam a operação completa. Áudios ficam
         no armazenamento privado do Supabase.

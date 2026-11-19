@@ -10,19 +10,26 @@ import { Animated, Easing, Pressable, StyleSheet, Text, View } from "react-nativ
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useEO } from "../../providers/eo-provider";
 import { AppIcon, C } from "../../ui";
+import { ATALHOS, MODULOS, acaoPrincipal } from "../../features/module-catalog";
 
-type Acao = { id: string; titulo: string; detalhe: string; icone: string; rota: string };
-const ACOES: Acao[] = [
-  { id: "escala", titulo: "Escala", detalhe: "Planejar a semana da equipe", icone: "calendar", rota: "/escala" },
-  { id: "product", titulo: "Pedir produto", detalhe: "Solicite um item para a loja", icone: "list.bullet.rectangle.fill", rota: "/product" },
-  { id: "checklists", titulo: "Checklists", detalhe: "Rotinas e respostas da equipe", icone: "checkmark.circle.fill", rota: "/checklists" },
-  { id: "diary", titulo: "Diário de vendas", detalhe: "Relato do dia por voz ou texto", icone: "mic.fill", rota: "/diary" },
-  { id: "assortment", titulo: "Sortimento", detalhe: "Bipar e conferir grade", icone: "camera.fill", rota: "/assortment" },
-  { id: "mood", titulo: "Como está seu dia?", detalhe: "Registro rápido da equipe", icone: "person.3.fill", rota: "/mood" },
-  { id: "agenda", titulo: "Agenda de ações", detalhe: "O que está pendente", icone: "doc.text.fill", rota: "/agenda" },
-];
+type Acao = { id: string; titulo: string; detalhe: string; icone: string; rota: string; principal?: boolean };
+// Menu do botão central (19/11/2026): primeiro a ação principal do contexto (especificação), depois os
+// módulos mais usados do catálogo único. O menu foi mantido a pedido de Matheus (18/11/2026).
+const ORDEM_MENU = [...ATALHOS, "/mood", "/assortment", "/agenda"];
+function montarAcoes(aba: string, papel: string, visivel: (id: string) => boolean): Acao[] {
+  const principal = acaoPrincipal(aba, papel, visivel);
+  const lista: Acao[] = principal
+    ? [{ id: principal.modulo, titulo: principal.titulo, detalhe: principal.detalhe, icone: principal.icone, rota: principal.rota, principal: true }]
+    : [];
+  for (const rota of ORDEM_MENU) {
+    const m = MODULOS.find((x) => x.rota === rota);
+    if (m && visivel(m.id) && !lista.some((x) => x.rota === m.rota))
+      lista.push({ id: m.id, titulo: m.titulo, detalhe: m.detalhe, icone: m.icone, rota: m.rota });
+  }
+  return lista;
+}
 
-function AcoesRapidas({ aberto, fechar, embaixo }: { aberto: boolean; fechar: () => void; embaixo: number }) {
+function AcoesRapidas({ aberto, fechar, embaixo, aba }: { aberto: boolean; fechar: () => void; embaixo: number; aba: string }) {
   const app = useEO();
   const anim = useRef(new Animated.Value(0)).current;
   const [montado, setMontado] = useState(aberto);
@@ -38,7 +45,7 @@ function AcoesRapidas({ aberto, fechar, embaixo }: { aberto: boolean; fechar: ()
     });
   }, [aberto]);
   if (!montado) return null;
-  const visiveis = ACOES.filter((a) => app.moduleVisible(a.id));
+  const visiveis = montarAcoes(aba, app.workspace?.person.role ?? "colaborador", app.moduleVisible);
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(20,22,28,0.35)", opacity: anim }]}>
@@ -53,9 +60,9 @@ function AcoesRapidas({ aberto, fechar, embaixo }: { aberto: boolean; fechar: ()
         <Text style={styles.folhaTitulo}>Ações rápidas</Text>
         {visiveis.map((a) => (
           <Pressable
-            key={a.id}
+            key={a.rota}
             accessibilityRole="button"
-            style={({ pressed }) => [styles.acao, pressed && { backgroundColor: C.canvas }]}
+            style={({ pressed }) => [styles.acao, a.principal && { backgroundColor: C.yellow }, pressed && { backgroundColor: C.canvas }]}
             onPress={() => {
               fechar();
               router.push(a.rota as never);
@@ -66,7 +73,7 @@ function AcoesRapidas({ aberto, fechar, embaixo }: { aberto: boolean; fechar: ()
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.acaoTitulo}>{a.titulo}</Text>
-              <Text style={styles.acaoDetalhe}>{a.detalhe}</Text>
+              <Text style={styles.acaoDetalhe}>{a.principal ? `Ação principal · ${a.detalhe}` : a.detalhe}</Text>
             </View>
           </Pressable>
         ))}
@@ -122,7 +129,7 @@ function Barra({ state, navigation }: BottomTabBarProps) {
   const altura = 56 + insets.bottom;
   return (
     <>
-      <AcoesRapidas aberto={acoes} fechar={() => setAcoes(false)} embaixo={altura} />
+      <AcoesRapidas aberto={acoes} fechar={() => setAcoes(false)} embaixo={altura} aba={state.routes[state.index]?.name ?? "index"} />
       <View style={[styles.barra, { paddingBottom: insets.bottom, height: altura }]}>
         {item("index", "Início", "house.fill")}
         {app.moduleVisible("notices") ? item("notices", "Avisos", "bell.fill", pendentes) : <View style={styles.item} />}

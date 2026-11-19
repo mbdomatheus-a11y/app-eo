@@ -146,3 +146,14 @@
 .module-access-list button { width: 100%; text-align: left; display: grid; gap: 2px; }
 .module-access-list small { color: var(--muted, #6c707a); }
 .module-access-audience { display: grid; gap: 6px; }
+
+/* Busca fixa no topo (Fundação, especificação de 19/11/2026) */
+.eo-portal .topbar { position: sticky; top: 0; z-index: 30; gap: 16px; }
+.module-search { position: relative; flex: 1; max-width: 420px; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--white); color: var(--muted); }
+.module-search:focus-within { border-color: var(--graphite); }
+.module-search input { flex: 1; border: 0; outline: 0; background: transparent; font: inherit; font-size: 15px; color: var(--graphite); min-width: 0; }
+.module-search-results { position: absolute; top: calc(100% + 6px); left: 0; right: 0; margin: 0; padding: 6px; list-style: none; background: var(--white); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 28px rgba(20, 22, 28, 0.12); }
+.module-search-results button { width: 100%; text-align: left; min-height: 44px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; font: inherit; color: var(--graphite); cursor: pointer; }
+.module-search-results button:hover, .module-search-results button.active { background: var(--canvas, #f2f2f7); }
+.module-search-empty { padding: 12px; color: var(--muted); font-size: 14px; }
+@media (max-width: 760px) { .module-search { max-width: none; order: 3; flex-basis: 100%; } .eo-portal .topbar { flex-wrap: wrap; height: auto; padding-top: 10px; padding-bottom: 10px; } }

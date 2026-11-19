@@ -174,7 +174,7 @@ export function CommercialPanel({
       <header>
         <span className="eyebrow">OPERAÇÃO E COMERCIAL</span>
         <h2>
-          {mode === "product" ? "Pedir produto" : "Sortimento por tamanho"}
+          {mode === "product" ? "Voz do Cliente" : "Sortimento por tamanho"}
         </h2>
         <p>
           {mode === "product"

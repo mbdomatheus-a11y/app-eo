@@ -93,7 +93,7 @@ const modules: {
   },
   {
     id: "diario",
-    title: "Diário de vendas",
+    title: "Ocorrências do Dia",
     description: "Sua voz, os aprendizados do dia.",
     icon: Mic,
     status: "Integração com IA futura",

@@ -27,6 +27,8 @@ import { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEO } from "../providers/eo-provider";
 import { ScaleScreen } from "../features/ScaleScreen";
+import { ModuleSearch } from "../features/ModuleSearch";
+import { ATALHOS, GRUPOS, MODULOS, type ModuloApp } from "../features/module-catalog";
 import { SalesReportsScreen } from "../features/SalesReportsScreen";
 import { OperationsScreen } from "../features/OperationsScreen";
 import { RegisterPersonScreen } from "../../App";
@@ -270,7 +272,7 @@ export function RouteFrame({
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={8}
       >
-        {children}
+        {tabs && app.workspace ? <ModuleSearch>{children}</ModuleSearch> : children}
       </KeyboardAvoidingView>
       <Modal
         visible={Boolean(
@@ -390,36 +392,12 @@ const goCompose = () => router.push("/compose" as never);
 // e atalhos; Aplicativos sem itens repetidos; conta, aparelho e lojas ficam em Mais. Barra inferior e
 // botão central de ações rápidas mantidos.
 type ItemApp = { id: string; title: string; detail: string; icon: string; path: string };
-const APPS: { title: string; items: ItemApp[] }[] = [
-  {
-    title: "Pessoas e rotina",
-    items: [
-      { id: "escala", title: "Escala de colaboradores", detail: "Planejamento semanal da equipe", icon: "calendar", path: "/escala" },
-      { id: "diary", title: "Diário de vendas", detail: "Relato e motivos da operação", icon: "mic.fill", path: "/diary" },
-      { id: "mood", title: "Como está seu dia?", detail: "Compartilhe como você se sente", icon: "face.smiling", path: "/mood" },
-      { id: "diary", title: "Resumo da equipe", detail: "Registros por loja e regional", icon: "person.2.fill", path: "/diary?tab=summary" },
-    ],
-  },
-  {
-    title: "Vendas e comercial",
-    items: [
-      { id: "sales", title: "Vendas", detail: "Semana, mês e ano", icon: "chart.bar.fill", path: "/sales?period=week" },
-      { id: "product", title: "Pedir produto", detail: "Texto revisado e classificação por IA", icon: "shippingbox.fill", path: "/product" },
-      { id: "assortment", title: "Sortimento por tamanho", detail: "Sessões e contagens por código", icon: "barcode.viewfinder", path: "/assortment" },
-    ],
-  },
-  {
-    title: "Execução",
-    items: [
-      { id: "checklists", title: "Checklists", detail: "Rotinas e evidências", icon: "checklist", path: "/checklists" },
-      { id: "agenda", title: "Agenda de ações", detail: "Pendências e lembretes no calendário", icon: "calendar", path: "/agenda" },
-      { id: "reports", title: "Relatórios", detail: "Central e auditoria conforme seu acesso", icon: "chart.bar.doc.horizontal", path: "/reports" },
-    ],
-  },
-];
-// Atalhos do Início, na ordem de uso mais frequente; aparecem só os liberados para a conta.
-const ATALHOS = ["/escala", "/sales?period=week", "/checklists", "/diary", "/product"];
-
+const comoItem = (m: ModuloApp): ItemApp => ({ id: m.id, title: m.titulo, detail: m.detalhe, icon: m.icone, path: m.rota });
+// Comunicados ficam na aba Avisos; por isso não se repetem na lista de Aplicativos.
+const APPS: { title: string; items: ItemApp[] }[] = GRUPOS.map((g) => ({
+  title: g,
+  items: MODULOS.filter((m) => m.grupo === g && m.id !== "notices").map(comoItem),
+}));
 function ListaApps({ items }: { items: ItemApp[] }) {
   return (
     <Group>

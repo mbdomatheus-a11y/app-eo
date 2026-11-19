@@ -96,6 +96,7 @@ import { createXlsx } from "./core/xlsx-writer";
 import NativeExperience from "./mobile/NativeExperience";
 import { SalesReports } from "./features/sales/SalesReports";
 import { EscalaModule } from "./features/escala/EscalaModule";
+import { ModuleSearchBar } from "./features/search/ModuleSearchBar";
 import { OperationsPanel } from "./features/operations/OperationsPanel";
 
 type Page =
@@ -1812,10 +1813,10 @@ export default function ConnectedApp() {
     { id: "agenda" as const, label: "Agenda de ações", icon: CalendarDays },
     { id: "sales" as const, label: "Vendas", icon: Building2 },
     { id: "escala" as const, label: "Escala", icon: CalendarDays },
-    { id: "product" as const, label: "Pedir produto", icon: Grid2X2 },
+    { id: "product" as const, label: "Voz do Cliente", icon: Grid2X2 },
     { id: "assortment" as const, label: "Sortimento", icon: ClipboardCheck },
-    { id: "diary" as const, label: "Diário de vendas", icon: Mic },
-    { id: "mood" as const, label: "Como está seu dia?", icon: Users },
+    { id: "diary" as const, label: "Ocorrências do Dia", icon: Mic },
+    { id: "mood" as const, label: "Como está o seu dia?", icon: Users },
     { id: "checklists" as const, label: "Checklists", icon: ClipboardCheck },
     ...(admin
       ? [{ id: "admin" as const, label: "Administração", icon: Settings2 }]
@@ -1909,6 +1910,10 @@ export default function ConnectedApp() {
             <ChevronRight size={15} />
             {navigation.find((n) => n.id === page)?.label}
           </div>
+          <ModuleSearchBar
+            itens={allowedNavigation}
+            abrir={(n) => (n.id === "admin" ? void openAdmin(tab) : setPage(n.id))}
+          />
           <div className="top-actions">
             <span className="badge" title="Identificador do commit publicado">
               Versão {__APP_VERSION__}
@@ -2210,7 +2215,7 @@ export default function ConnectedApp() {
                           icons={moduleIcons}
                         />
                       </span>
-                      <strong>Pedir produto</strong>
+                      <strong>Voz do Cliente</strong>
                       <small>Procura e oportunidades comerciais</small>
                     </button>
                   )}
@@ -2285,7 +2290,7 @@ export default function ConnectedApp() {
                           icons={moduleIcons}
                         />
                       </span>
-                      <strong>Diário de vendas</strong>
+                      <strong>Ocorrências do Dia</strong>
                       <small>Relatos, motivos e áudio</small>
                     </button>
                   )}
@@ -2297,7 +2302,7 @@ export default function ConnectedApp() {
                           icons={moduleIcons}
                         />
                       </span>
-                      <strong>Como está seu dia?</strong>
+                      <strong>Como está o seu dia?</strong>
                       <small>Sentimento e acompanhamento</small>
                     </button>
                   )}

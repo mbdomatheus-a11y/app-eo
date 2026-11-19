@@ -52,7 +52,8 @@ if ($LASTEXITCODE -ne 0) { throw "Android solicitado, mas o GitHub não confirmo
 $runs = @()
 for ($i = 0; $i -lt 12 -and $runs.Count -lt 2; $i++) {
   Start-Sleep -Seconds 5
-  $runs = @(gh run list --workflow eo-mobile-build.yml --branch main --event workflow_dispatch --limit 4 --json databaseId,createdAt | ConvertFrom-Json |
+  $lista = gh run list --workflow eo-mobile-build.yml --branch main --event workflow_dispatch --limit 4 --json databaseId,createdAt | ConvertFrom-Json
+  $runs = @($lista |
     Where-Object { ([datetime]$_.createdAt).ToUniversalTime() -ge $inicio.AddSeconds(-30) } | Sort-Object createdAt)
 }
 if ($runs.Count -lt 1) { throw "Compilações solicitadas, mas não apareceram. Confira em https://github.com/mbdomatheus-a11y/app-eo/actions" }

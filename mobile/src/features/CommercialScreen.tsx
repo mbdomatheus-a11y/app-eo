@@ -206,7 +206,7 @@ export function CommercialScreen({
       {mode === "assortment" && <AssortmentTiming storeId={store} />}
       <SuccessToast message={message} />
       <ScreenTitle
-        title={mode === "product" ? "Pedir produto" : "Sortimento"}
+        title={mode === "product" ? "Voz do Cliente" : "Sortimento"}
         subtitle={
           mode === "product"
             ? "Transforme a procura da loja em informação para o comercial."

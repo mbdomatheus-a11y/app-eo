@@ -599,7 +599,7 @@ const futureModules: { title: string; detail: string; icon: LucideIcon; tag: str
   { title: "Cartazeamento", detail: "Materiais de campanha", icon: FileImage, tag: "Planejado" },
   { title: "Escala da equipe", detail: "Pessoas e horários", icon: CalendarDays, tag: "Planejado" },
   { title: "Fotos e evidências", detail: "Registros da operação", icon: Upload, tag: "Planejado" },
-  { title: "Diário de vendas", detail: "Relato de voz e resumo", icon: Mic, tag: "Planejado" },
+  { title: "Ocorrências do Dia", detail: "Relato de voz e resumo", icon: Mic, tag: "Planejado" },
 ];
 
 function NativeModules({ openNotice, openFuture }: { openNotice: () => void; openFuture: (title: string) => void }) {

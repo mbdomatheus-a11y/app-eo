@@ -475,8 +475,8 @@ export function OperationsPanel({
       <div className="tabs" role="tablist" aria-label="Dia e equipe">
         {(
           [
-            ["diary", "Diário de vendas"],
-            ["mood", "Como está seu dia?"],
+            ["diary", "Ocorrências do Dia"],
+            ["mood", "Como está o seu dia?"],
             ["summary", leader ? "Resumo da equipe" : "Histórico do mês"],
           ] as const
         )
@@ -657,7 +657,7 @@ export function OperationsPanel({
       {tab === "mood" && (
         <>
           <div className="panel form">
-            <h2>{settings?.prompt || "Como está seu dia?"}</h2>
+            <h2>{settings?.prompt || "Como está o seu dia?"}</h2>
             <p>Escolha a opção que representa seu momento.</p>
             <div className="eo-moods">
               {moods.map(({ value, label, icon: Icon }) => (

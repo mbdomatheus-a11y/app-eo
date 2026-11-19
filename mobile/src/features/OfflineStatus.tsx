@@ -60,8 +60,8 @@ export function OfflineScreen() {
     }
   };
   const names: Record<string, string> = {
-    eo_save_day_entry: "Diário de vendas",
-    eo_save_mood: "Como está seu dia?",
+    eo_save_day_entry: "Ocorrências do Dia",
+    eo_save_mood: "Como está o seu dia?",
     eo_save_product_request: "Pedido de produto",
     eo_notice_open: "Abertura de comunicado",
     eo_acknowledge: "Ciência de comunicado",
