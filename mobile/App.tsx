@@ -3,7 +3,6 @@ import { useHistoricoVersao } from "./src/features/AppVersionCard";
 import { resumoVersao } from "./src/features/app-version";
 import { EmailField } from "./src/features/EmailField";
 import { CalendarAction } from "./src/features/CalendarAction";
-import { PersonalSettings } from "./src/features/PersonalSettings";
 import { ChecklistLocation } from "./src/features/ChecklistLocation";
 import {
   CommunicationTargets,
@@ -3246,7 +3245,7 @@ export function ProfileScreen({ openPrivacy }: { openPrivacy: () => void }) {
     .toUpperCase();
   return (
     <Page>
-      <ScreenTitle title="Seu perfil" subtitle="Do seu jeito. Com segurança." />
+      <ScreenTitle title="Mais" subtitle="Sua conta, sua loja e este aparelho." />
       <View
         style={{
           backgroundColor: C.paper,
@@ -3285,25 +3284,16 @@ export function ProfileScreen({ openPrivacy }: { openPrivacy: () => void }) {
           <Badge>{roleLabels[workspace.person.role]}</Badge>
         </View>
       </View>
-      <PersonalSettings
-        stores={workspace.stores}
-        role={workspace.person.role}
-      />
-      <Section title="Seu espaço" />
+      <Section title="Conta" />
       <Group>
         <MenuItem
-          title="Lojas e regionais"
-          detail="Unidades da sua abrangência"
-          icon="building.2.fill"
+          title={["admin", "gerente"].includes(workspace.person.role) ? "Contato e horário da loja" : "Meu contato"}
+          detail="Telefone, canal preferido e horário de funcionamento"
+          icon="phone.fill"
           color="#4E7C68"
           tint="#ECF5EF"
-          value={String(workspace.stores.length)}
-          last
-          onPress={() => router.push("/scope" as never)}
+          onPress={() => router.push("/contact" as never)}
         />
-      </Group>
-      <Section title="Preferências" />
-      <Group>
         <MenuItem
           title="Face ID / biometria"
           detail={
@@ -3315,11 +3305,28 @@ export function ProfileScreen({ openPrivacy }: { openPrivacy: () => void }) {
           color="#7871A1"
           tint="#F0EDF8"
           value={security.enabled ? "Ativo" : "Ativar"}
+          last
           onPress={() => void security.configure(!security.enabled)}
         />
+      </Group>
+      <Section title="Lojas" />
+      <Group>
+        <MenuItem
+          title="Lojas e regionais"
+          detail="Unidades da sua abrangência"
+          icon="building.2.fill"
+          color="#587C9D"
+          tint="#EAF2FA"
+          value={String(workspace.stores.length)}
+          last
+          onPress={() => router.push("/scope" as never)}
+        />
+      </Group>
+      <Section title="Este aparelho" />
+      <Group>
         <MenuItem
           title="Notificações e aparelho"
-          detail="Push, câmera, agenda e telefone"
+          detail="Push, economia de dados e versão do app"
           icon="bell.fill"
           color="#B87C4F"
           tint="#FCF0E6"

@@ -46,6 +46,8 @@ function AcoesRapidas({ aberto, fechar, embaixo, aba }: { aberto: boolean; fecha
   }, [aberto]);
   if (!montado) return null;
   const visiveis = montarAcoes(aba, app.workspace?.person.role ?? "colaborador", app.moduleVisible);
+  const principal = visiveis.find((a) => a.principal);
+  const outras = visiveis.filter((a) => !a.principal);
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(20,22,28,0.35)", opacity: anim }]}>
@@ -57,26 +59,43 @@ function AcoesRapidas({ aberto, fechar, embaixo, aba }: { aberto: boolean; fecha
           { bottom: embaixo + 8, opacity: anim, transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }] },
         ]}
       >
-        <Text style={styles.folhaTitulo}>Ações rápidas</Text>
-        {visiveis.map((a) => (
+        {principal && (
           <Pressable
-            key={a.rota}
             accessibilityRole="button"
-            style={({ pressed }) => [styles.acao, a.principal && { backgroundColor: C.yellow }, pressed && { backgroundColor: C.canvas }]}
+            style={({ pressed }) => [styles.principal, pressed && { opacity: 0.85 }]}
             onPress={() => {
               fechar();
-              router.push(a.rota as never);
+              router.push(principal.rota as never);
             }}
           >
-            <View style={styles.acaoIcone}>
-              <AppIcon name={a.icone} size={20} color={C.dark} />
+            <View style={styles.principalIcone}>
+              <AppIcon name={principal.icone} size={22} color={C.dark} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.acaoTitulo}>{a.titulo}</Text>
-              <Text style={styles.acaoDetalhe}>{a.principal ? `Ação principal · ${a.detalhe}` : a.detalhe}</Text>
+              <Text style={styles.principalTitulo}>{principal.titulo}</Text>
+              <Text style={styles.principalDetalhe}>{principal.detalhe}</Text>
             </View>
           </Pressable>
-        ))}
+        )}
+        <Text style={styles.folhaTitulo}>Abrir rápido</Text>
+        <View style={styles.gradeAcoes}>
+          {outras.map((a) => (
+            <Pressable
+              key={a.rota}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.acaoBloco, pressed && { backgroundColor: C.canvas }]}
+              onPress={() => {
+                fechar();
+                router.push(a.rota as never);
+              }}
+            >
+              <View style={styles.acaoIcone}>
+                <AppIcon name={a.icone} size={20} color={C.dark} />
+              </View>
+              <Text numberOfLines={2} style={styles.acaoTitulo}>{a.titulo}</Text>
+            </Pressable>
+          ))}
+        </View>
         {!visiveis.length && <Text style={styles.acaoDetalhe}>Nenhuma ação liberada para seu acesso.</Text>}
       </Animated.View>
     </View>
@@ -112,7 +131,7 @@ function Barra({ state, navigation }: BottomTabBarProps) {
         hitSlop={6}
         style={({ pressed }) => [styles.item, pressed && { opacity: 0.55 }]}
       >
-        <View>
+        <View style={[styles.pilula, ativo(nome) && styles.pilulaAtiva]}>
           <AppIcon name={icone} size={23} color={cor} />
           {badge > 0 && (
             <View style={styles.badge}>
@@ -120,7 +139,7 @@ function Barra({ state, navigation }: BottomTabBarProps) {
             </View>
           )}
         </View>
-        <Text numberOfLines={1} style={[styles.rotulo, { color: cor }]}>
+        <Text numberOfLines={1} style={[styles.rotulo, { color: cor }, ativo(nome) && { fontWeight: "800" }]}>
           {titulo}
         </Text>
       </Pressable>
@@ -142,6 +161,7 @@ function Barra({ state, navigation }: BottomTabBarProps) {
           <View style={[styles.mais, acoes && { transform: [{ rotate: "45deg" }] }]}>
             <Text style={styles.maisTexto}>+</Text>
           </View>
+          <Text numberOfLines={1} style={[styles.rotulo, { color: C.dark, fontWeight: "700" }]}>{acoes ? "Fechar" : "Ações"}</Text>
         </Pressable>
         {item("modules", "Aplicativos", "square.grid.2x2.fill")}
         {item("profile", "Mais", "person.crop.circle.fill")}
@@ -193,8 +213,8 @@ const styles = StyleSheet.create({
   maisTexto: { color: C.paper, fontSize: 30, lineHeight: 32, fontWeight: "400" },
   badge: {
     position: "absolute",
-    top: -5,
-    right: -11,
+    top: -3,
+    right: 4,
     minWidth: 18,
     height: 18,
     borderRadius: 9,
@@ -220,7 +240,15 @@ const styles = StyleSheet.create({
   },
   folhaTitulo: { fontSize: 13, fontWeight: "700", color: C.muted, paddingHorizontal: 8, paddingVertical: 6 },
   acao: { flexDirection: "row", alignItems: "center", gap: 12, padding: 10, borderRadius: 14 },
+  pilula: { paddingHorizontal: 18, paddingVertical: 4, borderRadius: 16 },
+  pilulaAtiva: { backgroundColor: C.yellow },
+  principal: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 16, backgroundColor: C.dark, marginBottom: 6 },
+  principalIcone: { width: 42, height: 42, borderRadius: 13, backgroundColor: C.yellow, alignItems: "center", justifyContent: "center" },
+  principalTitulo: { fontSize: 16, fontWeight: "800", color: C.paper },
+  principalDetalhe: { fontSize: 12.5, color: "#D9DAE0" },
+  gradeAcoes: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  acaoBloco: { width: "31.5%", minHeight: 92, padding: 10, borderRadius: 16, gap: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: "#E5E6EB" },
   acaoIcone: { width: 38, height: 38, borderRadius: 12, backgroundColor: C.yellow, alignItems: "center", justifyContent: "center" },
-  acaoTitulo: { fontSize: 15, fontWeight: "700", color: C.ink },
+  acaoTitulo: { fontSize: 13, lineHeight: 16, fontWeight: "700", color: C.ink },
   acaoDetalhe: { fontSize: 12, color: C.muted },
 });

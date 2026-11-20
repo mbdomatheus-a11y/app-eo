@@ -29,6 +29,8 @@ import { useEO } from "../providers/eo-provider";
 import { ScaleScreen } from "../features/ScaleScreen";
 import { ModuleSearch } from "../features/ModuleSearch";
 import { ATALHOS, GRUPOS, MODULOS, type ModuloApp } from "../features/module-catalog";
+import { CartoesPendencia, GradeBlocos, type Pendencia } from "../features/Launcher";
+import { roleLabels } from "../types";
 import { SalesReportsScreen } from "../features/SalesReportsScreen";
 import { OperationsScreen } from "../features/OperationsScreen";
 import { RegisterPersonScreen } from "../../App";
@@ -391,63 +393,43 @@ const goCompose = () => router.push("/compose" as never);
 // Menus reorganizados em 18/11/2026 (versão enxuta aprovada por Matheus): Início com o que fazer agora
 // e atalhos; Aplicativos sem itens repetidos; conta, aparelho e lojas ficam em Mais. Barra inferior e
 // botão central de ações rápidas mantidos.
-type ItemApp = { id: string; title: string; detail: string; icon: string; path: string };
-const comoItem = (m: ModuloApp): ItemApp => ({ id: m.id, title: m.titulo, detail: m.detalhe, icon: m.icone, path: m.rota });
-// Comunicados ficam na aba Avisos; por isso não se repetem na lista de Aplicativos.
-const APPS: { title: string; items: ItemApp[] }[] = GRUPOS.map((g) => ({
-  title: g,
-  items: MODULOS.filter((m) => m.grupo === g && m.id !== "notices").map(comoItem),
-}));
-function ListaApps({ items }: { items: ItemApp[] }) {
-  return (
-    <Group>
-      {items.map((item, index) => (
-        <MenuItem
-          key={item.path}
-          title={item.title}
-          detail={item.detail}
-          icon={item.icon}
-          moduleId={item.id}
-          last={index === items.length - 1}
-          onPress={() => router.push(item.path as never)}
-        />
-      ))}
-    </Group>
-  );
-}
-
 export function HomeRoute() {
   const app = useEO();
-  const primeiroNome = app.workspace?.person.name?.trim().split(/\s+/)[0] ?? "";
+  const ws = app.workspace;
+  const primeiroNome = ws?.person.name?.trim().split(/\s+/)[0] ?? "";
+  const lojas = ws?.stores ?? [];
+  const contexto = ws
+    ? `${roleLabels[ws.person.role]} · ${lojas.length === 1 ? `${lojas[0].code} ${lojas[0].name}` : `${lojas.length} lojas`}`
+    : "";
   const avisos = app.notices.filter((n) => !n.acknowledged).length;
   const alertas = app.alerts.filter((a) => !a.seen_at && !a.dismissed_at).length;
-  const todos = APPS.flatMap((g) => g.items);
-  const atalhos = ATALHOS.map((path) => todos.find((i) => i.path === path)).filter(
-    (i): i is ItemApp => !!i && app.moduleVisible(i.id),
+  const checklists = app.checklists.filter((c) => c.status !== "completed").length;
+  const pendencias: Pendencia[] = [
+    ...(app.moduleVisible("notices")
+      ? [{ chave: "avisos", numero: avisos, rotulo: "comunicados para dar ciência", vazio: "Comunicados em dia", abrir: () => goTab("notices") }]
+      : []),
+    ...(app.moduleVisible("checklists")
+      ? [{ chave: "checklists", numero: checklists, rotulo: "checklists para responder", vazio: "Checklists em dia", abrir: () => router.push("/checklists" as never) }]
+      : []),
+    { chave: "alertas", numero: alertas, rotulo: "alertas novos", vazio: "Sem alertas novos", abrir: () => router.push("/alerts" as never) },
+  ];
+  const atalhos = ATALHOS.map((rota) => MODULOS.find((m) => m.rota === rota)).filter(
+    (m): m is ModuloApp => !!m && app.moduleVisible(m.id),
   );
-  const pendencias = [
-    app.moduleVisible("notices") && { title: "Comunicados", detail: avisos ? "Aguardando sua ciência" : "Tudo lido", icon: "doc.text.fill", value: avisos ? String(avisos) : undefined, go: () => goTab("notices") },
-    { title: "Alertas", detail: alertas ? "Novos alertas para ver" : "Nenhum alerta novo", icon: "bell.fill", value: alertas ? String(alertas) : undefined, go: () => router.push("/alerts" as never) },
-  ].filter(Boolean) as { title: string; detail: string; icon: string; value?: string; go: () => void }[];
   return (
     <RouteFrame tabs>
       <Page>
-        <ScreenTitle title={primeiroNome ? `Olá, ${primeiroNome}` : "Início"} subtitle="O que precisa da sua atenção e seus atalhos." />
+        <ScreenTitle title={primeiroNome ? `Olá, ${primeiroNome}` : "Início"} subtitle={contexto} />
         <Section title="Para fazer agora" />
-        <Group>
-          {pendencias.map((p, index) => (
-            <MenuItem key={p.title} title={p.title} detail={p.detail} icon={p.icon} value={p.value} last={index === pendencias.length - 1} onPress={p.go} />
-          ))}
-        </Group>
+        <CartoesPendencia itens={pendencias} />
         {atalhos.length > 0 && (
           <>
-            <Section title="Atalhos" />
-            <ListaApps items={atalhos} />
+            <Section title="Seus atalhos" />
+            <GradeBlocos itens={atalhos.map((m) => ({ chave: m.rota, titulo: m.titulo, icone: m.icone, moduleId: m.id, grupo: m.grupo, abrir: () => router.push(m.rota as never) }))} />
           </>
         )}
-        <Group>
-          <MenuItem title="Todos os aplicativos" detail="Ferramentas liberadas para a sua conta" icon="square.grid.2x2" last onPress={() => goTab("modules")} />
-        </Group>
+        <View style={{ height: 6 }} />
+        <Button title="Ver todos os aplicativos" secondary icon="square.grid.2x2.fill" onPress={() => goTab("modules")} />
       </Page>
     </RouteFrame>
   );
@@ -461,19 +443,22 @@ export function NoticesRoute() {
 }
 export function ModulesRoute() {
   const app = useEO();
-  const grupos = APPS.map((g) => ({ ...g, items: g.items.filter((i) => app.moduleVisible(i.id)) })).filter((g) => g.items.length);
+  const grupos = GRUPOS.map((g) => ({
+    titulo: g,
+    itens: MODULOS.filter((m) => m.grupo === g && m.id !== "notices" && app.moduleVisible(m.id)),
+  })).filter((g) => g.itens.length);
   return (
     <RouteFrame tabs>
       <Page>
-        <ScreenTitle title="Aplicativos" subtitle="Ferramentas liberadas para a sua conta." />
+        <ScreenTitle title="Aplicativos" subtitle="Toque para abrir. Use a busca no topo para achar mais rápido." />
         {grupos.map((g) => (
-          <View key={g.title}>
-            <Section title={g.title} />
-            <ListaApps items={g.items} />
+          <View key={g.titulo} style={{ gap: 2 }}>
+            <Section title={g.titulo} />
+            <GradeBlocos itens={g.itens.map((m) => ({ chave: m.rota, titulo: m.titulo, icone: m.icone, moduleId: m.id, grupo: g.titulo, abrir: () => router.push(m.rota as never) }))} />
           </View>
         ))}
         {!grupos.length && <Text style={s.small}>Nenhum aplicativo liberado para sua conta.</Text>}
-        <Text style={[s.small, { marginTop: 12 }]}>Conta, aparelho, lojas e privacidade ficam em Mais.</Text>
+        <Text style={[s.small, { marginTop: 14 }]}>Comunicados ficam na aba Avisos. Conta, aparelho e lojas ficam em Mais.</Text>
       </Page>
     </RouteFrame>
   );

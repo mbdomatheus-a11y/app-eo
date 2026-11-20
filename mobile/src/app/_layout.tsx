@@ -108,6 +108,7 @@ function RootNavigation() {
         <Stack.Screen name="assortment" options={{ title: "Sortimento" }} />
         <Stack.Screen name="sales" options={{ title: "Vendas" }} />
         <Stack.Screen name="escala" options={{ title: "Escala" }} />
+        <Stack.Screen name="contact" options={{ title: "Contato e horário" }} />
         <Stack.Screen name="diary" options={{ title: "Ocorrências do Dia" }} />
         <Stack.Screen name="mood" options={{ title: "Como está o seu dia?" }} />
         <Stack.Screen name="stores" options={{ title: "Lojas" }} />

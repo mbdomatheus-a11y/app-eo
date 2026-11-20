@@ -58,3 +58,13 @@ Cada bloco termina com checklist do que foi feito e do que falta, e com atualiza
 ## Controle de versão no aparelho (19/11/2026)
 
 Pedido de Matheus: ver no app a versão atual e a anterior, com data e hora, para ter certeza de que uma compilação ou OTA chegou. Em Mais, Notificações e aparelho, o cartão "Versão do app" mostra para a atual e a anterior: versão e compilação, origem (instalação ou OTA), data de geração ou publicação, desde quando está em uso, código (commit), atualização e Runtime. O rodapé de Mais mostra o resumo da atual. Compilação e commit entram pelos workflows (`EXPO_PUBLIC_EO_BUILD`, `EXPO_PUBLIC_EO_COMMIT`); a anterior é guardada no armazenamento seguro do aparelho. Publicação por `scripts/publicar-ota-20261119.ps1`, que confere no log se o Runtime da OTA é igual ao do aparelho.
+
+## Navegação em blocos (19/11/2026)
+
+Pedido de Matheus: menus, navegação e botões mudaram pouco. Feito localmente, sem testes:
+- Início: nome, papel e loja no topo; cartões "Para fazer agora" com número grande (comunicados, checklists, alertas; amarelo quando há pendência, ✓ quando em dia); "Seus atalhos" em grade de blocos; botão "Ver todos os aplicativos".
+- Aplicativos: grade de blocos de três colunas por grupo, com cor por grupo (verde Pessoas e rotina, azul Vendas e comercial, laranja Execução).
+- Barra inferior: aba ativa com fundo destacado e texto em negrito; botão central com rótulo "Ações" ("Fechar" quando aberto).
+- Menu do botão central: ação principal como botão escuro grande no topo; demais módulos em grade de blocos.
+- Mais: só menu, em Conta, Lojas, Este aparelho e Ajuda. Contato, canal e horário da loja foram para a tela própria "Contato e horário" (`mobile/src/app/contact.tsx`).
+- Componentes: `mobile/src/features/Launcher.tsx` (GradeBlocos, CartoesPendencia, cores por grupo).
