@@ -3,6 +3,7 @@ import { useHistoricoVersao } from "./src/features/AppVersionCard";
 import { resumoVersao } from "./src/features/app-version";
 import { EmailField } from "./src/features/EmailField";
 import { CalendarAction } from "./src/features/CalendarAction";
+import { ChecklistFeedList } from "./src/features/ChecklistFeedList";
 import { ChecklistLocation } from "./src/features/ChecklistLocation";
 import {
   CommunicationTargets,
@@ -37,6 +38,7 @@ import {
   Share,
   Text,
   View,
+  Platform,
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { storePasswordRules } from "./src/features/store-access";
@@ -110,6 +112,8 @@ export function LoginScreen({ openPrivacy }: { openPrivacy: () => void }) {
               maxWidth: 248,
               aspectRatio: 1,
               borderRadius: 32,
+              // No navegador a proporção com largura percentual estica a imagem; usa tamanho fixo.
+              ...(Platform.OS === "web" ? { width: 168, height: 168 } : null),
             }}
           />
           <Text
@@ -1537,51 +1541,13 @@ export function ModulesScreen({
               Nenhum checklist para os filtros selecionados.
             </Text>
           )}
-          {checklistFeed.items.map((run) => (
-            <View key={run.run_id} style={{ gap: 7 }}>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  setSelectedChecklist(run);
-                  setChecklistId(run.run_id);
-                }}
-                style={({ pressed }) => [s.card, pressed && s.pressed]}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <Badge warning={run.status !== "completed"}>
-                    {run.status === "completed"
-                      ? "Concluído"
-                      : run.status === "in_progress"
-                        ? "Em andamento"
-                        : "Pendente"}
-                  </Badge>
-                  <Text style={s.small}>
-                    {run.answered_count}/{run.item_count}
-                  </Text>
-                </View>
-                <Text style={s.strong}>{run.title}</Text>
-                <Text style={s.small}>
-                  {run.store_name} · Atualizado{" "}
-                  {new Date(run.updated_at).toLocaleDateString("pt-BR")}
-                </Text>
-                <Text
-                  style={{ color: C.dark, fontSize: 12, fontWeight: "800" }}
-                >
-                  Abrir rotina ›
-                </Text>
-              </Pressable>
-              <CalendarAction
-                title={`Checklist: ${run.title}`}
-                description={run.store_name}
-              />
-            </View>
-          ))}
+          <ChecklistFeedList
+            items={checklistFeed.items}
+            onOpen={(run) => {
+              setSelectedChecklist(run);
+              setChecklistId(run.run_id);
+            }}
+          />
           {!app.checklists.length && (
             <Card>
               <Text style={s.strong}>Sua lista de rotinas está vazia</Text>

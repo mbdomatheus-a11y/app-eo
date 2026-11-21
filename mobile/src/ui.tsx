@@ -10,6 +10,7 @@ import {
   type StyleProp,
   type TextInputProps,
   type ViewStyle,
+  Platform,
 } from "react-native";
 import { SymbolView, type SymbolViewProps } from "expo-symbols";
 import { APP_ICONS, resolveModuleIcon } from "./features/app-icons";
@@ -603,7 +604,16 @@ export const s = StyleSheet.create({
   },
   brandNameStrong: { fontWeight: "800", color: C.dark },
   scroll: { flex: 1 },
-  page: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 28, gap: 12 },
+  page: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 28,
+    gap: 12,
+    // No site (Expo web) o conteúdo fica centralizado em coluna legível, sem esticar na tela larga.
+    ...(Platform.OS === "web"
+      ? { width: "100%" as const, maxWidth: 960, alignSelf: "center" as const, paddingHorizontal: 24 }
+      : null),
+  },
   heading: { gap: 6, marginBottom: 1 },
   eyebrow: {
     color: C.muted,
