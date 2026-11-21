@@ -68,3 +68,9 @@ Pedido de Matheus: menus, navegação e botões mudaram pouco. Feito localmente,
 - Menu do botão central: ação principal como botão escuro grande no topo; demais módulos em grade de blocos.
 - Mais: só menu, em Conta, Lojas, Este aparelho e Ajuda. Contato, canal e horário da loja foram para a tela própria "Contato e horário" (`mobile/src/app/contact.tsx`).
 - Componentes: `mobile/src/features/Launcher.tsx` (GradeBlocos, CartoesPendencia, cores por grupo).
+
+## Materiais recebidos em 21/11/2026
+
+- Metas: `docs/referencias/PFINS_SPEC_REPLICACAO.md`, especificação do PFINS (processo atual de metas de produtos financeiros), enviada por Matheus para o módulo Metas da seção 15. Uso autorizado por ele neste projeto. Pendência da seção 20 parcialmente atendida: regras de ponderação 12M+6M e telas detalhadas continuam no código do PFINS.
+- Escala: HTML v9.18.0 reenviado por Matheus; é a mesma base já publicada em ambiente isolado.
+- UX: skills de Emil Kowalski e regra de carregamento aplicadas; ver `docs/UX-MOVIMENTO-CARREGAMENTO-20261121.md`.

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { EsqueletoLista } from "./Loading";
 import { Share, Text, View } from "react-native";
 import { useEO } from "../providers/eo-provider";
 import { rpc } from "../services/supabase";
@@ -106,7 +107,7 @@ export function ReportsHub({ onOpen }: { onOpen?: (module: string) => void }) {
         }}
       />
       {!!error && <Text accessibilityRole="alert">{error}</Text>}
-      {busy && <Text style={s.small}>Carregando relatórios...</Text>}
+      {busy && <EsqueletoLista quantidade={4} rotulo="Carregando relatórios" />}
       <Button
         title="Compartilhar resumo CSV"
         secondary

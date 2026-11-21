@@ -733,7 +733,7 @@ export const s = StyleSheet.create({
     gap: 8,
   },
   disabled: { opacity: 0.5 },
-  pressed: { opacity: 0.78 },
+  pressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
   actionRow: {
     minHeight: 70,
     flexDirection: "row",

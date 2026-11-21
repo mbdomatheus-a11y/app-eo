@@ -10,6 +10,7 @@ import {
   type Periodo,
 } from "./escala-html";
 import "./escala.css";
+import { BarraProgresso, type Progresso } from "../../components/Loading";
 
 type Loja = { id: string; codigo: string; nome: string; ggl: string | null; regional: string | null; modelo: string };
 type Semana = { id: string; semana_inicio: string; modelo: string; status: string; versao: number; atualizado_em: string };
@@ -47,6 +48,7 @@ export function EscalaModule({ workspace }: { workspace: Workspace }) {
   const falha = useRef(false);
   const confirmacao = useRef<{ id: string; resolver: () => void } | null>(null);
   const [saindo, setSaindo] = useState(false);
+  const [progresso, setProgresso] = useState<Progresso | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -255,11 +257,16 @@ export function EscalaModule({ workspace }: { workspace: Workspace }) {
     try {
       const preparado = prepararEscalaHtml(await arquivo.text());
       let gravados = 0;
-      for (const lote of lotesPorLoja(preparado.linhas)) {
+      const lotes = lotesPorLoja(preparado.linhas);
+      const inicio = Date.now();
+      setStatus("");
+      if (lotes.length) setProgresso({ atual: 0, total: lotes.length, unidade: "Lote", inicio });
+      for (const [i, lote] of lotes.entries()) {
         const r = await rpc<{ gravados: number }>("colaboradores_importar", { p_linhas: lote });
         gravados += r.gravados;
-        setStatus(`Atualizando colaboradores: ${gravados} gravados...`);
+        setProgresso({ atual: i + 1, total: lotes.length, unidade: "Lote", inicio });
       }
+      setProgresso(null);
       await rpc("escala_publicar_html", { p_titulo: arquivo.name.replace(/\.html?$/i, ""), p_conteudo: preparado.html });
       htmlAtivo.current = undefined;
       setStatus(
@@ -267,6 +274,7 @@ export function EscalaModule({ workspace }: { workspace: Workspace }) {
       );
       if (loja) await carregarLoja(loja);
     } catch (e) {
+      setProgresso(null);
       setErro(e instanceof Error ? e.message : "Não foi possível publicar.");
     } finally {
       setBusy(false);
@@ -289,6 +297,7 @@ export function EscalaModule({ workspace }: { workspace: Workspace }) {
         )}
       </header>
       {erro && <p role="alert" className="form-error">{erro}</p>}
+      {progresso && <BarraProgresso titulo="Atualizando colaboradores da Escala" progresso={progresso} />}
       {status && <p role="status" className="escala-status">{status}</p>}
 
       {!aberta && (

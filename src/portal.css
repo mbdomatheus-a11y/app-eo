@@ -157,3 +157,59 @@
 .module-search-results button:hover, .module-search-results button.active { background: var(--canvas, #f2f2f7); }
 .module-search-empty { padding: 12px; color: var(--muted); font-size: 14px; }
 @media (max-width: 760px) { .module-search { max-width: none; order: 3; flex-basis: 100%; } .eo-portal .topbar { flex-wrap: wrap; height: auto; padding-top: 10px; padding-bottom: 10px; } }
+
+/* Movimento e resposta ao toque (21/11/2026, princípios de design engineering de Emil Kowalski):
+   curvas fortes de ease-out, só transform e opacidade, botão que responde ao clique, hover só em mouse
+   e respeito a "reduzir movimento". */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+.eo-portal button, .eo-portal .nav-item, .eo-portal .module-card, .eo-portal .stat, .eo-portal .notice-card {
+  transition-timing-function: var(--ease-out);
+}
+.eo-portal button:not(:disabled):active, .eo-portal .nav-item:active, .eo-portal .module-card:active, .eo-portal .stat:active, .eo-portal .notice-card:active {
+  transform: scale(0.97);
+  transition: transform 120ms var(--ease-out);
+}
+@media (hover: none) {
+  .eo-portal .module-card:hover, .eo-portal .stat:hover, .eo-portal .notice-card:hover { transform: none; }
+}
+.eo-portal h1, .eo-portal h2 { letter-spacing: -0.02em; }
+.eo-portal p { max-width: 75ch; }
+.eo-portal .stat strong, .eo-portal td, .eo-portal .badge, .eo-portal .eo-progresso small { font-variant-numeric: tabular-nums; }
+.eo-portal main { animation: eo-entrada 220ms var(--ease-out); }
+@keyframes eo-entrada { from { opacity: 0; transform: translateY(4px); } }
+
+/* Spinner: pequeno, rápido (gira mais rápido parece carregar mais rápido) */
+.eo-spinner-wrap { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.eo-spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #dcdcd8; border-top-color: var(--graphite); animation: eo-gira 600ms linear infinite; flex-shrink: 0; }
+@keyframes eo-gira { to { transform: rotate(360deg); } }
+
+/* Skeleton com a forma do conteúdo; pulso discreto */
+.eo-skeleton { display: grid; gap: 10px; }
+.eo-skeleton-cartoes { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.eo-sk-linha { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.eo-sk-cartao { display: grid; gap: 10px; padding: 18px; border: 1px solid var(--line); border-radius: 15px; background: #fff; min-height: 130px; align-content: start; }
+.eo-sk-texto { flex: 1; display: grid; gap: 8px; }
+.eo-sk { display: block; border-radius: 6px; background: #ececea; animation: eo-pulso 1.4s ease-in-out infinite; }
+.eo-sk-icone { width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0; }
+.eo-sk-titulo { height: 12px; }
+.eo-sk-detalhe { height: 10px; opacity: 0.7; }
+@keyframes eo-pulso { 50% { opacity: 0.55; } }
+
+/* Barra de progresso com tempo restante e cancelar */
+.eo-progresso { display: grid; gap: 8px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.eo-progresso-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.eo-progresso-trilho { height: 8px; border-radius: 99px; background: #ececea; overflow: hidden; }
+.eo-progresso-trilho span { display: block; height: 100%; background: var(--graphite); transform-origin: left; transition: transform 300ms linear; }
+.eo-progresso small { color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .eo-portal main { animation: none; }
+  .eo-sk { animation: none; }
+  .eo-spinner { animation-duration: 1.2s; }
+  .eo-portal button:not(:disabled):active, .eo-portal .nav-item:active, .eo-portal .module-card:active, .eo-portal .stat:active, .eo-portal .notice-card:active { transform: none; }
+  .eo-progresso-trilho span { transition: none; }
+}
+.eo-carregando-espaco { min-height: 100vh; padding: 40px; background: var(--canvas, #f4f4f2); }

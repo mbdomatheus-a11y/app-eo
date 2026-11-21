@@ -237,7 +237,7 @@ export const d = StyleSheet.create({
   },
   tileDetail: { color: C.muted, fontSize: 12, lineHeight: 17 },
   tileArrow: { position: "absolute", right: 16, top: 22 },
-  pressed: { opacity: 0.64 },
+  pressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
   summary: {
     backgroundColor: "#343842",
     borderRadius: 27,

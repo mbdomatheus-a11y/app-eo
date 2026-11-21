@@ -97,6 +97,7 @@ import NativeExperience from "./mobile/NativeExperience";
 import { SalesReports } from "./features/sales/SalesReports";
 import { EscalaModule } from "./features/escala/EscalaModule";
 import { ModuleSearchBar } from "./features/search/ModuleSearchBar";
+import { Skeleton } from "./components/Loading";
 import { OperationsPanel } from "./features/operations/OperationsPanel";
 
 type Page =
@@ -1751,6 +1752,13 @@ export default function ConnectedApp() {
             {message && <p role="status">{message}</p>}
           </form>
         </section>
+      </div>
+    );
+  // Página inteira abaixo de 10 s: esqueleto com a forma do portal, não texto solto (21/11/2026).
+  if (!workspace && loading && !error)
+    return (
+      <div className="eo-portal eo-carregando-espaco">
+        <Skeleton variante="cartoes" quantidade={6} rotulo="Carregando seu espaço" />
       </div>
     );
   if (!workspace)

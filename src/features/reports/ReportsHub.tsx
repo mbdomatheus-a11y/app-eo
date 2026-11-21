@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Skeleton } from "../../components/Loading";
 import { rpc, type Workspace } from "../../services/supabase";
 import { reportCsv, type ReportSummary, type AuditPage } from "./model";
 export function ReportsHub({
@@ -100,7 +101,7 @@ export function ReportsHub({
         </label>
       </div>
       {error && <p role="alert">{error}</p>}
-      {busy && <p role="status">Carregando relatórios...</p>}
+      {busy && <Skeleton variante="lista" quantidade={4} rotulo="Carregando relatórios" />}
       <div className="commercial-actions">
         <button
           disabled={busy || !rows.length}

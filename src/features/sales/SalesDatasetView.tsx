@@ -1,4 +1,5 @@
 import { salesMetrics, percent } from "./sales-data";
+import { Spinner } from "../../components/Loading";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowDownWideNarrow,
@@ -478,7 +479,7 @@ export function SalesDatasetView({ report }: { report: SalesReport }) {
               </tbody>
             </table>
           </div>
-          {loading && <p role="status">Carregando dados…</p>}
+          {loading && <Spinner rotulo="Carregando dados…" />}
           {!loading && !data?.total && (
             <p>Nenhum registro para os filtros selecionados.</p>
           )}

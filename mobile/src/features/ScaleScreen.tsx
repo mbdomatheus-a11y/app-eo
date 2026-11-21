@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { EsqueletoLista } from "./Loading";
 import { Pressable, Text, View } from "react-native";
 import { ScreenTitle, Group, d } from "../design";
 import { rpc } from "../services/supabase";
@@ -90,11 +91,11 @@ export function ScaleScreen() {
       <Section title="Escolha uma loja" />
       {loja && <Button title="Cancelar troca" secondary onPress={() => setEscolhendo(false)} />}
       <Field label="Buscar loja" placeholder="Código ou nome" value={busca} editable={!abrindo} onChangeText={setBusca} />
-      {carregandoLojas ? <Text style={s.small}>Carregando lojas…</Text> : <Group>{lojas.slice(0, 10).map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityState={{ selected: loja?.id === item.id, disabled: abrindo }} disabled={abrindo} onPress={() => { setLoja(item); setEscolhendo(false); }} style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: C.line }}><Text style={{ color: C.ink, fontWeight: "700" }}>{item.codigo} · {item.nome}</Text><Text style={s.small}>{item.modelo}{loja?.id === item.id ? " · Selecionada" : ""}</Text></Pressable>)}</Group>}
+      {carregandoLojas ? <EsqueletoLista quantidade={4} rotulo="Carregando lojas" /> : <Group>{lojas.slice(0, 10).map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityState={{ selected: loja?.id === item.id, disabled: abrindo }} disabled={abrindo} onPress={() => { setLoja(item); setEscolhendo(false); }} style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: C.line }}><Text style={{ color: C.ink, fontWeight: "700" }}>{item.codigo} · {item.nome}</Text><Text style={s.small}>{item.modelo}{loja?.id === item.id ? " · Selecionada" : ""}</Text></Pressable>)}</Group>}
       {!carregandoLojas && !lojas.length && <Text style={s.small}>Nenhuma loja encontrada.</Text>}
       {lojas.length > 10 && <Text style={s.small}>Mostrando 10 lojas. Refine a busca para encontrar outras.</Text>}
     </>}
-    {carregando && <Text style={s.small}>Carregando escalas…</Text>}
+    {carregando && <EsqueletoLista quantidade={3} rotulo="Carregando escalas" />}
     {loja && contexto && (unica || !escolhendo) && <>
       <Section title={`${contexto.loja.codigo} · ${contexto.loja.nome}`} />
       <Text style={s.small}>{contexto.colaboradores.length} colaboradores na base.</Text>

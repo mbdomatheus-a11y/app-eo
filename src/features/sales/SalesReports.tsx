@@ -28,6 +28,7 @@ import {
   type SalesReport,
 } from "./sales-html";
 import "./sales-reports.css";
+import { BarraProgresso, Skeleton, Spinner, type Progresso } from "../../components/Loading";
 import { prepareSalesPackage } from "./sales-package";
 
 export function SalesReports({
@@ -46,6 +47,9 @@ export function SalesReports({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  // Importação longa: barra com lotes, tempo restante e cancelar (regra de carregamento de 21/11/2026).
+  const [progresso, setProgresso] = useState<Progresso | null>(null);
+  const cancelarImportacao = useRef(false);
   const [selected, setSelected] = useState<SalesReport | null>(null);
   const [html, setHtml] = useState("");
   const [composer, setComposer] = useState(false);
@@ -185,10 +189,13 @@ export function SalesReports({
         try {
           let accepted = 0,
             ignored = 0;
+          cancelarImportacao.current = false;
+          const totalLotes = Math.ceil(dataset.rows.length / 500);
+          const inicio = Date.now();
+          setMessage("");
+          setProgresso({ atual: 0, total: totalLotes, unidade: "Lote", inicio });
           for (let offset = 0; offset < dataset.rows.length; offset += 500) {
-            setMessage(
-              `Importando dados: ${Math.min(offset + 500, dataset.rows.length).toLocaleString("pt-BR")} de ${dataset.rows.length.toLocaleString("pt-BR")}…`,
-            );
+            if (cancelarImportacao.current) throw new Error("Importação cancelada. Nada foi publicado.");
             const result = await rpc<{ accepted: number; ignored: number }>(
               "eo_append_sales_dataset",
               {
@@ -199,12 +206,15 @@ export function SalesReports({
             );
             accepted += result.accepted;
             ignored += result.ignored;
+            setProgresso({ atual: offset / 500 + 1, total: totalLotes, unidade: "Lote", inicio });
           }
+          setProgresso(null);
           await rpc("eo_finish_sales_dataset", { p_id: id });
           setMessage(
             `Relatório publicado: ${accepted.toLocaleString("pt-BR")} registros.${ignored ? ` ${ignored.toLocaleString("pt-BR")} linhas de lojas ausentes ou fora da abrangência foram ignoradas.` : ""}`,
           );
         } catch (cause) {
+          setProgresso(null);
           await rpc("eo_archive_sales_report", {
             p_id: id,
             p_archived: true,
@@ -284,6 +294,15 @@ export function SalesReports({
           {error}
         </div>
       )}
+      {progresso && (
+        <BarraProgresso
+          titulo="Importando o relatório de vendas"
+          progresso={progresso}
+          onCancelar={() => {
+            cancelarImportacao.current = true;
+          }}
+        />
+      )}
       {message && (
         <div className="sales-feedback" role="status">
           {message}
@@ -329,7 +348,7 @@ export function SalesReports({
           ) : (
             <p className="sales-preview-note">{STATIC_HTML_NOTICE}</p>
           )}
-          {busy && <p role="status">Carregando relatório…</p>}
+          {busy && <Spinner rotulo="Carregando relatório…" />}
           {html && (
             <div className="sales-viewer">
               <iframe
@@ -545,7 +564,7 @@ export function SalesReports({
             )}
           </div>
           {loading ? (
-            <p role="status">Carregando relatórios…</p>
+            <Skeleton variante="lista" quantidade={5} rotulo="Carregando relatórios" />
           ) : visible.length ? (
             <div className="sales-list">
               {visible.map((report) => (

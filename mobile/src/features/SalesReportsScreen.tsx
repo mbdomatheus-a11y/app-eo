@@ -1,4 +1,5 @@
 import { parseSalesData } from "./sales-data";
+import { Carregando, EsqueletoLista } from "./Loading";
 import { SalesDatasetScreen } from "./SalesDatasetScreen";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
@@ -325,7 +326,7 @@ export function SalesReportsScreen({
   if (!workspace)
     return (
       <Page>
-        <Text style={s.small}>Carregando seu acesso…</Text>
+        <Carregando rotulo="Carregando seu acesso…" />
       </Page>
     );
   if (selected?.structured)
@@ -372,7 +373,7 @@ export function SalesReportsScreen({
               onPress={() => requestArchive(selected)}
             />
           )}
-          {busy && <Text style={s.small}>Carregando relatório…</Text>}
+          {busy && <Carregando rotulo="Carregando relatório…" />}
           {!busy && !html && (
             <Button
               title="Tentar abrir novamente"
@@ -591,7 +592,7 @@ export function SalesReportsScreen({
         />
       )}
       {loading ? (
-        <Text style={s.small}>Carregando relatórios…</Text>
+        <EsqueletoLista quantidade={4} rotulo="Carregando relatórios" />
       ) : visible.length ? (
         <Group>
           {visible.map((report, index) => (

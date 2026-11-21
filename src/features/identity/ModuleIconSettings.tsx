@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Spinner } from "../../components/Loading";
 import {
   AppWindow,
   Archive,
@@ -152,7 +153,7 @@ export function ModuleIconSettings({
       </p>
       <SuccessToast message={message} />
       {error && <p role="alert">{error}</p>}
-      {loading && <p role="status">Carregando ícones…</p>}
+      {loading && <Spinner rotulo="Carregando ícones…" />}
       {!loading && !loaded && (
         <button
           type="button"
