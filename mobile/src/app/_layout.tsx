@@ -1,4 +1,5 @@
 import { ContactUpdateGate } from "../features/ContactRefresh";
+import { AparenciaProvider } from "../features/aparencia";
 import { DeviceSecurity } from "../providers/device-security";
 import { useEffect } from "react";
 import * as Notifications from "expo-notifications";
@@ -8,6 +9,7 @@ import { Text, View, Pressable } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { EOProvider, useEO } from "../providers/eo-provider";
 import { RouteFrame } from "../navigation/route-screens";
+import { Sidebar, useTelaLarga } from "../navigation/Sidebar";
 import { LoadingScreen } from "../../App";
 import { C } from "../ui";
 import { instalarRelatorioDeErros, reportarErro } from "../providers/error-reporter";
@@ -18,6 +20,7 @@ instalarRelatorioDeErros();
 
 function RootNavigation() {
   const app = useEO();
+  const telaLarga = useTelaLarga();
   const segments = useSegments();
   const first = segments[0] ?? "(tabs)";
   useEffect(() => {
@@ -69,12 +72,14 @@ function RootNavigation() {
     return <Redirect href="/" />;
 
   return (
-    <>
+    <View style={{ flex: 1, flexDirection: "row", backgroundColor: C.canvas }}>
+      {telaLarga && app.workspace && !app.passwordMode && <Sidebar />}
+      <View style={{ flex: 1 }}>
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: C.canvas },
           headerTintColor: C.dark,
-          headerTitleStyle: { color: C.ink, fontSize: 17, fontWeight: "700" },
+          headerTitleStyle: { color: C.ink, fontSize: 17, fontWeight: "600" },
           headerShadowVisible: false,
           headerBackTitle: "Voltar",
           contentStyle: { backgroundColor: C.canvas },
@@ -109,6 +114,7 @@ function RootNavigation() {
         <Stack.Screen name="sales" options={{ title: "Vendas" }} />
         <Stack.Screen name="escala" options={{ title: "Escala" }} />
         <Stack.Screen name="contact" options={{ title: "Contato e horário" }} />
+        <Stack.Screen name="appearance" options={{ title: "Aparência e fotos" }} />
         <Stack.Screen name="diary" options={{ title: "Ocorrências do Dia" }} />
         <Stack.Screen name="mood" options={{ title: "Como está o seu dia?" }} />
         <Stack.Screen name="stores" options={{ title: "Lojas" }} />
@@ -144,18 +150,21 @@ function RootNavigation() {
           }}
         />
       )}
-    </>
+      </View>
+    </View>
   );
 }
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <EOProvider>
-        <DeviceSecurity>
-          <RootNavigation />
-        </DeviceSecurity>
-      </EOProvider>
+      <AparenciaProvider>
+        <EOProvider>
+          <DeviceSecurity>
+            <RootNavigation />
+          </DeviceSecurity>
+        </EOProvider>
+      </AparenciaProvider>
     </SafeAreaProvider>
   );
 }

@@ -51,3 +51,7 @@ Tabelas novas não recebem grants automáticos: conceder explicitamente a servic
 ## Reversão
 
 `supabase/operations/20261111-reverter-padronizacao-tabelas-comuns.sql` desfaz a padronização (somente antes de existir dependência dos nomes novos).
+
+## Aparência e fotos (202611210001)
+
+`eo_aparencia_fotos` (exclusiva do EO): uma linha por espaço de foto trocado pelo admin (`login`, `inicio`, `vazio` e ids de módulo). Sem linha, o app usa a foto padrão embutida. Leitura por `eo_aparencia_fotos()` (anon e authenticated, porque o login usa); escrita só por `eo_admin_set_aparencia_foto(espaco, caminho, posicao)` com papel admin, auditada em `auditoria`. Arquivos no bucket público `eo-aparencia`, caminho `<espaco>/<uuid>.<ext>`, até 5 MB, JPG/PNG/WebP; envio, troca e exclusão só para admin.

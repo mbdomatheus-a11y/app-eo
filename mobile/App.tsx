@@ -4,6 +4,7 @@ import { resumoVersao } from "./src/features/app-version";
 import { EmailField } from "./src/features/EmailField";
 import { CalendarAction } from "./src/features/CalendarAction";
 import { ChecklistFeedList } from "./src/features/ChecklistFeedList";
+import { EstadoVazio, FotoCapa } from "./src/features/aparencia";
 import { ChecklistLocation } from "./src/features/ChecklistLocation";
 import {
   CommunicationTargets,
@@ -39,6 +40,7 @@ import {
   Text,
   View,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { storePasswordRules } from "./src/features/store-access";
@@ -70,6 +72,7 @@ import type {
 } from "./src/types";
 export function LoginScreen({ openPrivacy }: { openPrivacy: () => void }) {
   const app = useEO();
+  const { width: largura } = useWindowDimensions();
   const [chapa, setChapa] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
@@ -89,63 +92,30 @@ export function LoginScreen({ openPrivacy }: { openPrivacy: () => void }) {
       else await SecureStore.deleteItemAsync("eo.saved-chapa");
     }
   };
-  return (
-    <Page
-      contentStyle={{
-        flexGrow: 1,
-        justifyContent: "center",
-        paddingHorizontal: 23,
-        paddingTop: 26,
-        paddingBottom: 28,
-        gap: 19,
-      }}
-    >
-      <View style={{ gap: 25 }}>
-        <View style={{ alignItems: "center", gap: 12, width: "100%" }}>
+  const largo = Platform.OS === "web" && largura >= 900;
+  const formulario = (
+    <>
+      <View style={{ gap: 8 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
           <Image
             source={require("./assets/eo-icon.png")}
             accessibilityLabel="EO, Excelência Operacional"
             accessible
-            resizeMode="contain"
-            style={{
-              width: "74%",
-              maxWidth: 248,
-              aspectRatio: 1,
-              borderRadius: 32,
-              // No navegador a proporção com largura percentual estica a imagem; usa tamanho fixo.
-              ...(Platform.OS === "web" ? { width: 168, height: 168 } : null),
-            }}
+            style={{ width: 44, height: 44, borderRadius: 11 }}
           />
-          <Text
-            style={{
-              color: C.dark,
-              fontSize: 16,
-              fontWeight: "800",
-              textAlign: "center",
-              letterSpacing: 1,
-            }}
-          >
-            EXCELÊNCIA OPERACIONAL
+          <Text style={{ color: C.muted, fontSize: 13, fontWeight: "600", letterSpacing: 0.3 }}>
+            Excelência Operacional
           </Text>
         </View>
-        <View style={{ gap: 9 }}>
-          <Badge warning>PLATAFORMA EO</Badge>
-          <Text style={s.title}>
-            Sua loja,{"\n"}
-            <Text style={{ color: C.dark }}>em sintonia.</Text>
-          </Text>
-          <Text style={s.detail}>
-            Comunicados, rotinas e ferramentas da equipe em um único espaço.
-          </Text>
-        </View>
+        <Text style={[s.title, { marginTop: 10 }]}>Acesse sua conta</Text>
+        <Text style={s.detail}>
+          Comunicados, rotinas e ferramentas da equipe em um único espaço.
+        </Text>
       </View>
-      <Card style={{ padding: 20, gap: 15, borderRadius: 22 }}>
-        <View>
-          <Text style={s.strong}>Acesse sua conta</Text>
-          <Text style={[s.small, { marginTop: 5 }]}>
-            Entre com sua chapa ou com o usuário da loja (ex.: ger006).
-          </Text>
-        </View>
+      <Card style={{ padding: 20, gap: 15 }}>
+        <Text style={s.small}>
+          Entre com sua chapa ou com o usuário da loja (ex.: ger006).
+        </Text>
         <Field
           label="Chapa ou usuário da loja"
           value={chapa}
@@ -216,6 +186,29 @@ export function LoginScreen({ openPrivacy }: { openPrivacy: () => void }) {
       <Text style={[s.small, { textAlign: "center" }]}>
         Acesso individual protegido · Excelência Operacional
       </Text>
+    </>
+  );
+  if (largo)
+    return (
+      <View style={{ flex: 1, flexDirection: "row", backgroundColor: C.canvas }}>
+        <FotoCapa
+          espaco="login"
+          arredondada={false}
+          altura={null}
+          style={{ flex: 1.1, height: "100%" as never }}
+          etiqueta="Excelência Operacional"
+          titulo={"Sua loja,\nem sintonia."}
+          subtitulo="Atendimento, rotina e resultado da equipe no mesmo lugar."
+        />
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 48, gap: 18, maxWidth: 520, width: "100%", alignSelf: "center" }}>
+          {formulario}
+        </ScrollView>
+      </View>
+    );
+  return (
+    <Page contentStyle={{ paddingTop: 8, paddingBottom: 28, gap: 18 }}>
+      <FotoCapa espaco="login" altura={230} titulo={"Sua loja,\nem sintonia."} />
+      {formulario}
     </Page>
   );
 }
@@ -1536,10 +1529,12 @@ export function ModulesScreen({
               />
             </Card>
           )}
-          {!feedLoading && !feedError && !checklistFeed.total && (
-            <Text style={s.small}>
-              Nenhum checklist para os filtros selecionados.
-            </Text>
+          {!feedLoading && !feedError && !checklistFeed.total && app.checklists.length > 0 && (
+            <EstadoVazio
+              espaco="checklists"
+              titulo="Nada com esses filtros"
+              texto="Troque a busca ou a situação para ver outras rotinas."
+            />
           )}
           <ChecklistFeedList
             items={checklistFeed.items}
@@ -1548,14 +1543,11 @@ export function ModulesScreen({
               setChecklistId(run.run_id);
             }}
           />
-          {!app.checklists.length && (
-            <Card>
-              <Text style={s.strong}>Sua lista de rotinas está vazia</Text>
-              <Text style={s.small}>
-                Quando um checklist for atribuído à sua loja, ele aparecerá aqui
-                com o estágio de andamento.
-              </Text>
-            </Card>
+          {!app.checklists.length && !feedLoading && (
+            <EstadoVazio
+              titulo="Tudo em dia por aqui"
+              texto="Quando um checklist for atribuído à sua loja, ele aparece aqui com o andamento."
+            />
           )}
           <View
             style={{
@@ -3275,6 +3267,22 @@ export function ProfileScreen({ openPrivacy }: { openPrivacy: () => void }) {
           onPress={() => void security.configure(!security.enabled)}
         />
       </Group>
+      {workspace.person.role === "admin" && (
+        <>
+          <Section title="Administração" />
+          <Group>
+            <MenuItem
+              title="Aparência e fotos"
+              detail="Fotos do login, Início, módulos e telas vazias"
+              icon="paintbrush.fill"
+              color="#8A6D1F"
+              tint="#FBF2A3"
+              last
+              onPress={() => router.push("/appearance" as never)}
+            />
+          </Group>
+        </>
+      )}
       <Section title="Lojas" />
       <Group>
         <MenuItem
@@ -3430,13 +3438,8 @@ export function PrivacyScreen({ back }: { back: () => void }) {
 }
 
 function Empty({ title, detail }: { title: string; detail: string }) {
-  return (
-    <Card style={{ alignItems: "center", paddingVertical: 25 }}>
-      <Text style={{ color: C.yellowStrong, fontSize: 25 }}>◈</Text>
-      <Text style={s.strong}>{title}</Text>
-      <Text style={[s.small, { textAlign: "center" }]}>{detail}</Text>
-    </Card>
-  );
+  // Estado vazio com foto (21/11/2026); a foto vem do espaço "vazio", trocável pelo admin.
+  return <EstadoVazio titulo={title} texto={detail} />;
 }
 
 const roleLabels: Record<Role, string> = {

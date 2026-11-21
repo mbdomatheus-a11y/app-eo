@@ -29,3 +29,16 @@ Cores mantidas: as atuais do EO em `mobile/src/ui.tsx` (`C.dark #4A4E58`, `C.ink
 - Módulos sem suporte web: biometria, câmera de código de barras, agenda nativa, WebView da Escala e Vendas, cache offline criptografado. Tratar tela a tela antes de trocar o deploy.
 - Menu lateral para tela larga no site e demais telas no novo layout.
 - Trocar a Vercel para `mobile` (`npx expo export --platform web`, saída `dist`, reescrita para `index.html`) só depois da paridade.
+
+## Etapa 2: visual estilo Apple e fotos (21/11/2026)
+
+Decisões do Matheus: claro com destaque EO (sem modo escuro agora, que exigiria build), fotos no login, banner do Início, capa de cada módulo e telas vazias, banco e tela de admin já criados, barra lateral estilo Mac no site.
+
+- Tokens em `mobile/src/ui.tsx` e `mobile/src/design.tsx`: neutros do iOS (#F5F5F7, #1D1D1F, #6E6E73), cartões sem borda com sombra leve, campos preenchidos, botões e escolhas em pílula, títulos grandes.
+- `mobile/src/features/aparencia.tsx`: fotos padrão em `mobile/assets/fotos` (Unsplash, créditos em `CREDITOS.md`), `FotoCapa`, `CapaModulo`, `EstadoVazio` e leitura das trocas do admin com cache local.
+- `mobile/src/features/AparenciaAdmin.tsx` e rota `/appearance`: em Mais, Administração, Aparência e fotos (só admin). Trocar foto, posição (topo, centro, base) e voltar ao padrão.
+- `mobile/src/navigation/Sidebar.tsx`: no site com 900 px ou mais, barra lateral com Visão geral, Comunicados, Aplicativos, módulos por grupo e conta. Barra inferior some nessa largura.
+- Login novo (foto ao lado no site, foto no topo no celular), Início com banner e saudação, capa com foto na tela principal de cada módulo, componente `Empty` usando a foto de tela vazia.
+- Banco: migration `202611210001_aparencia_fotos` aplicada em 21/11/2026 após dry run (plpgsql_check sem avisos). Conferido: tabela sem acesso direto, leitura anônima só pela RPC, escrita bloqueada para anon, 4 políticas no storage.
+- Fingerprint igual ao anterior (Android `a36da32f…`, iOS `ede61a46…`): vai por OTA. Degradê das fotos feito com camadas, sem `expo-linear-gradient`, para não exigir build.
+- Verificado: `tsc` sem erros novos, `expo export --platform web` ok, capturas do login, Início, lista de checklists, estado vazio, tela do admin e barra lateral em desktop e celular (dados de exemplo, sem login real).

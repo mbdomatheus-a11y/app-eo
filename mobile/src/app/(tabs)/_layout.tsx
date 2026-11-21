@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useEO } from "../../providers/eo-provider";
 import { AppIcon, C } from "../../ui";
 import { ATALHOS, MODULOS, acaoPrincipal } from "../../features/module-catalog";
+import { useTelaLarga } from "../../navigation/Sidebar";
 
 type Acao = { id: string; titulo: string; detalhe: string; icone: string; rota: string; principal?: boolean };
 // Menu do botão central (19/11/2026): primeiro a ação principal do contexto (especificação), depois os
@@ -171,9 +172,11 @@ function Barra({ state, navigation }: BottomTabBarProps) {
 }
 
 export default function TabLayout() {
+  // No site em tela larga a navegação fica na barra lateral (Sidebar), sem barra inferior.
+  const telaLarga = useTelaLarga();
   return (
     <Tabs
-      tabBar={(props) => <Barra {...props} />}
+      tabBar={(props) => (telaLarga ? null : <Barra {...props} />)}
       screenOptions={{ headerShown: false, animation: "fade", lazy: true, freezeOnBlur: true }}
     >
       <Tabs.Screen name="index" options={{ title: "Início" }} />
@@ -241,7 +244,7 @@ const styles = StyleSheet.create({
   folhaTitulo: { fontSize: 13, fontWeight: "700", color: C.muted, paddingHorizontal: 8, paddingVertical: 6 },
   acao: { flexDirection: "row", alignItems: "center", gap: 12, padding: 10, borderRadius: 14 },
   pilula: { paddingHorizontal: 18, paddingVertical: 4, borderRadius: 16 },
-  pilulaAtiva: { backgroundColor: C.yellow },
+  pilulaAtiva: { backgroundColor: C.fill },
   principal: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 16, backgroundColor: C.dark, marginBottom: 6 },
   principalIcone: { width: 42, height: 42, borderRadius: 13, backgroundColor: C.yellow, alignItems: "center", justifyContent: "center" },
   principalTitulo: { fontSize: 16, fontWeight: "800", color: C.paper },

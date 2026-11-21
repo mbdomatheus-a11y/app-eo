@@ -1,6 +1,6 @@
 // Navegação em blocos (19/11/2026, pedido de Matheus para melhorar menus e botões).
 // Grade de módulos com alvos grandes, cartões de pendência com número em destaque e cor por grupo.
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, Platform, useWindowDimensions } from "react-native";
 import { AppIcon, C } from "../ui";
 
 export const CORES_GRUPO: Record<string, { cor: string; fundo: string }> = {
@@ -13,6 +13,9 @@ const PADRAO = { cor: C.dark, fundo: "#F0F0F3" };
 export type Bloco = { chave: string; titulo: string; icone: string; moduleId?: string; grupo?: string; badge?: number; abrir: () => void };
 
 export function GradeBlocos({ itens }: { itens: Bloco[] }) {
+  // Na tela larga do site os blocos têm largura fixa; no celular, três por linha.
+  const { width } = useWindowDimensions();
+  const largo = Platform.OS === "web" && width >= 700;
   return (
     <View style={e.grade}>
       {itens.map((b) => {
@@ -23,7 +26,7 @@ export function GradeBlocos({ itens }: { itens: Bloco[] }) {
             accessibilityRole="button"
             accessibilityLabel={b.badge ? `${b.titulo}, ${b.badge} pendentes` : b.titulo}
             onPress={b.abrir}
-            style={({ pressed }) => [e.bloco, pressed && e.pressionado]}
+            style={({ pressed }) => [e.bloco, largo && { width: 160 }, pressed && e.pressionado]}
           >
             <View style={[e.icone, { backgroundColor: tom.fundo }]}>
               <AppIcon name={b.icone} moduleId={b.moduleId} size={24} color={tom.cor} />
@@ -72,17 +75,20 @@ export function CartoesPendencia({ itens }: { itens: Pendencia[] }) {
 const e = StyleSheet.create({
   grade: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   bloco: {
-    width: "31.5%",
+    width: "31%",
     minHeight: 108,
     backgroundColor: C.paper,
     borderRadius: 20,
     padding: 12,
     gap: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#E5E6EB",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 1,
   },
-  icone: { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  titulo: { color: C.ink, fontSize: 13.5, lineHeight: 17, fontWeight: "700" },
+  icone: { width: 46, height: 46, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  titulo: { color: C.ink, fontSize: 14, lineHeight: 18, fontWeight: "600", letterSpacing: -0.2 },
   badge: {
     position: "absolute",
     top: -6,
@@ -106,11 +112,14 @@ const e = StyleSheet.create({
     borderRadius: 20,
     padding: 14,
     justifyContent: "space-between",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#E5E6EB",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 1,
   },
-  cartaoAtivo: { backgroundColor: C.yellow, borderColor: C.yellowStrong },
-  numero: { color: C.ink, fontSize: 28, fontWeight: "800", letterSpacing: -0.5 },
+  cartaoAtivo: { backgroundColor: C.yellow },
+  numero: { color: C.ink, fontSize: 30, fontWeight: "700", letterSpacing: -0.8 },
   rotulo: { color: C.dark, fontSize: 12.5, lineHeight: 16, fontWeight: "600" },
   pressionado: { opacity: 0.7, transform: [{ scale: 0.98 }] },
 });

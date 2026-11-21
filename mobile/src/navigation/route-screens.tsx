@@ -6,6 +6,9 @@ import { MoodReminderBanner } from "../features/MoodReminderBanner";
 import { useMoodDeferral } from "../features/mood-deferral";
 import { SuccessToast, SuccessToastHost } from "../features/SuccessToast";
 import { ScreenTitle, Group, MenuItem, Tile } from "../design";
+import { CapaModulo, FotoCapa, saudacao, type EspacoFoto } from "../features/aparencia";
+
+const ROTAS_COM_CAPA = ["agenda", "escala", "sales", "product", "assortment", "diary", "mood", "checklists", "reports"];
 import { useEffect, type ReactNode } from "react";
 import {
   Redirect,
@@ -154,6 +157,12 @@ export function RouteFrame({
     !item.seen_at && !item.dismissed_at &&
     (item.data?.type !== "mood" || (moodDeferral.loaded && !moodDeferral.deferred && moodDeferral.answeredDate !== item.data?.date)),
   );
+  // Capa com foto só na tela principal de cada módulo (21/11/2026).
+  const segmentos = pathname.split("/").filter(Boolean);
+  const capa =
+    !tabs && !noHeader && segmentos.length === 1 && ROTAS_COM_CAPA.includes(segmentos[0])
+      ? MODULOS.find((m) => m.id === routeModule)
+      : undefined;
   const edges = home
     ? (["top", "left", "right"] as const)
     : tabs
@@ -269,6 +278,7 @@ export function RouteFrame({
           </View>
         </View>
       )}
+      {capa && <CapaModulo espaco={capa.id as EspacoFoto} titulo={capa.titulo} detalhe={capa.detalhe} />}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -419,7 +429,13 @@ export function HomeRoute() {
   return (
     <RouteFrame tabs>
       <Page>
-        <ScreenTitle title={primeiroNome ? `Olá, ${primeiroNome}` : "Início"} subtitle={contexto} />
+        <FotoCapa
+          espaco="inicio"
+          altura={Platform.OS === "web" ? 280 : 220}
+          etiqueta={saudacao()}
+          titulo={primeiroNome ? `Olá, ${primeiroNome}` : "Início"}
+          subtitulo={contexto}
+        />
         <Section title="Para fazer agora" />
         <CartoesPendencia itens={pendencias} />
         {atalhos.length > 0 && (
